@@ -1,0 +1,137 @@
+# Matriz — Constraints, Assumptions and Pending Decisions
+
+> **Status:** draft, pending client validation. Requirements are in [requirements.md](requirements.md) and user stories in [user-stories.md](user-stories.md).
+
+## Known constraints
+
+These are facts about the situation, not assumptions.
+
+| ID | Constraint |
+|---|---|
+| KC-01 | The client is not available to answer clarification questions. While that is the case, the project decision-maker makes pending decisions and confirms or rejects assumptions. Everything beyond the known facts (KF-01 to KF-06 in [requirements.md](requirements.md#known-facts)) and the items marked **Confirmed** below is an assumption until confirmed. |
+| KC-02 | The only sources are the client's one-sentence description and the project description. |
+| KC-03 | No technologies, architecture or code have been chosen at this stage. Open choices are listed under [Pending technical decisions](#pending-technical-decisions). |
+| KC-04 | No budget has been given. The working assumption is AQ29. |
+| KC-05 | No timeline has been given. The working assumption is AQ30. |
+| KC-06 | The legal availability of the name "Matriz" has not been checked. The working assumption is AQ33. |
+| KC-07 | No decision-maker other than the client has been identified. The working assumption is AQ21. While the client is unavailable, decisions are made by the project decision-maker (KC-01). |
+
+## Assumptions made
+
+Every row is an **assumption** unless it is marked **Confirmed**; confirmed rows are recorded in the [decision log](#decision-log). AQ numbers match the clarification questions Q1–Q33 from the initial analysis. They replace the initial analysis's provisional assumptions A1–A8: A1 → AQ22, A2 and A6 → AQ3, A3 → AQ7 and AQ8, A4 → AQ21, A5 → AQ20, A7 → AQ13, A8 → AQ33.
+
+| ID | Assumption | Rationale | Used in |
+|---|---|---|---|
+| AQ1 | Teams lose track of who does what and by when, because work is scattered across email, chat and spreadsheets. | The most common problem these platforms solve; consistent with KF-06. | Vision, OBJ-01 |
+| AQ2 | Success in year one means pilot teams run their day-to-day work in Matriz, for example most of their tasks tracked there over three months. Revenue comes later. | Real, repeated use is the first meaningful signal for a new product. | OBJ-05, MVP scope |
+| AQ3 | **Confirmed 2026-10-29.** Matriz is a product for other organizations. The first release goes to a small group of pilot teams. | A branded "platform" suggests a product for others. A pilot limits risk. | OBJ-05, F46 out of scope |
+| AQ4 | Customers will eventually pay a recurring subscription. The MVP has no billing. | Charging is only needed once the product is proven. | F46 out of scope, NFR-10 |
+| AQ5 | Target users currently rely on spreadsheets, email and chat, or find general project tools too complex. | Typical for small and medium teams. | OBJ-01 |
+| AQ6 | **Confirmed 2026-10-29.** Matriz stands out through simplicity: quick to start, no training, progress visible at a glance. Previously the highest-risk assumption. | A new product can't compete on number of features. | OBJ-04, NFR-07 |
+| AQ7 | **Confirmed 2026-10-29.** Users are work teams of roughly 5–50 people doing office or knowledge work. | Consistent with KF-05. This is where informal tools stop working. | User types |
+| AQ8 | Each organization has one workspace containing one or several small teams. Large multi-department organizations are a later target. | Keeps permissions and structure simple. | FR-02, F08 out of scope |
+| AQ9 | Users have average digital skills. Matriz must be usable without training. | Fits AQ6 and the varied backgrounds of team members. | NFR-07 |
+| AQ10 | One interface language and one primary market at launch. The name suggests a Portuguese- or Spanish-speaking audience. | Keeps the first release small. | NFR-09, PD-13, F49 out of scope |
+| AQ11 | **Confirmed 2026-10-29.** Four roles: Workspace Administrator, Project Manager, Team Member, Viewer. External Guests come later. | Covers set-up, planning, doing the work, and following progress. | User types, FR-04, FR-05, F07 out of scope |
+| AQ12 | Daily use: Team Members see tasks due soon, update status and comment. Project Managers create and assign tasks, check progress and follow up on overdue work. | The minimum daily loop that delivers the core value. | FR-12 to FR-19 |
+| AQ13 | A project is a body of work with a goal and an end date. A task is one action with one owner and a deadline. | The most widely understood business meaning. | FR-06, FR-09, FR-10 |
+| AQ14 | Current pain points: unclear ownership, lost updates, no single overview. | Follows from AQ5. | OBJ-02, FR-10, FR-16 |
+| AQ15 | No connections to other tools in the MVP. | Not part of the core value. | F48 out of scope |
+| AQ16 | Managers mainly need each project's progress, its overdue tasks, and who is responsible for what. | Partly confirmed by KF-06. | OBJ-03, FR-18, FR-19 |
+| AQ17 | **Confirmed 2026-10-29.** The top three capabilities are organizing work, assigning responsibility and due dates, and seeing progress. | Matches KF-03, KF-06 and AQ1. | MVP scope |
+| AQ18 | Board, calendar and timeline views, subtasks, attachments, reminders, reports, guests and integrations can wait. | Not needed to prove the core value. | Features outside the initial scope |
+| AQ19 | Matriz won't include team chat, time tracking or invoicing, file storage, or financial or budget management. File attachments on tasks (F32) are an exception and don't count as file storage (decided 2026-10-29). | Separate product categories that would weaken AQ6. | Scope limitations |
+| AQ20 | The client wants help across the whole journey, starting with defining and validating the MVP. | The usual meaning of "help me develop it". | README status |
+| AQ21 | The client is the final decision-maker. | No one else was mentioned. | KC-07 |
+| AQ22 | Nothing exists yet. Matriz is built from scratch. | "Create" suggests something new. | README status |
+| AQ23 | Matriz stores projects, tasks, comments, and members' names and email addresses. This is moderately confidential. There is no payment data and no especially sensitive personal data. | That is what task management involves. | NFR-10, SP-06 |
+| AQ24 | Matriz follows strict general data-protection rules, such as the EU's GDPR. | A safe default for most markets. | NFR-01, NFR-02, SP-02, SP-05 |
+| AQ25 | The pilot has tens of teams and up to a few hundred users. Growth to thousands is possible within one to three years. | Realistic for a new product. | NFR-05 |
+| AQ26 | Matriz is used mainly on computers at work. Phone use comes later. Offline use is not planned. | Planning is mostly desk work for these users. | NFR-08, F50 and F51 out of scope |
+| AQ27 | Reliable availability during working hours. Brief interruptions are tolerable. Loss of saved work is not. | Lost data would destroy trust. | NFR-03, NFR-04 |
+| AQ28 | Common accessibility practice from the start: readable text, full use without a mouse, no reliance on colour alone. | Low cost if done early, and expected by law in some markets. | NFR-06, FR-19 |
+| AQ29 | The budget is limited. | Typical for a new product; supports a small MVP. | KC-04 |
+| AQ30 | First release within a few months, with no fixed external deadline. | No deadline was mentioned. | KC-05 |
+| AQ31 | No existing brand material and no data to import. | Nothing existing was mentioned. | F47 out of scope |
+| AQ32 | The client will need a small support team after launch. | Pilot feedback is needed to validate these assumptions. | FR-20, FR-21 |
+| AQ33 | "Matriz" is the working name. | Its legal availability is unchecked. | KC-06 |
+
+## Security and privacy requirements
+
+Each item refers to the requirement that defines it, so the details live in one place.
+
+| ID | Requirement | Defined in |
+|---|---|---|
+| SP-01 | Workspace content is only available to signed-in members. | FR-01 |
+| SP-02 | Each organization can see and change only its own data. | NFR-01 |
+| SP-03 | What a member can see and change is set by their role. Viewers are read-only. | FR-04, FR-05 |
+| SP-04 | Deactivated members can no longer access the workspace. | FR-03 |
+| SP-05 | Members can request a copy or the deletion of their personal data, under strict data-protection rules. The customer organization owns the data stored in its workspace (decided 2026-10-29). | FR-21, NFR-02 |
+| SP-06 | The MVP stores no payment data. | NFR-10 |
+| SP-07 | A workspace always keeps at least one Workspace Administrator. | [EC-03](user-stories.md#relevant-edge-cases-and-expected-behavior) |
+
+## Pending technical decisions
+
+None of these has been decided. Each must be decided in the design stage so that it meets the requirement it supports.
+
+| ID | Decision to make | Supports |
+|---|---|---|
+| TD-01 | How users access Matriz on computers | NFR-08 |
+| TD-02 | Where data is stored and hosted, including the geographic region | NFR-01, NFR-02 |
+| TD-03 | How accounts are created and how sign-in works | FR-01, SP-01 |
+| TD-04 | How invitation emails are sent | FR-03 |
+| TD-05 | How saved work is protected against loss (backup and recovery) | NFR-03 |
+| TD-06 | How availability and capacity targets are met and monitored, once set | NFR-04, NFR-05 |
+| TD-07 | How simultaneous edits to the same task are handled, once the product rule is decided | EC-07, PD-11 |
+| TD-08 | How in-app notifications are delivered | FR-17 |
+| TD-09 | How personal-data requests are received and fulfilled in the MVP | FR-21 |
+
+## Scope limitations
+
+- The MVP is limited to FR-01 to FR-21. Features planned for later are listed in [requirements.md](requirements.md#features-outside-the-initial-scope).
+- These product categories are excluded entirely: team chat, time tracking, invoicing, file storage, and financial or budget management (AQ19). File attachments on tasks (F32, outside the initial scope) are an exception and don't count as file storage.
+- The MVP is for use on computers, in one language, with no billing, no imports, and no connections to other tools (AQ4, AQ10, AQ15, AQ26, AQ31).
+- The specifications only define behavior that the assumptions support. Everything else is listed as a pending product decision below.
+
+### Pending product decisions
+
+These need a human decision, ideally the client's. While the client is unavailable, the project decision-maker decides (KC-01). Decisions already made are in the [decision log](#decision-log).
+
+| ID | Decision | Affects |
+|---|---|---|
+| PD-01 | Whether Team Members can edit, change the status of, or assign tasks they don't own. (Task creation and deletion were decided on 2026-10-29; see the decision log.) | FR-09, FR-10, FR-12, US-10, US-11 |
+| PD-02 | Which roles a Project Manager can give when inviting, and whether Project Managers can deactivate members. | FR-03, FR-04, US-03 |
+| PD-03 | Whether a member can hold more than one role, or whether the Workspace Administrator role includes Project Manager permissions. | FR-04, user types |
+| PD-04 | Whether due date and description are required, and the maximum title length. | FR-09, FR-11, US-10, EC-06 |
+| PD-05 | Which statuses a project can have (F11), and what archiving a project changes (F09). | FR-06, FR-08, US-07, US-09 |
+| PD-06 | Whether a Done task can move back to an earlier status, and whether Done tasks appear in "My tasks". | FR-12, FR-14, US-11, US-13 |
+| PD-07 | Whether progress shows a percentage as well as the count, and the rounding rule. | FR-18, US-17 |
+| PD-08 | Which time zone decides "today" for overdue marking, and where tasks without a due date are ordered. | FR-14, FR-19, US-13, US-18, EC-06 |
+| PD-09 | Whether invitations can be resent, whether they expire, and how pending invitations are shown. | FR-03, EC-02 |
+| PD-10 | What happens to tasks owned by deactivated members or by people removed from a project. | FR-03, FR-07, EC-04, EC-09 |
+| PD-11 | Which change wins when two people edit the same task at the same time. | FR-12, EC-07 |
+| PD-12 | Whether members are notified of their own actions, for example assigning a task to themselves. | FR-17, US-16 |
+| PD-13 | The launch language. | NFR-09 |
+| PD-15 | Numeric targets for data-request response time, availability, capacity, accessibility conformance and learnability. | NFR-02, NFR-04, NFR-05, NFR-06, NFR-07 |
+| PD-16 | Whether one account can be a member of more than one workspace, and whether the person who creates a workspace automatically becomes its Workspace Administrator. | FR-01, FR-02, FR-14, NFR-01 |
+| PD-17 | Whether a Viewer who owns a task can change its status or comment on it. FR-05 currently forbids both. | FR-05, FR-10, FR-12, FR-16, US-19 |
+| PD-18 | Whether the rule "a member can delete what they created, not what others created" also sets what a personal-data deletion request removes, and what happens when the only Workspace Administrator asks for their data to be deleted. | FR-09, FR-21, EC-03, SP-07 |
+| PD-19 | How the identity of someone making a personal-data request is verified, and which workspace data support staff may access when handling it. | FR-21, NFR-02, SP-05, TD-09 |
+
+PD-14 has been resolved and is recorded in the decision log. Its ID is not reused.
+
+### Decision log
+
+Decisions made by a person, recorded under AGENTS.md D2. Approvers are recorded by role.
+
+| Date | Decision | Approved by | Resolves | Updated in |
+|---|---|---|---|---|
+| 2026-10-29 | The client endorsed the project description, so KF-05 and KF-06 are facts. | Project decision-maker | — | requirements.md (Known facts) |
+| 2026-10-29 | While the client is unavailable, the project decision-maker makes pending decisions and answers agents' questions. | Project decision-maker | — | KC-01, KC-07, AGENTS.md (S4, W2) |
+| 2026-10-29 | AQ3, AQ6, AQ7, AQ11 and AQ17 are confirmed. | Project decision-maker | PD-14 | Assumptions table, OBJ-04, OBJ-05, NFR-07, User types, Vision, MVP scope, README status |
+| 2026-10-29 | Any user can create a workspace. Each account belongs to one person only. | Project decision-maker | — | FR-01, FR-02 |
+| 2026-10-29 | Viewers can be project members and task owners. | Project decision-maker | — | FR-07, FR-10 |
+| 2026-10-29 | Team Members can create tasks, and can see projects they are not members of. | Project decision-maker | PD-01 (in part) | FR-08, FR-09 |
+| 2026-10-29 | A member can delete the tasks they created, but not tasks created by others. | Project decision-maker | PD-01 (in part) | FR-09 |
+| 2026-10-29 | The customer organization owns the data stored in its workspace. | Project decision-maker | — | SP-05 |
+| 2026-10-29 | File attachments on tasks (F32) are an exception to the "no file storage" exclusion. | Project decision-maker | — | AQ19, Scope limitations |
