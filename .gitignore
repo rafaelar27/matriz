@@ -1,0 +1,15 @@
+# Operating system files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor and IDE settings (personal, machine-specific)
+.idea/
+.vscode/
+*.swp
+*~
+
+# Local secrets and environment settings (C2: never commit credentials)
+# Assumption: ".env" is a common naming convention, not a decided technology.
+.env
+.env.*
