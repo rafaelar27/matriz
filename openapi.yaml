@@ -10,7 +10,7 @@ info:
 
     **Status:** draft, written on 2026-11-05. It is implementation-agnostic: no
     language, framework, data store, hosting provider or authentication product
-    has been chosen (KC-03, TD-01 to TD-09).
+    has been chosen (KC-03, TD-01 to TD-12).
 
     **Sources of truth:** docs/requirements.md (FR, NFR), docs/user-stories.md
     (US, AC, EC), docs/constraints.md (AQ, SP, TD, PD), docs/architecture.md
@@ -34,9 +34,9 @@ info:
     **Pending decisions that this specification deliberately leaves open:**
     - **PD-01:** whether a Team Member may create a task owned by someone else,
       and whether non-owners may change a task's status.
-    - **Project membership of the creator:** whether a member must belong to the
-      project to create a task in it (not stated by FR-09 or FR-07).
-    - **Blank titles:** whether a title of spaces only is rejected (FR-09, BR-10
+    - **PD-20:** whether a member must belong to the project to create a task
+      in it (not stated by FR-09 or FR-07).
+    - **PD-21:** whether a title of spaces only is rejected (FR-09, BR-10
       only say the title is required). This draft rejects only an empty title.
     - **PD-04:** maximum title length; whether description and due date are required.
     - **PD-05:** whether tasks can be created or changed in an archived project.

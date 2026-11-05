@@ -8,7 +8,7 @@ The MVP is limited to FR-01 to FR-21 and NFR-01 to NFR-10 ([MVP scope](requireme
 
 | Force | Source | Status |
 |---|---|---|
-| The development team is one person, the project decision-maker. | Stated by the project decision-maker on 2026-11-05 | Stated input, not yet recorded in constraints.md |
+| The development team is one person, the project decision-maker. | KC-08 | Fact |
 | The budget is limited. | KC-04, AQ29 | **Assumption** |
 | The first release is expected within a few months, with no fixed deadline. | KC-05, AQ30 | **Assumption** |
 | The pilot has tens of teams and up to a few hundred users; growth to thousands is possible within one to three years. | NFR-05, AQ25 | **Assumption** |
@@ -16,7 +16,7 @@ The MVP is limited to FR-01 to FR-21 and NFR-01 to NFR-10 ([MVP scope](requireme
 | No successfully saved change is lost. | NFR-03 | Requirement (basis: AQ27, **assumption**) |
 | Availability during working hours; brief interruptions are tolerable. | NFR-04 | Requirement (basis: AQ27, **assumption**); target pending PD-15 |
 | Strict data-protection rules apply; personal-data requests may be handled manually. | NFR-02, FR-21 | Requirement (basis: AQ24, **assumption**) |
-| The product will change after the pilot: 18 product decisions are still pending, and 30 features are planned for later releases. | [Pending product decisions](constraints.md#pending-product-decisions), [Features outside the initial scope](requirements.md#features-outside-the-initial-scope), OBJ-05 | Fact about the documentation |
+| The product will change after the pilot: 23 product decisions are still pending, 27 features are planned for later releases and 3 are not planned. | [Pending product decisions](constraints.md#pending-product-decisions), [Features outside the initial scope](requirements.md#features-outside-the-initial-scope), OBJ-05 | Fact about the documentation |
 | No technology has been chosen. | KC-03 | Fact |
 
 The last two forces matter as much as the first: the MVP must be cheap to build and run, and it must also be easy to change once the pending decisions are made and pilot feedback arrives.
@@ -33,7 +33,7 @@ Three architectural styles were compared using the same seven criteria.
 |---|---|---|---|
 | **Development complexity** | Lowest at the start. | Low. Requires discipline to keep module boundaries, a small cost up front. | High. Network calls, distributed data, and workspace isolation (NFR-01) and permissions (FR-04) repeated in every service. |
 | **Speed of delivery** | Fastest start. | Nearly as fast as a monolith. | Slowest: deployment, monitoring and inter-service communication must exist before the first feature ships (conflicts with AQ30). |
-| **Maintainability** | Degrades as features are added: permission rules and data access spread across the code. Risky given 18 pending decisions and 30 later features. | Good. Most pending decisions change one module (for example PD-01, PD-02 and PD-17 change Access Control). Later features have a natural place. | Strong boundaries, but decisions that span several FRs (most PDs do) need coordinated changes across services. |
+| **Maintainability** | Degrades as features are added: permission rules and data access spread across the code. Risky given 23 pending decisions and 27 later features. | Good. Most pending decisions change one module (for example PD-01, PD-02 and PD-17 change Access Control). Later features have a natural place. | Strong boundaries, but decisions that span several FRs (most PDs do) need coordinated changes across services. |
 | **Scalability** | Scales as a whole unit. Enough for the pilot load (NFR-05, AQ25). | Same as a monolith. A module can be extracted later if it alone needs to scale. | Independent scaling per service, which the pilot load (NFR-05, AQ25) does not need. |
 | **Operational and deployment effort** | Lowest: one unit, one data store. | Lowest: one unit, one data store. Manageable by one person. | Highest: many deployable units, each to monitor, secure and back up. Not manageable by one person on a limited budget (AQ29), and each service is a new point of failure for NFR-04. |
 | **Testing** | Simple end-to-end tests. Isolating business rules gets harder over time. | Modules can be tested in isolation and end-to-end. NFR-01 and NFR-03 can be checked at one data-access boundary. | Hardest: contract and integration testing across services. NFR-03 is harder without a single transaction, for example deleting a task while keeping progress counts correct (AC-17.3). |
@@ -66,13 +66,13 @@ The modules follow four rules:
 
 ### Why the other options were rejected
 
-- **Monolith:** it would be marginally faster to start, but nothing would stop permission checks, workspace scoping and task rules from spreading across the code. With 18 pending decisions and 30 later features, that would make every change riskier, especially for NFR-01 and SP-03, where a missed check is a data leak.
+- **Monolith:** it would be marginally faster to start, but nothing would stop permission checks, workspace scoping and task rules from spreading across the code. With 23 pending decisions and 27 later features, that would make every change riskier, especially for NFR-01 and SP-03, where a missed check is a data leak.
 - **Microservices:** they solve problems Matriz does not have yet (independent scaling, many teams releasing in parallel) and add costs it cannot carry: several deployable units for one person, network failures that threaten NFR-04, and cross-service consistency that threatens NFR-03.
 
 ### Trade-offs and risks accepted
 
 - **The whole unit scales and fails together.** A fault in one module can affect all of Matriz. This is accepted because NFR-04 tolerates brief interruptions (AQ27, **assumption**).
-- **Boundaries depend on discipline.** Nothing in the deployment stops one module from reaching into another. How boundaries are checked is a pending decision (proposed TD-12).
+- **Boundaries depend on discipline.** Nothing in the deployment stops one module from reaching into another. How boundaries are checked is a pending decision (TD-12).
 - **All modules are released together.** A change to one module means redeploying the whole unit. With one developer, this costs little.
 - **A small up-front cost.** Defining interfaces and data ownership takes slightly more effort than a plain monolith.
 
@@ -240,9 +240,9 @@ None of these is decided by this document. The architectural style narrows each 
 
 ### Technical decisions raised by this document
 
-These are not yet in constraints.md. They are proposed as new IDs (see the task report).
+These are registered under [Pending technical decisions](constraints.md#pending-technical-decisions) in constraints.md.
 
-| Proposed ID | Decision |
+| ID | Decision |
 |---|---|
 | TD-10 | Programming language and application framework for the deployable unit. |
 | TD-11 | Type of data store, for example how it supports saving related changes together (NFR-03) and workspace scoping (NFR-01). TD-02 covers only where data is stored. |

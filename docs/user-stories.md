@@ -27,6 +27,11 @@
 | US-19 | **As a** Viewer, **I want** to see all of the workspace's projects and tasks without being able to change them, **so that** I can follow progress without risk of accidental edits. |
 | US-20 | **As a** Team Member, **I want** to send feedback from inside Matriz, **so that** I can report a problem or suggest an improvement. |
 | US-21 | **As a** Team Member, **I want** to request a copy or the deletion of my personal data, **so that** my data-protection rights are respected. |
+| US-22 | **As a** Team Member, **I want** to create a personal account, **so that** I can sign in and take part in a workspace. *(Sign-up method: TD-03.)* |
+| US-23 | **As a** Project Manager, **I want** to invite a colleague to the workspace by email address, **so that** they can join the work I am organizing. *(Roles a Project Manager may give: PD-02.)* |
+| US-24 | **As a** Project Manager, **I want** to edit a project's name, description, owner, start date and due date, **so that** the project reflects current plans. |
+| US-25 | **As a** Team Member, **I want** to edit a task, **so that** its details stay correct. *(Who may edit which tasks: PD-01.)* |
+| US-26 | **As a** Team Member, **I want** to delete a task I created, **so that** tasks that are no longer needed don't clutter the project. |
 
 ## Priorities (MoSCoW)
 
@@ -34,14 +39,14 @@ Each story takes the priority of its primary functional requirement. US-19 trace
 
 | Priority | Stories |
 |---|---|
-| Must have | US-01, US-02, US-03, US-04, US-05, US-06, US-07, US-08, US-09, US-10, US-11, US-12, US-13, US-15, US-16, US-17, US-18, US-21 |
+| Must have | US-01, US-02, US-03, US-04, US-05, US-06, US-07, US-08, US-09, US-10, US-11, US-12, US-13, US-15, US-16, US-17, US-18, US-21, US-22, US-23, US-24, US-25, US-26 |
 | Should have | US-14, US-19, US-20 |
 | Could have | None. Could-have features are outside the initial scope. |
 | Won't have (for now) | None |
 
 ## Acceptance criteria
 
-Every story is in the MVP. The seven stories below carry the core value and have Given / When / Then criteria. Names (Ana, Ben, Carla) and dates are test data. "Today" means the date the test is run.
+Every story is in the MVP. The seven stories US-03, US-10, US-11, US-13, US-17, US-18 and US-19 carry the core value and have Given / When / Then criteria. US-23 to US-26 have criteria for the parts of FR-03, FR-06 and FR-09 that are already decided. US-22 has none yet, because the sign-up method is pending (TD-03). Names (Ana, Ben, Carla) and dates are test data. "Today" means the date the test is run.
 
 ### US-03: Invite a member with a role
 
@@ -94,6 +99,26 @@ Every story is in the MVP. The seven stories below carry the core value and have
 - **AC-19.2 (permission):** **Given** I am a Viewer, **when** I open any project or task in W, **then** no options are available to create, edit, delete or archive projects or tasks, change a task's status or owner, or add a comment.
 - **AC-19.3 (progress visible):** **Given** I am a Viewer and project P shows "2 of 8 tasks done" to its Project Manager, **when** I view P in the project list, **then** I see the same "2 of 8 tasks done".
 
+### US-23: Project Manager invites a member
+
+- **AC-23.1 (success):** **Given** I am signed in as a Project Manager of workspace W, **when** I enter the email address `ana@example.com`, which doesn't belong to any member of W, and send the invitation, **then** an invitation is delivered to `ana@example.com`, and after Ana accepts it she appears in W's member list.
+- **Pending:** which roles a Project Manager may give an invitee (PD-02).
+
+### US-24: Edit a project
+
+- **AC-24.1 (success):** **Given** I am a Project Manager and project P has due date 2026-12-15, **when** I change P's due date to 2026-12-22 and save, **then** the project list shows P with due date 2026-12-22.
+- **Pending:** whether archived projects can be edited (PD-05).
+
+### US-25: Edit a task
+
+- **AC-25.1 (validation):** **Given** I am editing task T, **when** I clear its title and try to save, **then** the change is not saved and a message states that a title is required (FR-09).
+- **Pending:** who may edit which tasks (PD-01). Whether a title of spaces only is rejected (PD-21).
+
+### US-26: Delete a task I created
+
+- **AC-26.1 (success):** **Given** I created task T in project P, **when** I delete T, **then** T no longer appears in P's task list. The effect on P's progress is covered by AC-17.3.
+- **AC-26.2 (permission):** **Given** task T in project P was created by Ben, **when** I open T, **then** no option to delete T is available to me.
+
 ## Relevant edge cases and expected behavior
 
 | Case | Related story | Expected behavior |
@@ -133,5 +158,10 @@ Every story is in the MVP. The seven stories below carry the core value and have
 | US-19 | FR-05, FR-08 | F05, F11 | Should have |
 | US-20 | FR-20 | F44 | Should have |
 | US-21 | FR-21 | F45 | Must have |
+| US-22 | FR-01 | F01 | Must have |
+| US-23 | FR-03 | F03 | Must have |
+| US-24 | FR-06 | F09 | Must have |
+| US-25 | FR-09 | F13 | Must have |
+| US-26 | FR-09 | F13 | Must have |
 
-Every functional requirement from FR-01 to FR-21 is covered by at least one story.
+Every functional requirement from FR-01 to FR-21 is covered by at least one story, including sign-up (US-22), invitations by Project Managers (US-23), project editing (US-24) and task editing and deletion (US-25, US-26).

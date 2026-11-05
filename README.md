@@ -41,11 +41,17 @@ The MVP serves four user types: Workspace Administrator, Project Manager, Team M
 | [docs/requirements.md](docs/requirements.md) | Vision and objectives, user types, functional requirements (FR-xx), non-functional requirements (NFR-xx), MVP scope, features outside the initial scope |
 | [docs/user-stories.md](docs/user-stories.md) | User stories (US-xx), priorities, acceptance criteria, edge cases (EC-xx), traceability to requirements |
 | [docs/constraints.md](docs/constraints.md) | Known constraints (KC-xx), assumptions (AQ1–AQ33), security and privacy requirements (SP-xx), pending technical decisions (TD-xx), scope limitations and pending product decisions (PD-xx) |
+| [docs/architecture.md](docs/architecture.md) | Architectural style (decided 2026-11-05), components (CMP-xx), requirement coverage, component diagram |
+| [docs/database.md](docs/database.md) | Conceptual and logical data model, business rules (BR-xx), data-model assumptions (DA-xx) |
+| [docs/database-diagram.md](docs/database-diagram.md) | Entity-relationship diagram of the data model |
+| [openapi.yaml](openapi.yaml) | Draft API specification for task creation and task status changes, API assumptions (API-Ax) |
+| [docs/ui/README.md](docs/ui/README.md) | UI notes for the dashboard: screen elements (E-xx), navigation, UI assumptions (UI-Ax) |
+| [docs/ui/dashboard-wireframe.html](docs/ui/dashboard-wireframe.html) | Low-fidelity dashboard wireframe |
 
 ## Current project status
 
-- **Stage:** discovery and specification, in draft.
-- **Done:** initial analysis, functional proposal and MVP specifications, consolidated in these documents.
-- **Not started:** design, technology choices and development. No technology has been chosen; see [pending technical decisions](docs/constraints.md#pending-technical-decisions).
-- **Blocking next step:** the five assumptions that shape the MVP most (AQ3, AQ6, AQ7, AQ11, AQ17) were confirmed on 2026-10-29 (see the [decision log](docs/constraints.md#decision-log)). The remaining [pending product decisions](docs/constraints.md#pending-product-decisions) (PD-01 to PD-13 and PD-15) must be made before the features they affect are designed. While the client is unavailable, the project decision-maker makes them (KC-01).
-- **Last updated:** 2026-10-29.
+- **Stage:** design, in draft. The specification documents remain drafts pending client validation.
+- **Done:** initial analysis, functional proposal and MVP specifications. Architectural style decided on 2026-11-05 (modular monolith, see the [decision log](docs/constraints.md#decision-log)). Draft data model, ER diagram, API specification for two operations, and dashboard wireframe.
+- **Not started:** technology choices and development. No technology has been chosen; see [pending technical decisions](docs/constraints.md#pending-technical-decisions) (TD-01 to TD-12).
+- **Blocking next step:** the five assumptions that shape the MVP most (AQ3, AQ6, AQ7, AQ11, AQ17) were confirmed on 2026-10-29 (see the [decision log](docs/constraints.md#decision-log)). The remaining [pending product decisions](docs/constraints.md#pending-product-decisions) (PD-01 to PD-13 and PD-15 to PD-24) must be made before the features they affect are designed. While the client is unavailable, the project decision-maker makes them (KC-01).
+- **Last updated:** 2026-11-05.

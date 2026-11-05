@@ -104,8 +104,8 @@ These are not confirmed requirements.
 | UI-A2 | Each section shows only the first few items, with a "See all" link. The number of items is not set. | Keeps the screen simple (OBJ-04); no requirement sets a limit. |
 | UI-A3 | Clicking a task or a notification opens the task detail. Status is not changed on the dashboard itself. | Keeps the status change in the task detail, where AC-11.1 to AC-11.3 apply. |
 | UI-A4 | Loading, error and "No notifications." states and their wording. | No edge case covers them. |
-| UI-A5 | Notifications show no unread count or "new" marker. | Read state is not defined (database.md, "Other open questions"). |
-| UI-A6 | The dashboard combines existing MVP views only and is not a new feature. | F41 Manager overview is out of scope; approved during planning on 2026-11-05. |
+| UI-A5 | Notifications show no unread count or "new" marker. | Read state is not defined (PD-22). |
+| UI-A6 | The dashboard combines existing MVP views only and is not a new feature. | F41 Manager overview is out of scope; approved by the project decision-maker on 2026-11-05 (see the [decision log](../constraints.md#decision-log)). |
 
 ### Open questions and pending decisions
 
@@ -120,5 +120,5 @@ These are not confirmed requirements.
 | PD-13 | The launch language for all labels. Labels are in English here as placeholders. |
 | PD-16 | Whether a workspace switcher is needed in the top bar (E-01). |
 | PD-17 | Whether a Viewer who owns a task can change its status from the task detail. |
-| Read state | Whether notifications can be marked as read, which would allow an unread count (UI-A5). |
-| No workspace | What a signed-in person who belongs to no workspace sees instead of the dashboard (FR-02, PD-16). |
+| PD-22 | Whether notifications can be marked as read, which would allow an unread count (UI-A5). |
+| PD-24 | What a signed-in person who belongs to no workspace sees instead of the dashboard (FR-02, PD-16). |

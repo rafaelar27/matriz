@@ -81,7 +81,7 @@ Every edit described here requires approval under C1.
 
 ## Technology-specific guidelines
 
-> **Placeholder — not yet decided.** No technologies have been chosen; see [pending technical decisions](docs/constraints.md#pending-technical-decisions) (TD-01 to TD-09). Complete this section once those decisions are recorded in [docs/constraints.md](docs/constraints.md). Until then, apply W2.
+> **Placeholder — not yet decided.** No technologies have been chosen; see [pending technical decisions](docs/constraints.md#pending-technical-decisions) (TD-01 to TD-12). Complete this section once those decisions are recorded in [docs/constraints.md](docs/constraints.md). Until then, apply W2.
 
 - **Setup:** *to be defined*
 - **Build and run:** *to be defined*

@@ -1,6 +1,6 @@
 # Matriz — Data Model
 
-> **Status:** draft, written on 2026-11-05. This is a conceptual and logical model only. No database technology, data store type or product has been chosen (TD-02, and proposed TD-11 in [architecture.md](architecture.md#pending-decisions)). Types are generic. Business rules marked **BR-xx** are confirmed by the documentation. Items marked **DA-xx** are assumptions made for this model and must be confirmed before they are treated as rules. Requirement IDs are defined in [requirements.md](requirements.md), user stories in [user-stories.md](user-stories.md), constraints and pending decisions in [constraints.md](constraints.md), and components (CMP-xx) in [architecture.md](architecture.md).
+> **Status:** draft, written on 2026-11-05. This is a conceptual and logical model only. No database technology, data store type or product has been chosen (TD-02, TD-11). Types are generic. Business rules marked **BR-xx** are confirmed by the documentation. Items marked **DA-xx** are assumptions made for this model and must be confirmed before they are treated as rules. Requirement IDs are defined in [requirements.md](requirements.md), user stories in [user-stories.md](user-stories.md), constraints and pending decisions in [constraints.md](constraints.md), and components (CMP-xx) in [architecture.md](architecture.md).
 
 ## Purpose and scope of the model
 
@@ -11,7 +11,7 @@ The model describes the data Matriz must keep to support the MVP: FR-01 to FR-21
 **Not modelled:**
 
 - **Derived values.** A project's progress (FR-18) and whether a task is overdue (FR-19) are calculated from task data and not stored (BR-15, BR-16).
-- **Undecided behaviour.** There are no attributes for project statuses (PD-05), invitation expiry or resending (PD-09), concurrent-edit handling (PD-11, TD-07) or a notification's read state, which FR-17 does not mention. See [Open questions and pending decisions](#open-questions-and-pending-decisions).
+- **Undecided behaviour.** There are no attributes for project statuses (PD-05), invitation expiry or resending (PD-09), concurrent-edit handling (PD-11, TD-07) or a notification's read state, which FR-17 does not mention (PD-22). See [Open questions and pending decisions](#open-questions-and-pending-decisions).
 - **Sign-in credentials.** The sign-in method is pending (TD-03), so no credential data is modelled (DA-08).
 - **Features outside the initial scope.** For example task priority (F17), subtasks (F18), attachments (F32), task history (F33), email notifications (F37), labels (F22), guest access (F07) and billing (F46).
 
@@ -327,13 +327,13 @@ DA-01 to DA-11 above need confirmation. DA-03, DA-05, DA-06 and DA-08 were propo
 
 | ID | Effect on the model |
 |---|---|
-| TD-02 and proposed TD-11 | Where data is stored and the type of data store. This model is independent of both. |
+| TD-02 and TD-11 | Where data is stored and the type of data store. This model is independent of both. |
 | TD-03 | Credential data for Account (DA-08). |
 | TD-07 | Version or timestamp attributes for concurrent edits on Task. |
 | TD-08 | How notifications reach the member; may add delivery attributes to Notification. |
 
 ### Other open questions
 
-- **Notification read state.** FR-17 does not say whether notifications can be marked as read. Nothing is modelled for this.
-- **Feedback category.** FR-20 gives "a problem report or a suggestion" as examples, not as a fixed list, so no category is modelled.
+- **Notification read state (PD-22).** FR-17 does not say whether notifications can be marked as read. Nothing is modelled for this.
+- **Feedback category (PD-23).** FR-20 gives "a problem report or a suggestion" as examples, not as a fixed list, so no category is modelled.
 - **Architecture rule 4.** DA-09 reads "marked with its workspace" as "directly or through its parent". This should be confirmed and, if agreed, clarified in [architecture.md](architecture.md#decision).

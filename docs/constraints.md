@@ -15,6 +15,7 @@ These are facts about the situation, not assumptions.
 | KC-05 | No timeline has been given. The working assumption is AQ30. |
 | KC-06 | The legal availability of the name "Matriz" has not been checked. The working assumption is AQ33. |
 | KC-07 | No decision-maker other than the client has been identified. The working assumption is AQ21. While the client is unavailable, decisions are made by the project decision-maker (KC-01). |
+| KC-08 | The development team is one person, the project decision-maker (stated by the project decision-maker on 2026-11-05). |
 
 ## Assumptions made
 
@@ -85,6 +86,9 @@ None of these has been decided. Each must be decided in the design stage so that
 | TD-07 | How simultaneous edits to the same task are handled, once the product rule is decided | EC-07, PD-11 |
 | TD-08 | How in-app notifications are delivered | FR-17 |
 | TD-09 | How personal-data requests are received and fulfilled in the MVP | FR-21 |
+| TD-10 | Programming language and application framework for the deployable unit | All FRs; raised in [architecture.md](architecture.md#pending-decisions) |
+| TD-11 | Type of data store, including how it supports saving related changes together and workspace scoping. TD-02 covers only where data is stored. | NFR-01, NFR-03; raised in [architecture.md](architecture.md#pending-decisions) |
+| TD-12 | How module boundaries and the no-cycle rule are checked, for example by automated checks or code review | Architecture decision rules 1–3; raised in [architecture.md](architecture.md#pending-decisions) |
 
 ## Scope limitations
 
@@ -117,6 +121,11 @@ These need a human decision, ideally the client's. While the client is unavailab
 | PD-17 | Whether a Viewer who owns a task can change its status or comment on it. FR-05 currently forbids both. | FR-05, FR-10, FR-12, FR-16, US-19 |
 | PD-18 | Whether the rule "a member can delete what they created, not what others created" also sets what a personal-data deletion request removes, and what happens when the only Workspace Administrator asks for their data to be deleted. | FR-09, FR-21, EC-03, SP-07 |
 | PD-19 | How the identity of someone making a personal-data request is verified, and which workspace data support staff may access when handling it. | FR-21, NFR-02, SP-05, TD-09 |
+| PD-20 | Whether a member must belong to a project to create a task in it. FR-07 and FR-09 do not say. | FR-07, FR-09, US-10 |
+| PD-21 | Whether a task title made only of spaces is rejected. FR-16 rejects space-only comments, but FR-09 only says the title is required. | FR-09, US-10, AC-10.2 |
+| PD-22 | Whether notifications can be marked as read, which would allow an unread count. FR-17 does not say. | FR-17, US-16 |
+| PD-23 | Whether feedback has a fixed list of categories. FR-20 gives "a problem report or a suggestion" only as examples. | FR-20, US-20 |
+| PD-24 | What a signed-in person who belongs to no workspace sees. | FR-01, FR-02, PD-16 |
 
 PD-14 has been resolved and is recorded in the decision log. Its ID is not reused.
 
@@ -135,3 +144,5 @@ Decisions made by a person, recorded under AGENTS.md D2. Approvers are recorded 
 | 2026-10-29 | A member can delete the tasks they created, but not tasks created by others. | Project decision-maker | PD-01 (in part) | FR-09 |
 | 2026-10-29 | The customer organization owns the data stored in its workspace. | Project decision-maker | — | SP-05 |
 | 2026-10-29 | File attachments on tasks (F32) are an exception to the "no file storage" exclusion. | Project decision-maker | — | AQ19, Scope limitations |
+| 2026-11-05 | The MVP is built as a modular monolith with the components CMP-01 to CMP-13. No technology is chosen by this decision. | Project decision-maker | — | architecture.md |
+| 2026-11-05 | The dashboard combines existing MVP views only and is not a new feature; F41 Manager overview stays outside the initial scope. | Project decision-maker | — | docs/ui/README.md (UI-A6) |
