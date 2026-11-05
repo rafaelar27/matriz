@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Matriz dashboard wireframe</title>
+<!--
+  Low-fidelity wireframe of the Matriz MVP dashboard.
+  Design artifact only: grayscale boxes and placeholder text, no branding,
+  no final styling and no front-end technology decision (TD-01).
+  Element IDs (E-xx) and assumptions (UI-Ax) are defined in docs/ui/README.md.
+-->
+<style>
+  :root { --ink:#222; --mid:#777; --line:#999; --soft:#e6e6e6; --paper:#fff; --bg:#f2f2f2; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:24px 16px 48px; background:var(--bg); color:var(--ink);
+         font:14px/1.45 Arial, Helvetica, sans-serif; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .intro { max-width:1040px; margin:0 auto 24px; }
+  .intro p { margin:4px 0; color:var(--mid); }
+  .variant { max-width:1040px; margin:0 auto 40px; }
+  .variant > h2 { font-size:16px; margin:0 0 8px; }
+  .variant > .vnote { margin:0 0 10px; color:var(--mid); }
+  .screen { background:var(--paper); border:2px solid var(--ink); }
+  /* top bar */
+  .bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px;
+         padding:10px 14px; border-bottom:2px solid var(--ink); }
+  .ws { font-weight:bold; border:1px solid var(--line); padding:4px 8px; }
+  nav { display:flex; flex-wrap:wrap; gap:6px; flex:1; }
+  nav span, .acct { border:1px solid var(--line); padding:4px 8px; }
+  nav span.on { background:var(--soft); border-color:var(--ink); font-weight:bold; }
+  .acct { margin-left:auto; }
+  .menu { margin:0 14px 0 auto; width:250px; border:1px solid var(--ink);
+          padding:6px 10px; font-size:13px; }
+  .menu div { padding:3px 0; border-bottom:1px solid var(--soft); }
+  .menu div:last-child { border-bottom:0; }
+  /* content */
+  .content { padding:16px 14px; }
+  .content > h3 { margin:0 0 12px; font-size:18px; }
+  .grid { display:grid; grid-template-columns:3fr 2fr; gap:14px; }
+  .full { grid-column:1 / -1; }
+  @media (max-width:760px){ .grid { grid-template-columns:1fr; } }
+  .panel { border:1px solid var(--ink); padding:10px; min-width:0; }
+  .panel h4 { margin:0 0 8px; font-size:15px; display:flex; justify-content:space-between;
+              align-items:center; gap:8px; flex-wrap:wrap; }
+  .btn { display:inline-block; border:2px solid var(--ink); padding:3px 10px; font-weight:bold; font-size:13px; }
+  .link { text-decoration:underline; font-size:13px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:5px 6px; border-bottom:1px solid var(--soft); vertical-align:top; }
+  th { color:var(--mid); font-weight:normal; border-bottom:1px solid var(--line); }
+  .wrap { overflow-x:auto; }
+  .tag { border:1px solid var(--ink); padding:0 5px; font-size:12px; white-space:nowrap; }
+  .tag.strong { border-width:2px; font-weight:bold; }
+  .empty { border:1px dashed var(--line); padding:18px; text-align:center; color:var(--mid); }
+  .empty strong { display:block; color:var(--ink); margin-bottom:4px; }
+  .note { font-size:12px; color:var(--mid); margin:6px 0 0; }
+  .eid { font:11px/1 "Courier New", monospace; border:1px solid var(--mid); color:var(--mid);
+         padding:1px 3px; margin-left:4px; white-space:nowrap; font-weight:normal; }
+  .hidden { border:1px dashed var(--mid); color:var(--mid); padding:2px 8px; font-size:12px; }
+  .notif { list-style:none; margin:0; padding:0; font-size:13px; }
+  .notif li { padding:6px 0; border-bottom:1px solid var(--soft); }
+  .notif small { color:var(--mid); display:block; }
+  .states { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; }
+  .skel { height:10px; background:var(--soft); margin:7px 0; }
+  .skel.s { width:60%; }
+  .legend { max-width:1040px; margin:0 auto; font-size:13px; color:var(--mid); }
+</style>
+</head>
+<body>
+
+<div class="intro">
+  <h1>Matriz MVP: dashboard (low-fidelity wireframe)</h1>
+  <p>Draft, 2026-11-05. Grayscale structure only, no branding or final styling. Element IDs <span class="eid">E-xx</span> and assumptions (UI-Ax) are explained in <code>docs/ui/README.md</code>.</p>
+  <p>The dashboard combines three existing MVP views: "My tasks" (FR-14), the project list with progress (FR-08, FR-18) and in-app notifications (FR-17). It adds no summary, chart or statistic of its own (F41 Manager overview is out of scope).</p>
+  <p>Example data is fictional. "Today" in the examples is 2026-11-05.</p>
+</div>
+
+<!-- ===================== VARIANT A ===================== -->
+<section class="variant" aria-labelledby="va">
+  <h2 id="va">Variant A: Project Manager, workspace with data</h2>
+  <p class="vnote">Signed in as Carla, Project Manager. Shows an overdue task, a task with no due date and a project with no tasks.</p>
+  <div class="screen">
+    <div class="bar">
+      <span class="ws">Acme Studio <span class="eid">E-01</span></span>
+      <nav aria-label="Main menu">
+        <span class="on">Dashboard <span class="eid">E-02</span></span>
+        <span>Projects <span class="eid">E-03</span></span>
+        <span>My tasks <span class="eid">E-04</span></span>
+        <span>Members <span class="eid">E-05</span></span>
+        <span>Notifications <span class="eid">E-06</span></span>
+      </nav>
+      <span class="acct">Carla ▾ <span class="eid">E-07</span></span>
+    </div>
+    <div class="menu" aria-label="Account menu, shown open">
+      <div><em>Account menu (shown open)</em></div>
+      <div>Send feedback</div>
+      <div>Request my personal data</div>
+      <div>Sign out</div>
+    </div>
+
+    <div class="content">
+      <h3>Dashboard <span class="eid">E-08</span></h3>
+      <div class="grid">
+
+        <div class="panel">
+          <h4><span>My tasks <span class="eid">E-09</span></span><span class="link">See all my tasks <span class="eid">E-10</span></span></h4>
+          <div class="wrap">
+          <table>
+            <thead><tr><th>Task</th><th>Project</th><th>Status</th><th>Due date</th></tr></thead>
+            <tbody>
+              <tr><td>Draft homepage text</td><td>Website redesign</td><td>In progress</td><td>2026-11-04 <span class="tag strong">! Overdue</span></td></tr>
+              <tr><td>Approve page layout</td><td>Website redesign</td><td>To do</td><td>2026-11-05</td></tr>
+              <tr><td>Collect logo files</td><td>Trade fair stand</td><td>To do</td><td>2026-11-09</td></tr>
+              <tr><td>Write kickoff notes</td><td>Trade fair stand</td><td>In progress</td><td>—  (no due date)</td></tr>
+            </tbody>
+          </table>
+          </div>
+          <p class="note">Earliest due date first (BR-17). "Overdue" is a text label, not a colour (FR-19, NFR-06); a task due today is not overdue (AC-18.2). Position of tasks with no due date: pending PD-08. Whether Done tasks are listed: pending PD-06. Clicking a row opens the task (UI-A3).</p>
+        </div>
+
+        <div class="panel">
+          <h4><span>Recent notifications <span class="eid">E-16</span></span><span class="link">See all <span class="eid">E-17</span></span></h4>
+          <ul class="notif">
+            <li>Comment added: <strong>Draft homepage text</strong>, by Ben<small>2026-11-05 09:40</small></li>
+            <li>Task assigned: <strong>Collect logo files</strong><small>2026-11-04 16:12</small></li>
+            <li>Task assigned: <strong>Approve page layout</strong><small>2026-11-03 11:05</small></li>
+          </ul>
+          <p class="note">Newest first (DA-07). No unread count: read state is not defined (database.md, "Other open questions").</p>
+        </div>
+
+        <div class="panel full">
+          <h4><span>Projects <span class="eid">E-12</span></span>
+            <span><span class="btn">+ New project <span class="eid">E-14</span></span>&nbsp; <span class="link">See all projects <span class="eid">E-13</span></span></span></h4>
+          <div class="wrap">
+          <table>
+            <thead><tr><th>Project</th><th>Owner</th><th>Due date</th><th>Progress</th></tr></thead>
+            <tbody>
+              <tr><td>Website redesign</td><td>Carla</td><td>2026-12-15</td><td>2 of 8 tasks done</td></tr>
+              <tr><td>Trade fair stand</td><td>Ana</td><td>2027-01-31</td><td>5 of 6 tasks done</td></tr>
+              <tr><td>Onboarding guide</td><td>—</td><td>—</td><td>0 of 0 tasks done</td></tr>
+            </tbody>
+          </table>
+          </div>
+          <p class="note">All projects in the workspace, including those Carla is not a member of (FR-08). Progress is "N of M tasks done" (FR-18); "0 of 0 tasks done" with no percentage for a project without tasks (EC-05; percentage pending PD-07). Owner and due date are optional (DA-03). Whether archived projects appear: pending PD-05. Clicking a row opens the project task list (FR-13).</p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== VARIANT B ===================== -->
+<section class="variant" aria-labelledby="vb">
+  <h2 id="vb">Variant B: empty state, new workspace</h2>
+  <p class="vnote">Signed in as a Project Manager in a workspace with no projects, no tasks and no notifications yet.</p>
+  <div class="screen">
+    <div class="bar">
+      <span class="ws">New Team <span class="eid">E-01</span></span>
+      <nav aria-label="Main menu">
+        <span class="on">Dashboard</span><span>Projects</span><span>My tasks</span><span>Members</span><span>Notifications</span>
+      </nav>
+      <span class="acct">Ana ▾</span>
+    </div>
+    <div class="content">
+      <h3>Dashboard</h3>
+      <div class="grid">
+        <div class="panel">
+          <h4><span>My tasks</span></h4>
+          <div class="empty"><strong>No tasks are assigned to you.</strong> <span class="eid">E-11</span></div>
+          <p class="note">Message required by AC-13.3.</p>
+        </div>
+        <div class="panel">
+          <h4><span>Recent notifications</span></h4>
+          <div class="empty"><strong>No notifications.</strong> <span class="eid">E-18</span></div>
+          <p class="note">Wording is an assumption (UI-A4).</p>
+        </div>
+        <div class="panel full">
+          <h4><span>Projects</span></h4>
+          <div class="empty"><strong>No projects yet.</strong> <span class="eid">E-15</span><br><br><span class="btn">+ New project <span class="eid">E-14</span></span></div>
+          <p class="note">"New project" is shown to Project Managers only (FR-06). Other user types see the message without the button.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== VARIANT C ===================== -->
+<section class="variant" aria-labelledby="vc">
+  <h2 id="vc">Variant C: Viewer</h2>
+  <p class="vnote">Signed in as Dan, Viewer. Same content and the same progress figures as the Project Manager (AC-19.1, AC-19.3), with no action to create or change anything (FR-05, AC-19.2).</p>
+  <div class="screen">
+    <div class="bar">
+      <span class="ws">Acme Studio</span>
+      <nav aria-label="Main menu">
+        <span class="on">Dashboard</span><span>Projects</span><span>My tasks</span><span>Members</span><span>Notifications</span>
+      </nav>
+      <span class="acct">Dan ▾</span>
+    </div>
+    <div class="content">
+      <h3>Dashboard</h3>
+      <div class="grid">
+        <div class="panel">
+          <h4><span>My tasks</span></h4>
+          <div class="empty"><strong>No tasks are assigned to you.</strong></div>
+          <p class="note">Shown to Viewers too, because a Viewer who is a project member can own tasks (FR-10). Tasks open read-only (AC-11.3); PD-17 may change this.</p>
+        </div>
+        <div class="panel">
+          <h4><span>Recent notifications</span></h4>
+          <div class="empty"><strong>No notifications.</strong></div>
+        </div>
+        <div class="panel full">
+          <h4><span>Projects</span><span><span class="hidden">"+ New project" hidden for this user type</span>&nbsp; <span class="link">See all projects</span></span></h4>
+          <div class="wrap">
+          <table>
+            <thead><tr><th>Project</th><th>Owner</th><th>Due date</th><th>Progress</th></tr></thead>
+            <tbody>
+              <tr><td>Website redesign</td><td>Carla</td><td>2026-12-15</td><td>2 of 8 tasks done</td></tr>
+              <tr><td>Trade fair stand</td><td>Ana</td><td>2027-01-31</td><td>5 of 6 tasks done</td></tr>
+              <tr><td>Onboarding guide</td><td>—</td><td>—</td><td>0 of 0 tasks done</td></tr>
+            </tbody>
+          </table>
+          </div>
+          <p class="note">Every project is listed whether or not Dan belongs to it (AC-19.1).</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== LOADING / ERROR ===================== -->
+<section class="variant" aria-labelledby="vd">
+  <h2 id="vd">Section states: loading and error (assumption UI-A4)</h2>
+  <p class="vnote">No edge case covers these. Each section loads on its own, so one failing section does not hide the others.</p>
+  <div class="screen"><div class="content"><div class="states">
+    <div class="panel"><h4><span>Loading <span class="eid">E-19</span></span></h4>
+      <div class="skel"></div><div class="skel s"></div><div class="skel"></div><div class="skel s"></div>
+      <p class="note">Grey placeholder rows plus the text "Loading…" for screen readers.</p></div>
+    <div class="panel"><h4><span>Error <span class="eid">E-20</span></span></h4>
+      <div class="empty"><strong>This section could not be loaded.</strong><br><span class="btn">Try again</span></div>
+      <p class="note">Saved work is never lost by a display error (NFR-03).</p></div>
+  </div></div></div>
+</section>
+
+<p class="legend">Overdue marking: "! Overdue" text label with a heavier border, never colour alone (FR-19, NFR-06). A box reading "hidden for this user type" marks an element that this user type does not see; dashed boxes elsewhere are empty or open-menu areas. Every element is reachable with the keyboard in the order shown, top to bottom and left to right (NFR-06).</p>
+
+</body>
+</html>
