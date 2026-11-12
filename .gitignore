@@ -13,3 +13,8 @@ desktop.ini
 # Assumption: ".env" is a common naming convention, not a decided technology.
 .env
 .env.*
+# The example file holds fictitious values only and must be committed.
+!.env.example
+
+# Maven build output
+target/

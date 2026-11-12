@@ -47,11 +47,104 @@ The MVP serves four user types: Workspace Administrator, Project Manager, Team M
 | [openapi.yaml](openapi.yaml) | Draft API specification for task creation and task status changes, API assumptions (API-Ax) |
 | [docs/ui/README.md](docs/ui/README.md) | UI notes for the dashboard: screen elements (E-xx), navigation, UI assumptions (UI-Ax) |
 | [docs/ui/dashboard-wireframe.html](docs/ui/dashboard-wireframe.html) | Low-fidelity dashboard wireframe |
+| [docs/implementation-plan.md](docs/implementation-plan.md) | Implementation increments, their acceptance criteria and verification, status log |
+
+## Getting started
+
+The application is a single Spring Boot application (Java 21) using a local PostgreSQL database. Commands below are for PowerShell on Windows and are run from the repository root. No feature logic exists yet; this sets up the project, the database schema and demo data.
+
+### Prerequisites
+
+| Tool | Version | Check |
+|---|---|---|
+| JDK | 21 | `java -version` |
+| Maven | 3.9 or later | `mvn -v` |
+| PostgreSQL | 18 (tested); running on `localhost:5432` | `& "C:\Program Files\PostgreSQL\18\bin\pg_isready.exe" -h localhost` |
+
+### 1. Create the database
+
+Open psql as the PostgreSQL superuser (it asks for the password chosen when PostgreSQL was installed):
+
+```powershell
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -h localhost
+```
+
+Then create the application's role and database, choosing your own password, and leave with `\q`:
+
+```sql
+CREATE ROLE matriz WITH LOGIN CREATEDB PASSWORD 'your-own-password';
+CREATE DATABASE matriz OWNER matriz;
+```
+
+### 2. Configure the environment
+
+```powershell
+cp .env.example .env
+```
+
+Edit `.env` and replace every value: `MATRIZ_DB_PASSWORD` is the role password from step 1, and `MATRIZ_DEMO_PASSWORD` is any fictitious password for the demo accounts. `.env` is ignored by Git and must never be committed. Environment variables set in the shell take precedence over `.env`.
+
+| Variable | Purpose |
+|---|---|
+| `MATRIZ_DB_URL` | JDBC URL of the database, for example `jdbc:postgresql://localhost:5432/matriz` |
+| `MATRIZ_DB_USER` | Database role |
+| `MATRIZ_DB_PASSWORD` | Database role password |
+| `MATRIZ_DEMO_PASSWORD` | Password given to every demo account by the seed command (stored only as a BCrypt hash) |
+| `MATRIZ_PORT` | Optional HTTP port, default `8080` |
+
+### 3. Install dependencies and build
+
+```powershell
+mvn -DskipTests package
+```
+
+### 4. Start the application (applies migrations)
+
+```powershell
+mvn spring-boot:run
+```
+
+Flyway applies any pending migrations from `src/main/resources/db/migration` at startup; on an empty database the log shows `Successfully applied 1 migration`, and on later starts `Schema "public" is up to date`. The application listens on port 8080. Stop it with `Ctrl+C`. Starting it again keeps all data.
+
+### 5. Load the demo data
+
+```powershell
+mvn spring-boot:run "-Dspring-boot.run.profiles=seed"
+```
+
+The seed command inserts the demo data and exits. It never deletes data, and running it again inserts nothing (`Demo data: 0 new rows inserted`). Normal startup never seeds.
+
+### 6. Run the verification check
+
+```powershell
+mvn verify
+```
+
+Runs `DatabaseSetupTest`, which connects to the configured database and checks that it answers queries, that every migration succeeded and that all 11 tables from [docs/database.md](docs/database.md) exist. It changes no data. Expected result: `Tests run: 3, Failures: 0` and `BUILD SUCCESS`.
+
+### Demo users
+
+All demo data is fictitious. Every demo account uses the password you set in `MATRIZ_DEMO_PASSWORD`. Sign-in itself is not implemented yet (TD-03).
+
+| Email | Workspace and role | Use it to test |
+|---|---|---|
+| `ana@example.com` | Acme Studio: Project Manager · Northwind Lab: Team Member | The same person with different roles in two workspaces; a Project Manager in the shared project "Website redesign" |
+| `ben@example.com` | Acme Studio: Team Member | A Team Member in the shared project; owns an overdue task; **cannot access** "Lab inventory" (another workspace, NFR-01) |
+| `vera@example.com` | Acme Studio: Viewer | Read-only access (FR-05) in the shared project; **cannot access** "Lab inventory" |
+| `carla@example.com` | Acme Studio and Northwind Lab: Workspace Administrator | Member and role management (FR-03, FR-04) |
+
+| Project | Workspace | Project members | Tasks |
+|---|---|---|---|
+| Website redesign | Acme Studio | Ana, Ben, Vera | 3: one overdue (In progress, due 2026-11-04), one To do, one Done; 2 comments |
+| Trade fair stand | Acme Studio | Ana, Ben | 1 with no due date |
+| Lab inventory | Northwind Lab | Carla, Ana | 1, with 1 comment |
+
+Every member of a workspace can see all of its projects (FR-08), so access differences between users come from workspaces (NFR-01) and roles (FR-04), not from project membership.
 
 ## Current project status
 
-- **Stage:** design, in draft. The specification documents remain drafts pending client validation.
+- **Stage:** development. The specification documents remain drafts pending client validation.
 - **Done:** initial analysis, functional proposal and MVP specifications. Architectural style decided on 2026-11-05 (modular monolith, see the [decision log](docs/constraints.md#decision-log)). Draft data model, ER diagram, API specification for two operations, and dashboard wireframe. Technology stack chosen on 2026-11-12: Java 21 and Spring Boot 3, a static HTML/CSS/JS front end and PostgreSQL (see [Technology stack](docs/architecture.md#technology-stack)).
-- **Not started:** development. Hosting and other technical choices are still pending; see [pending technical decisions](docs/constraints.md#pending-technical-decisions).
+- **In progress:** development. The project setup increment is done (see [docs/implementation-plan.md](docs/implementation-plan.md)); no feature is implemented yet. Hosting and other technical choices are still pending; see [pending technical decisions](docs/constraints.md#pending-technical-decisions).
 - **Blocking next step:** the five assumptions that shape the MVP most (AQ3, AQ6, AQ7, AQ11, AQ17) were confirmed on 2026-10-29 (see the [decision log](docs/constraints.md#decision-log)). The remaining [pending product decisions](docs/constraints.md#pending-product-decisions) (PD-01 to PD-13 and PD-15 to PD-24) must be made before the features they affect are designed. While the client is unavailable, the project decision-maker makes them (KC-01).
 - **Last updated:** 2026-11-12.
