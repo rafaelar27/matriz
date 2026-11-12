@@ -34,6 +34,12 @@ public class ApiException extends RuntimeException {
         return new ApiException(HttpStatus.FORBIDDEN, new ApiError("forbidden", message));
     }
 
+    /** 409: the request would create something that already exists, such as a second identical assignment. */
+    public static ApiException conflict(String message, String field) {
+        return new ApiException(HttpStatus.CONFLICT,
+                new ApiError("conflict", message, List.of(new ApiError.FieldIssue(field, message))));
+    }
+
     /** 422: well-formed request that breaks a validation rule (API-A2). */
     public static ApiException validation(String message, String field, String issue) {
         return new ApiException(HttpStatus.UNPROCESSABLE_ENTITY,

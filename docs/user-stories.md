@@ -34,6 +34,7 @@
 | US-26 | **As a** Team Member, **I want** to delete a task I created, **so that** tasks that are no longer needed don't clutter the project. |
 | US-27 | **As a** Project Manager, **I want** to delete a project, **so that** projects created by mistake or no longer needed don't clutter the project list. *(Added 2026-11-12.)* |
 | US-28 | **As a** Team Member, **I want** to search the project list by project name, **so that** I find a project quickly when the workspace has many. *(Added 2026-11-12.)* |
+| US-29 | **As a** Project Manager, **I want** to assign several project members to a task besides its owner, and remove them again, **so that** everyone working on the task is visible. *(Added 2026-11-12.)* |
 
 ## Priorities (MoSCoW)
 
@@ -41,14 +42,14 @@ Each story takes the priority of its primary functional requirement. US-19 trace
 
 | Priority | Stories |
 |---|---|
-| Must have | US-01, US-02, US-03, US-04, US-05, US-06, US-07, US-08, US-09, US-10, US-11, US-12, US-13, US-15, US-16, US-17, US-18, US-21, US-22, US-23, US-24, US-25, US-26, US-27, US-28 |
+| Must have | US-01, US-02, US-03, US-04, US-05, US-06, US-07, US-08, US-09, US-10, US-11, US-12, US-13, US-15, US-16, US-17, US-18, US-21, US-22, US-23, US-24, US-25, US-26, US-27, US-28, US-29 |
 | Should have | US-14, US-19, US-20 |
 | Could have | None. Could-have features are outside the initial scope. |
 | Won't have (for now) | None |
 
 ## Acceptance criteria
 
-Every story is in the MVP. The seven stories US-03, US-10, US-11, US-13, US-17, US-18 and US-19 carry the core value and have Given / When / Then criteria. US-23 to US-28 have criteria for the parts of FR-03, FR-06, FR-08 and FR-09 that are already decided. US-22 has none yet, because the sign-up method is pending (TD-03). Names (Ana, Ben, Carla) and dates are test data. "Today" means the date the test is run.
+Every story is in the MVP. The seven stories US-03, US-10, US-11, US-13, US-17, US-18 and US-19 carry the core value and have Given / When / Then criteria. US-15 has criteria since 2026-11-12. US-23 to US-28 have criteria for the parts of FR-03, FR-06, FR-08 and FR-09 that are already decided. US-22 has none yet, because the sign-up method is pending (TD-03). Names (Ana, Ben, Carla) and dates are test data. "Today" means the date the test is run.
 
 ### US-03: Invite a member with a role
 
@@ -80,6 +81,13 @@ Every story is in the MVP. The seven stories US-03, US-10, US-11, US-13, US-17, 
 - **AC-13.2 (exclusion):** **Given** a task in one of my projects is owned by Ben, **when** I open "My tasks", **then** that task is not listed.
 - **AC-13.3 (empty state):** **Given** I own no tasks, **when** I open "My tasks", **then** the list contains no tasks and a message states that no tasks are assigned to me.
 - **Pending:** whether "Done" tasks appear in "My tasks" (PD-06). Where tasks without a due date are placed (PD-08, see EC-06).
+
+### US-15: Comment on a task
+
+- **AC-15.1 (success):** **Given** I am a Team Member of project P, **when** I post the comment "The first two sections are done." on task T, **then** it appears last in T's comments with my name and the date and time it was posted, set by Matriz.
+- **AC-15.2 (validation):** **Given** I am commenting on T, **when** I post a comment that is empty, only spaces, or longer than 2000 characters after removing leading and trailing spaces, **then** nothing is added and a message states the rule (EC-08). A comment of 1 or 2000 characters is accepted.
+- **AC-15.3 (order and author):** **Given** T has comments by Ana and then Ben, **when** anyone in the workspace opens T, **then** Ana's comment is listed before Ben's, each with its author and date; a request that sends its own author or date is refused.
+- **AC-15.4 (permission):** **Given** I am a Viewer, a Workspace Administrator, or not a member of P, **when** I open T, **then** I can read its comments but cannot add one. *(Provisional until PD-03, PD-17 and PD-20 are decided.)*
 
 ### US-17: Project progress indicator
 
@@ -136,6 +144,14 @@ Every story is in the MVP. The seven stories US-03, US-10, US-11, US-13, US-17, 
 - **AC-28.2 (no match):** **Given** no project in my workspaces has "zzz" in its name, **when** I search for "zzz", **then** the list is empty and a message states that no projects match.
 - **AC-28.3 (pages):** **Given** my workspaces have more projects than fit on one page, **when** I open the project list, **then** I can move to the next and previous pages, and each project appears on exactly one page.
 
+### US-29: Assign members to a task
+
+- **AC-29.1 (several assignees):** **Given** I am a Project Manager and Ben and Vera are members of project P, **when** I assign both to task T, **then** T shows Ben and Vera as assignees, and T's owner is unchanged.
+- **AC-29.2 (eligible only):** **Given** Carla is a member of the workspace but not of P, **when** I choose assignees for T, **then** Carla is not offered, and a request to assign her is refused.
+- **AC-29.3 (no duplicates):** **Given** Ben is assigned to T, **when** I assign Ben to T again, **then** the request is refused with a message that Ben is already assigned, and Ben is listed once.
+- **AC-29.4 (remove one):** **Given** Ben and Vera are assigned to T, **when** I remove Ben, **then** only Vera is listed.
+- **AC-29.5 (permission):** **Given** I am a Team Member, Viewer or Workspace Administrator, **when** I open T, **then** I see its assignees but no option to assign or remove. *(Provisional until PD-01 is decided.)*
+
 ## Relevant edge cases and expected behavior
 
 | Case | Related story | Expected behavior |
@@ -149,6 +165,7 @@ Every story is in the MVP. The seven stories US-03, US-10, US-11, US-13, US-17, 
 | **EC-07** Two people change the status of the same task within seconds of each other | US-11 | The task ends up in exactly one of the three statuses, and every user sees that same status after refreshing. Which change wins is pending (PD-11). |
 | **EC-08** A Team Member tries to post an empty comment, or one containing only spaces | US-15 | The comment is not posted and nothing is added to the task (FR-16). |
 | **EC-09** A Project Manager removes a person from a project while that person owns tasks in it | US-08, US-10 | Pending (PD-10). Either the removal is refused until the tasks are reassigned, or the tasks are kept and flagged for reassignment. In either case, no task is deleted (NFR-03). |
+| **EC-10** An assignee is deactivated, or two Project Managers assign the same member at the same moment | US-29 | A deactivated assignee stays listed (as for owners, EC-04) but is no longer offered. Of two simultaneous assignments of the same member, only one is stored; the other is refused as a duplicate. |
 
 ## Traceability
 
@@ -182,5 +199,6 @@ Every story is in the MVP. The seven stories US-03, US-10, US-11, US-13, US-17, 
 | US-26 | FR-09 | F13 | Must have |
 | US-27 | FR-06 | F09 | Must have |
 | US-28 | FR-08 | F11, F27 (project name only) | Must have |
+| US-29 | FR-22, FR-07 | F14 | Must have |
 
-Every functional requirement from FR-01 to FR-21 is covered by at least one story, including sign-up (US-22), invitations by Project Managers (US-23), project editing and deletion (US-24, US-27), project search (US-28) and task editing and deletion (US-25, US-26).
+Every functional requirement from FR-01 to FR-22 is covered by at least one story, including sign-up (US-22), invitations by Project Managers (US-23), project editing and deletion (US-24, US-27), project search (US-28), task editing and deletion (US-25, US-26) and task assignees (US-29).

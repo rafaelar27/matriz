@@ -10,6 +10,7 @@
 | INC-02 | Authentication and access control | Done (2026-11-12) |
 | INC-03 | Projects (first end-to-end flow) | Done (2026-11-12) |
 | INC-04 | Tasks within a project | Done (2026-11-12) |
+| INC-05 | Task collaboration: assignees (Feature A) and comments (Feature B) | Done (2026-11-12) |
 
 ### INC-01: Project setup
 
@@ -131,6 +132,29 @@
 
 **Known gap:** AC-10.3 ("Ben is not offered as an owner") is not met in the interface: the form offers every workspace member, because no endpoint lists a project's members (decided 2026-11-12). The backend refuses owners outside the project (422).
 
+### INC-05: Task collaboration
+
+**Goal:** assign several eligible members to a task and remove them one by one (Feature A); add and list comments with author and date (Feature B). Built and reviewed one feature at a time.
+
+**Basis:** FR-05, FR-07, FR-10, FR-16, FR-22; US-15, US-29; AC-10.3, AC-15.1 to AC-15.4, AC-29.1 to AC-29.5; EC-04, EC-08, EC-10; BR-13, BR-22; DA-05, DA-07; NFR-01; API-A3. Decisions of 2026-11-12 in the [decision log](constraints.md#decision-log): assignees besides the single owner (FR-10 unchanged), provisional assignment and comment permissions, comment rule (1 to 2000 characters, trimmed), oldest-first order. **Left out:** the "comment added" and "task assigned" notifications (FR-17, CMP-08), editing or deleting comments (not in the MVP), and task priority (F17).
+
+**Built:** [openapi.yaml](../openapi.yaml) 0.6.0-draft with `listEligibleAssignees`, `listTaskAssignees`, `assignTask`, `unassignTask`, `listTaskComments` and `addTaskComment`; migration `V3__task_assignees.sql` (primary key on task and member); `AssignmentService` and `AssignmentController` in CMP-05; the `comments` module (CMP-07) using the public `TaskDirectory`; `AccessPolicy.checkAssign` and `checkComment`; Assignees and Comments areas in the task details.
+
+| ID | Acceptance criterion | Verification method | Result |
+|---|---|---|---|
+| AC-INC05.1 | Only active project members are listed as eligible and can be assigned, also through direct requests; no email or account data is returned. | `AssignmentApiTest`; browser (Carla not offered; direct request 422) | Pass |
+| AC-INC05.2 | A non-existent or non-eligible member is refused (422) and nothing is saved. | `AssignmentApiTest` | Pass |
+| AC-INC05.3 | Assigning the same member twice is refused with 409; the database refuses a duplicate row. | `AssignmentApiTest` (backend and direct insert); browser (direct request 409) | Pass |
+| AC-INC05.4 | Several assignees work; removing one keeps the others; the owner is unchanged. | `AssignmentApiTest`; browser | Pass |
+| AC-INC05.5 | Only Project Managers assign or remove (403 otherwise); other workspaces and mismatched project ids get 404. | `AssignmentApiTest` | Pass |
+| AC-INC05.6 | Assignments persist after reopening the task, a reload and a backend restart. | Browser; SQL after restart | Pass |
+| AC-INC05.7 | Comment content: 0 characters, only spaces, null and missing refused; 1 and 2000 accepted; 2001 refused; limits apply after trimming. | `CommentApiTest`; browser (spaces only); direct requests | Pass |
+| AC-INC05.8 | Author and date are set by the server; a sent author or date is refused (422). | `CommentApiTest`; direct requests from the browser | Pass |
+| AC-INC05.9 | Comments are listed oldest first with author name and date, without account data. | `CommentApiTest`; browser | Pass |
+| AC-INC05.10 | Viewers, Workspace Administrators and non-members of the project cannot comment but can read; other workspaces and mismatched ids get 404. | `CommentApiTest` | Pass |
+| AC-INC05.11 | Comments persist after reopening the task, a reload and a backend restart. | Browser; SQL after restart | Pass |
+| AC-INC05.12 | Assignees and comments update without reloading the page; every operation without a session gets 401. | Browser; `AssignmentApiTest`, `CommentApiTest` | Pass |
+
 ## Status log
 
 | Date | Increment | Change | Approved by |
@@ -139,3 +163,4 @@
 | 2026-11-12 | INC-02 | Plan approved (session cookie, 8-hour idle timeout, scope limited to authentication and the two documented operations, provisional rules for PD-01, PD-03, PD-17, PD-20). Sign-in, profile, sign-out, `AccessPolicy`, `createTask` and `updateTaskStatus` implemented; 32 new automated tests and manual curl checks pass. Status set to Done. | Project decision-maker |
 | 2026-11-12 | INC-03 | Plan approved (deletion with cascade, project name search, owner defaults to the creator, name 3–100 and description ≤ 1000 characters, any Project Manager edits or deletes, creator becomes a project member, page and size paging, a Northwind-only demo user, progress in the list). Project operations, migration `V2`, and the first user interface implemented; 18 new automated tests and a manual browser check pass. Status set to Done. | Project decision-maker |
 | 2026-11-12 | INC-04 | Plan approved (no priority, optional status on create, title 3–150 and description ≤ 2000 characters, Portuguese status labels, filters by status and owner, provisional task permissions, task paths under the project, owner choices from workspace members). Task operations and the Tasks section implemented; 16 new automated tests (69 in total) and a manual browser check pass, with status changes persisting after a reload and a restart. Status set to Done. | Project decision-maker |
+| 2026-11-12 | INC-05 | Feature A plan approved (Option 1: assignees besides the single owner; eligible = active project members; Project Managers assign; 409 for duplicates; primary key in migration `V3`), implemented, verified and confirmed. Feature B plan approved (comments 1 to 2000 characters trimmed, author and date from the server, oldest first, project members comment), implemented and verified. 15 new automated tests (84 in total) and manual browser checks pass, with assignments and comments persisting after a reload and a restart. Status set to Done. | Project decision-maker |

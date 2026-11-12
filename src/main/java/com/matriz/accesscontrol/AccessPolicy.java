@@ -122,6 +122,29 @@ public class AccessPolicy {
         }
     }
 
+    /**
+     * assignTask, unassignTask (FR-22, US-29): Project Managers of the workspace only. PROVISIONAL until PD-01 is
+     * decided, the same rule as changing a task's owner (AC-10.4); approved 2026-11-12.
+     */
+    public void checkAssign(Actor actor) {
+        requireTaskWriter(actor, "assign");
+        if (actor.role() != Role.PROJECT_MANAGER) {
+            throw ApiException.forbidden("Only Project Managers can assign or unassign members (pending decision PD-01).");
+        }
+    }
+
+    /**
+     * addTaskComment (FR-16, US-15): Project Managers and Team Members who are members of the task's project.
+     * PROVISIONAL rules approved 2026-11-12: Viewers refused (FR-05, PD-17), Workspace Administrators refused
+     * (PD-03), project membership required as for task creation (PD-20).
+     */
+    public void checkComment(Actor actor, boolean actorIsProjectMember) {
+        requireTaskWriter(actor, "comment on");
+        if (!actorIsProjectMember) {
+            throw ApiException.forbidden("Only members of this project can comment on its tasks.");
+        }
+    }
+
     /** Viewers are read-only (FR-05); Workspace Administrators only read tasks (PROVISIONAL, PD-03). */
     private static void requireTaskWriter(Actor actor, String action) {
         if (actor.role() == Role.VIEWER) {

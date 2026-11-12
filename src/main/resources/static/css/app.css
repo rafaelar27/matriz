@@ -85,6 +85,19 @@ dl.facts dd { margin: 0; }
 .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .row-actions .btn { padding: 2px 8px; font-size: 13px; }
 td select { font: inherit; padding: 2px 4px; border: 1px solid var(--line); background: var(--paper); }
+.assignees, .comments { border-top: 1px solid var(--soft); margin-top: 14px; padding-top: 10px; }
+.assignees h4, .comments h4 { font-size: 15px; margin: 0 0 6px; }
+.comment-list { list-style: none; margin: 0 0 10px; padding: 0; }
+.comment-list li { border-left: 3px solid var(--line); padding: 4px 0 4px 10px; margin-bottom: 8px; }
+.comment-list .description { margin: 2px 0 0; }
+.comment-meta { font-size: 13px; color: var(--mid); }
+.comment-meta strong { color: var(--ink); }
+.people { list-style: none; margin: 0 0 8px; padding: 0; }
+.people li { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 3px 0; }
+.people .btn { padding: 1px 8px; font-size: 13px; }
+.assign-form fieldset { border: 1px solid var(--line); margin: 0 0 8px; padding: 6px 10px; }
+.assign-form legend { font-weight: bold; font-size: 14px; }
+.check { display: block; padding: 2px 0; }
 button.link { background: none; border: 0; padding: 0; font: inherit; color: var(--ink); text-decoration: underline; cursor: pointer; text-align: left; }
 
 dialog { border: 2px solid var(--ink); padding: 18px; max-width: 440px; }

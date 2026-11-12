@@ -28,6 +28,7 @@ Attribute types are generic: `id` (a unique identifier), `string` (short text), 
 | **Project** | A body of work in a workspace, with a name, owner and dates. | CMP-04 Projects | FR-06, FR-08; US-06, US-07, US-09 |
 | **ProjectMember** | A member's participation in a project. Resolves the many-to-many relationship between Project and Member. | CMP-04 Projects | FR-07; US-08 |
 | **Task** | One action in a project, with exactly one owner, an optional due date and a status. | CMP-05 Tasks | FR-09, FR-10, FR-11, FR-12; US-10, US-11 |
+| **TaskAssignee** | A member assigned to a task in addition to its owner. Resolves the many-to-many between Task and Member. | CMP-05 Tasks | FR-22; US-29 |
 | **Comment** | A message added by a member to a task. | CMP-07 Comments | FR-16; US-15 |
 | **Notification** | An in-app notice to a member about a task assignment or a comment on a task they own. | CMP-08 Notifications | FR-17; US-16 |
 | **Feedback** | A problem report or suggestion sent by a member. | CMP-10 Feedback and Personal Data Requests | FR-20; US-20 |
@@ -161,6 +162,16 @@ The primary key is the pair (project_id, member_id), so a member takes part in a
 | status | enum (To do, In progress, Done) | | Yes | The task's status; a new task starts as To do (FR-12, BR-11). |
 | created_by_member_id | id | FK → Member | Yes | Who created the task, which decides who may delete it (FR-09, BR-12). |
 
+### TaskAssignee
+
+| Attribute | Type | Key | Required | Description |
+|---|---|---|---|---|
+| task_id | id | PK, FK → Task | Yes | The task (FR-22). Deleting the task deletes its assignees. |
+| member_id | id | PK, FK → Member | Yes | The assigned member, an active member of the task's project when assigned (BR-22). |
+| assigned_at | datetime | | Yes | When the member was assigned, set by the server. |
+
+The primary key (task_id, member_id) makes a second assignment of the same member to the same task impossible (BR-22).
+
 ### Comment
 
 | Attribute | Type | Key | Required | Description |
@@ -226,6 +237,8 @@ The primary key is the pair (project_id, member_id), so a member takes part in a
 | R-16 | triggers | Comment → Notification | 0..1 to 0..1 | A comment triggers at most one notification, to the task's owner (none if PD-12 excludes self-notification); a notification refers to at most one comment (FR-17). |
 | R-17 | sends | Member → Feedback | 1 to 0..* | A member sends zero or more feedback items; each has exactly one sender (FR-20). |
 | R-18 | makes | Account → PersonalDataRequest | 1 to 0..* | A person makes zero or more personal-data requests; each request is from exactly one account (FR-21, DA-10). |
+| R-19 | is worked on by | Task → TaskAssignee | 1 to 0..* | A task has zero or more assignees; each assignment is for exactly one task (FR-22). |
+| R-20 | is assigned as | Member → TaskAssignee | 1 to 0..* | A member is assigned to zero or more tasks; each assignment is exactly one member, at most once per task (FR-22, BR-22). |
 
 **Many-to-many relationships:**
 
@@ -252,7 +265,7 @@ These are confirmed by the documentation.
 | BR-10 | A task's title is required. It is trimmed and must be 3 to 150 characters long, so a title of only spaces is refused. | FR-09, AC-10.2, AC-10.5, decision log 2026-11-12 |
 | BR-11 | A task has exactly one of three statuses (To do, In progress, Done). A new task starts as To do. | FR-12, AC-10.1, AC-11.2 |
 | BR-12 | A member can delete the tasks they created, but not tasks created by others. Project Managers and Team Members can create tasks. | FR-09, decision log 2026-10-29 |
-| BR-13 | Empty comments, or comments containing only spaces, are not saved. | FR-16, EC-08 |
+| BR-13 | Empty comments, or comments containing only spaces, are not saved. A comment is stored trimmed and is 1 to 2000 characters long. Its author and created_at are set by the server. | FR-16, EC-08, decision log 2026-11-12 |
 | BR-14 | A notification is created when a member is assigned a task, and when someone comments on a task the member owns. | FR-17, US-16 |
 | BR-15 | A project's progress is the number of its tasks with status Done out of all its tasks, for example "2 of 8 tasks done", and "0 of 0 tasks done" for a project with no tasks. Deleted tasks are not counted. It is derived, not stored. | FR-18, AC-17.1 to AC-17.3, EC-05 |
 | BR-16 | A task is overdue when its due date is earlier than today and its status is not Done. A task without a due date is never overdue. It is derived, not stored. | FR-19, AC-18.2, AC-18.3, EC-06 |
@@ -261,6 +274,7 @@ These are confirmed by the documentation.
 | BR-19 | No payment data is stored. | NFR-10, SP-06 |
 | BR-20 | The customer organization owns the data stored in its workspace. | SP-05, decision log 2026-10-29 |
 | BR-21 | A Project Manager of the workspace can delete a project. Deleting it also deletes its project members and its tasks with their comments and notifications, and cannot be undone. A project's name is 3 to 100 characters long and its description at most 1000 characters. The creator of a project becomes one of its project members. | FR-06, US-27, decision log 2026-11-12 |
+| BR-22 | A task can have any number of assignees besides its owner. Only active members of the task's project can be assigned, each at most once per task. Assignments do not change the owner. | FR-22, US-29, decision log 2026-11-12 |
 
 ## Assumptions to confirm
 

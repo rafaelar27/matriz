@@ -159,13 +159,13 @@ class TaskService {
     // --- Access -----------------------------------------------------------------------------------------------------
 
     /** The caller as an active member of the project's workspace; 404 if the project is unknown or elsewhere. */
-    private Actor accessToProject(UUID callerAccountId, UUID projectId, String notFoundMessage) {
+    Actor accessToProject(UUID callerAccountId, UUID projectId, String notFoundMessage) {
         UUID workspaceId = projects.workspaceOf(projectId).orElseThrow(() -> ApiException.notFound(notFoundMessage));
         return policy.requireWorkspaceAccess(members.actorIn(callerAccountId, workspaceId), notFoundMessage);
     }
 
     /** The task, only if it belongs to this project: a task id used with another project's id gives 404. */
-    private Task load(UUID projectId, UUID taskId) {
+    Task load(UUID projectId, UUID taskId) {
         return tasks.findById(taskId).filter(t -> t.getProjectId().equals(projectId))
                 .orElseThrow(() -> ApiException.notFound(TASK_NOT_FOUND));
     }

@@ -120,10 +120,10 @@ The seed command inserts the demo data and exits. It never deletes data, and run
 mvn verify
 ```
 
-Runs all automated tests. Expected result: `Tests run: 69, Failures: 0` and `BUILD SUCCESS`.
+Runs all automated tests. Expected result: `Tests run: 84, Failures: 0` and `BUILD SUCCESS`.
 
 - `DatabaseSetupTest` checks the database configured in `.env`: it answers queries, every migration succeeded and all 11 tables from [docs/database.md](docs/database.md) exist. It changes no data.
-- `AuthenticationTest`, `CsrfCookieTest`, `TaskAccessTest`, `ProjectApiTest` and `TaskApiTest` check sign-in, sign-out, the project and task operations and every access rule through API requests. They use the separate `matriz_test` database (`MATRIZ_TEST_DB_URL`, default `jdbc:postgresql://localhost:5432/matriz_test`), load the demo data there and roll back every change. Create that database once, as the `matriz` role:
+- `AuthenticationTest`, `CsrfCookieTest`, `TaskAccessTest`, `ProjectApiTest`, `TaskApiTest`, `AssignmentApiTest` and `CommentApiTest` check sign-in, sign-out, the project, task, assignee and comment operations and every access rule through API requests. They use the separate `matriz_test` database (`MATRIZ_TEST_DB_URL`, default `jdbc:postgresql://localhost:5432/matriz_test`), load the demo data there and roll back every change. Create that database once, as the `matriz` role:
 
 ```powershell
 & "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U matriz -h localhost -d matriz -c "CREATE DATABASE matriz_test OWNER matriz"
@@ -185,6 +185,19 @@ Statuses are shown as **Por fazer**, **Em curso** and **Concluída**, but the AP
 
 **Try it:** sign in as `ana@example.com`, open "Website redesign", create a task without choosing a status (it shows Por fazer), change "Approve page layout" to Em curso, filter by Em curso, reload the page, then restart the application and sign in again: the change is still there. Sign in as `dan@example.com` and open `#/projects/d0000000-0000-0000-0000-000000000001`: the project is not found. The same operations through the API: `GET` and `POST /projects/{project_id}/tasks?status=&owner_member_id=&page=&size=`, and `GET`, `PATCH`, `DELETE /projects/{project_id}/tasks/{task_id}`.
 
+### Assignees and comments
+
+Click a task's title to open its details. Below the description are two areas.
+
+| Area | What you see and do | Who |
+|---|---|---|
+| **Assignees** | Members working on the task besides its owner, with the time each was assigned. Tick one or more members and choose **Assign selected**; **Remove** takes one assignee off. Only active members of the task's project are offered, and the owner does not change. | Everyone reads; only Project Managers assign and remove (provisional, PD-01) |
+| **Comments** | Every comment, oldest first, with author and date. Type up to 2000 characters and choose **Post comment**; an empty comment or one of only spaces is refused. Comments cannot be edited or deleted. | Everyone reads; Project Managers and Team Members who are members of the project post (provisional) |
+
+Author, dates and eligibility are always decided by the backend. Assigning the same member twice gives **409** (the database key also prevents it); a member outside the project gives **422**; a comment that sends its own author or date gives **422**.
+
+**Try it:** sign in as `ana@example.com`, open "Website redesign", click "Approve page layout", assign Ben and Vera, remove Ben, then reload the page and restart the application: Vera is still assigned. Click "Review homepage images" and post a comment; it appears last with your name and the time. The API: `GET /projects/{project_id}/tasks/{task_id}/eligible-assignees`, `GET` and `POST …/assignees` (`{"member_ids": [...]}`), `DELETE …/assignees/{member_id}`, and `GET` and `POST …/comments` (`{"body": "..."}`).
+
 ### Demo users
 
 All demo data is fictitious. Every demo account uses the password you set in `MATRIZ_DEMO_PASSWORD`. Ids are fixed, so requests can use them directly.
@@ -219,7 +232,7 @@ Every member of a workspace can see all of its projects (FR-08), so access diffe
 ## Current project status
 
 - **Stage:** development. The specification documents remain drafts pending client validation.
-- **Done:** initial analysis, functional proposal and MVP specifications. Architectural style decided on 2026-11-05 (modular monolith, see the [decision log](docs/constraints.md#decision-log)). Draft data model, ER diagram, API specification (authentication, projects, progress and tasks), and dashboard wireframe. Technology stack chosen on 2026-11-12: Java 21 and Spring Boot 3, a static HTML/CSS/JS front end and PostgreSQL (see [Technology stack](docs/architecture.md#technology-stack)).
-- **In progress:** development. The project setup (INC-01), authentication and access control (INC-02), projects (INC-03) and tasks (INC-04) increments are done (see [docs/implementation-plan.md](docs/implementation-plan.md)): sign-in, profile, sign-out, creating, listing, searching, viewing, editing and deleting projects, and creating, listing, filtering, viewing, editing and deleting tasks and changing their status. The user interface covers sign-in, projects and tasks. Hosting and other technical choices are still pending; see [pending technical decisions](docs/constraints.md#pending-technical-decisions).
+- **Done:** initial analysis, functional proposal and MVP specifications. Architectural style decided on 2026-11-05 (modular monolith, see the [decision log](docs/constraints.md#decision-log)). Draft data model, ER diagram, API specification (authentication, projects, progress, tasks, assignees and comments), and dashboard wireframe. Technology stack chosen on 2026-11-12: Java 21 and Spring Boot 3, a static HTML/CSS/JS front end and PostgreSQL (see [Technology stack](docs/architecture.md#technology-stack)).
+- **In progress:** development. The project setup (INC-01), authentication and access control (INC-02), projects (INC-03), tasks (INC-04) and task collaboration (INC-05) increments are done (see [docs/implementation-plan.md](docs/implementation-plan.md)): sign-in, profile, sign-out, creating, listing, searching, viewing, editing and deleting projects, creating, listing, filtering, viewing, editing and deleting tasks and changing their status, assigning members to tasks, and commenting on tasks. The user interface covers sign-in, projects, tasks, assignees and comments. Hosting and other technical choices are still pending; see [pending technical decisions](docs/constraints.md#pending-technical-decisions).
 - **Blocking next step:** the five assumptions that shape the MVP most (AQ3, AQ6, AQ7, AQ11, AQ17) were confirmed on 2026-10-29 (see the [decision log](docs/constraints.md#decision-log)). The remaining [pending product decisions](docs/constraints.md#pending-product-decisions) (PD-01 to PD-13, PD-15 to PD-20 and PD-22 to PD-24; PD-04 and PD-13 in part) must be made before the features they affect are designed. While the client is unavailable, the project decision-maker makes them (KC-01).
 - **Last updated:** 2026-11-12.

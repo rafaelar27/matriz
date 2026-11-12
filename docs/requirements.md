@@ -63,12 +63,13 @@ Priorities use MoSCoW: **Must have / Should have / Could have / Won't have (for 
 | FR-13 | A project task list shows all tasks in the project with their owner, status and due date, and the number of tasks per status. It is shown in pages, earliest due date first, with tasks without a due date last (decided 2026-11-12). | Project Manager, Team Member, Viewer | F24 Project task list | Must have |
 | FR-14 | "My tasks" lists all tasks owned by the signed-in member across projects, ordered by due date with the earliest first. | Team Member | F25 "My tasks" | Must have |
 | FR-15 | Task lists can be filtered by owner, status or due date. Filters can be combined. | Project Manager, Team Member, Viewer | F26 Filter tasks | Should have |
-| FR-16 | Members can comment on tasks. Empty comments, or comments containing only spaces, are not posted. | Team Member, Project Manager | F31 Task comments | Must have |
+| FR-16 | Members can comment on tasks. Empty comments, or comments containing only spaces, are not posted. A comment is trimmed and is at most 2000 characters; its author and date are set by Matriz. Comments are listed oldest first and cannot be edited or deleted in the MVP (decided 2026-11-12). | Team Member, Project Manager | F31 Task comments | Must have |
 | FR-17 | A member receives a notification inside Matriz when they are assigned a task, and when someone comments on a task they own. | Team Member, Project Manager | F36 In-app notifications | Must have |
 | FR-18 | Each project shows its progress as the number of Done tasks out of all its tasks, for example "2 of 8 tasks done". | Project Manager, Viewer | F39 Project progress indicator | Must have |
 | FR-19 | A task whose due date is earlier than today and whose status is not Done is marked as overdue in every task list. The marking includes a text label or symbol and does not rely on colour alone. | Project Manager, Team Member, Viewer | F40 Overdue highlighting | Must have |
 | FR-20 | Members can send feedback, such as a problem report or a suggestion, from inside Matriz. | All user types | F44 Send feedback | Should have |
 | FR-21 | Members can request a copy or the deletion of their personal data. In the MVP, these requests may be handled manually by the support team. | All user types | F45 Personal data requests | Must have |
+| FR-22 | Besides its single owner, a task can have any number of assignees: active members of the task's project, Viewers included, who work on it with the owner. A member is assigned to a task at most once, and each assignment can be removed on its own. Being assigned does not make a member the owner: "My tasks", notifications and status changes still follow the owner (FR-10, FR-14, FR-17). Only Project Managers assign and remove (provisional until PD-01). Added 2026-11-12. | Project Manager | F14 Assign a responsible person | Must have |
 
 ## Non-functional requirements
 
@@ -93,7 +94,7 @@ Security and privacy aspects of these requirements are summarized in [constraint
 
 **Core value:** a work team can see in one place what needs to be done, who is responsible, by when, and how far each project has progressed.
 
-**Included:** FR-01 to FR-21. That is **18 Must have** requirements plus **3 Should have** requirements (FR-05 Read-only access, FR-15 Filter tasks and FR-20 Send feedback). All non-functional requirements (NFR-01 to NFR-10) apply to the MVP.
+**Included:** FR-01 to FR-22. That is **19 Must have** requirements plus **3 Should have** requirements (FR-05 Read-only access, FR-15 Filter tasks and FR-20 Send feedback). All non-functional requirements (NFR-01 to NFR-10) apply to the MVP.
 
 **Success criterion:** OBJ-05, meaning most pilot teams keep using Matriz for their real projects after three months.
 

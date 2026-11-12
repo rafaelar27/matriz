@@ -12,6 +12,7 @@ const PAGE_SIZE = 10;
 const TASK_TITLE_MIN = 3;
 const TASK_TITLE_MAX = 150;
 const TASK_DESCRIPTION_MAX = 2000;
+const COMMENT_MAX = 2000;
 
 // Task statuses. The API always sends and receives these technical values (openapi.yaml: TaskStatus); the interface
 // shows Portuguese labels (PD-13, decided 2026-11-12 for task statuses). This is the only place they are mapped.
@@ -136,6 +137,14 @@ function go(hash) {
 
 function formatDate(value) {
   return value || '—';
+}
+
+/** A server timestamp shown as a readable local date and time, for example "12 Nov 2026, 17:05". */
+function formatDateTime(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  return isNaN(date) ? value : date.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit' });
 }
 
 function chars(text) {
@@ -570,18 +579,164 @@ function taskSection(project, progress, progressText, params) {
         h('dt', {}, 'Due date'), h('dd', {}, formatDate(task.due_date)),
         h('dt', {}, 'Status'), h('dd', {}, statusLabel(task.status))),
       h('p', { class: 'description' }, task.description || 'No description.'),
+      assigneeArea(task),
+      commentArea(task),
       h('div', { class: 'actions' },
         can.edit(task) ? h('button', { class: 'btn', type: 'button', onclick: () => openForm(task) }, 'Edit') : null,
         close)));
     close.focus();
   };
 
+  // Comments of one task (INC-05; FR-16, US-15), oldest first. Every member reads them; Project Managers and Team
+  // Members post (the backend also requires project membership). Author and date always come from the server.
+  const commentArea = task => {
+    const path = taskPath(task) + '/comments';
+    const list = h('div', { 'aria-live': 'polite' }, loading('Loading comments…'));
+    const box = h('section', { class: 'comments', 'aria-labelledby': 'comments-title' },
+      h('h4', { id: 'comments-title' }, 'Comments'), list);
+
+    const load = async () => {
+      try {
+        const items = await api('GET', path);
+        list.replaceChildren(items.length
+          ? h('ol', { class: 'comment-list' }, items.map(c => h('li', {},
+            h('div', { class: 'comment-meta' }, h('strong', {}, c.author_name), ' · ',
+              h('time', { datetime: c.created_at }, formatDateTime(c.created_at))),
+            h('p', { class: 'description' }, c.body))))
+          : h('p', { class: 'hint' }, 'No comments yet.'));
+      } catch (err) {
+        if (err.status === 401) return;
+        list.replaceChildren(failure(err, load));
+      }
+    };
+
+    if (writer) {
+      const text = h('textarea', { id: 'comment-body', rows: 3, 'aria-describedby': 'comment-hint comment-error' });
+      const count = h('span', {});
+      const error = h('div', { class: 'error', id: 'comment-error', hidden: true });
+      const wrapper = h('div', { class: 'field' }, h('label', { for: 'comment-body' }, 'Add a comment'), text,
+        h('div', { class: 'hint', id: 'comment-hint' }, 'Up to 2000 characters. ', count), error);
+      const showError = message => {
+        error.textContent = message || '';
+        error.hidden = !message;
+        wrapper.classList.toggle('invalid', Boolean(message));
+        text.setAttribute('aria-invalid', message ? 'true' : 'false');
+      };
+      const counter = () => { count.textContent = chars(text.value.trim()) + ' / ' + COMMENT_MAX; };
+      text.addEventListener('input', counter);
+      counter();
+      const submit = h('button', { class: 'btn', type: 'submit' }, 'Post comment');
+      box.append(h('form', { class: 'comment-form', novalidate: true, onsubmit: async e => {
+        e.preventDefault();
+        const n = chars(text.value.trim());
+        if (n === 0 || n > COMMENT_MAX) {
+          showError(n === 0 ? 'A comment cannot be empty.' : 'A comment can be at most 2000 characters long.');
+          text.focus();
+          return;
+        }
+        showError('');
+        submit.disabled = true;
+        try {
+          await api('POST', path, { body: text.value });
+          text.value = '';
+          counter();
+          await load();
+        } catch (err) {
+          if (err.status === 401) return;
+          const detail = ((err.body && err.body.details) || []).find(d => d.field === 'body');
+          showError(detail ? detail.issue : (err.status === 404 ? 'This task no longer exists.' : err.message));
+        } finally {
+          submit.disabled = false;
+        }
+      } }, wrapper, submit));
+    }
+
+    load();
+    return box;
+  };
+
+  // Assignees of one task (INC-05; FR-22, US-29). Shown to every member; Project Managers assign and remove.
+  // The choice offers only eligible members (active project members); the backend checks every id again.
+  const assigneeArea = task => {
+    const path = taskPath(task) + '/assignees';
+    const box = h('section', { class: 'assignees', 'aria-labelledby': 'assignees-title' },
+      h('h4', { id: 'assignees-title' }, 'Assignees'));
+    const list = h('div', { 'aria-live': 'polite' }, loading('Loading assignees…'));
+    const feedback = h('div', { 'aria-live': 'assertive' });
+    const picker = h('div', {});
+    box.append(list, feedback, picker);
+
+    const load = async () => {
+      try {
+        const [assigned, eligible] = await Promise.all([api('GET', path),
+          can.reassign ? api('GET', taskPath(task) + '/eligible-assignees') : Promise.resolve([])]);
+        list.replaceChildren(assigned.length
+          ? h('ul', { class: 'people' }, assigned.map(a => h('li', {},
+            h('span', {}, a.name), h('span', { class: 'hint' }, ' · since ' + formatDateTime(a.assigned_at)),
+            can.reassign ? h('button', { class: 'btn secondary', type: 'button', 'aria-label': 'Remove ' + a.name,
+              onclick: () => remove(a) }, 'Remove') : null)))
+          : h('p', { class: 'hint' }, 'No one is assigned besides the owner.'));
+        picker.replaceChildren(can.reassign ? chooser(eligible.filter(m => !assigned.some(a => a.member_id === m.member_id))) : '');
+      } catch (err) {
+        if (err.status === 401) return;
+        list.replaceChildren(failure(err, load));
+      }
+    };
+
+    const chooser = available => {
+      if (!available.length) return h('p', { class: 'hint' }, 'Every member of this project is assigned.');
+      const boxes = available.map(m => ({ m, input: h('input', { type: 'checkbox', value: m.member_id, id: 'assign-' + m.member_id }) }));
+      const submit = h('button', { class: 'btn', type: 'submit' }, 'Assign selected');
+      return h('form', { class: 'assign-form', onsubmit: async e => {
+        e.preventDefault();
+        feedback.replaceChildren();
+        const ids = boxes.filter(b => b.input.checked).map(b => b.m.member_id);
+        if (!ids.length) {
+          feedback.append(message('Choose at least one member.'));
+          return;
+        }
+        submit.disabled = true;
+        try {
+          await api('POST', path, { member_ids: ids });
+          feedback.append(message('Assigned.', 'info'));
+          await load();
+        } catch (err) {
+          if (err.status === 401) return;
+          feedback.append(message(err.message));
+          await load(); // shows what is actually stored, for example after someone else assigned the same member
+        } finally {
+          submit.disabled = false;
+        }
+      } },
+      h('fieldset', {}, h('legend', {}, 'Assign members of this project'),
+        boxes.map(b => h('label', { class: 'check', for: b.input.id }, b.input, ' ' + b.m.name + ' (' + b.m.role + ')'))),
+      submit);
+    };
+
+    const remove = async a => {
+      feedback.replaceChildren();
+      try {
+        await api('DELETE', path + '/' + encodeURIComponent(a.member_id));
+        feedback.append(message(a.name + ' was removed.', 'info'));
+      } catch (err) {
+        if (err.status === 401) return;
+        feedback.append(message(err.status === 404 ? a.name + ' was no longer assigned.' : err.message));
+      }
+      await load();
+    };
+
+    load();
+    return box;
+  };
+
   // Create (task null) or edit. Only fields the caller may change are enabled, and only changed fields are sent.
   const openForm = async task => {
     const editing = Boolean(task);
+    let eligible = null; // project members, for the owner choice when editing (AC-10.3)
     if (editing) {
       try {
         task = await api('GET', taskPath(task)); // latest values
+        if (can.reassign) eligible = await api('GET', taskPath(task) + '/eligible-assignees');
       } catch (err) {
         if (err.status === 401) return;
         say(err.status === 404 ? 'This task no longer exists.' : err.message, true);
@@ -630,7 +785,7 @@ function taskSection(project, progress, progressText, params) {
     description.disabled = !contentAllowed;
     dueDate.disabled = !contentAllowed;
     status.disabled = editing && !can.status(task);
-    const ownerChoices = can.reassign ? members : members.filter(m => m.member_id === me.member_id);
+    const ownerChoices = can.reassign ? (eligible || members) : members.filter(m => m.member_id === me.member_id);
     const currentOwner = editing ? task.owner_member_id : me.member_id;
     owner.replaceChildren(...(ownerChoices.length ? ownerChoices : [{ member_id: currentOwner, name: editing ? task.owner_name : state.profile.name, role: '' }])
       .map(m => h('option', { value: m.member_id, selected: m.member_id === currentOwner }, m.name + (m.role ? ' (' + m.role + ')' : ''))));

@@ -2,8 +2,8 @@ openapi: 3.1.0
 
 info:
   title: Matriz API
-  version: 0.4.0-draft
-  summary: Draft API for the Matriz MVP (authentication, projects, progress and tasks).
+  version: 0.6.0-draft
+  summary: Draft API for the Matriz MVP (authentication, projects, progress, tasks, task assignees and comments).
   description: |
     Draft specification of the Matriz MVP API, a project and task management
     platform for work teams: sign-in, the signed-in profile and sign-out,
@@ -11,7 +11,8 @@ info:
 
     **Status:** draft, written on 2026-11-05; authentication added on 2026-11-12
     (INC-02, docs/implementation-plan.md); projects on 2026-11-12 (INC-03); task
-    listing, viewing, editing and deletion on 2026-11-12 (INC-04). The technology stack is chosen in
+    listing, viewing, editing and deletion on 2026-11-12 (INC-04); task assignees
+    and comments on 2026-11-12 (INC-05). The technology stack is chosen in
     docs/architecture.md (Technology stack). Authentication uses a server-side
     session cookie (TD-03, decided 2026-11-12); see `components.securitySchemes`.
 
@@ -70,6 +71,11 @@ info:
     - `listTasks`, `getTask`, `updateTask` and `deleteTask` support US-10,
       US-11, US-12, US-14, US-25 and US-26 (FR-09 to FR-13, FR-15). Owning
       component: CMP-05 Tasks. Added 2026-11-12 (INC-04).
+    - `listEligibleAssignees`, `listTaskAssignees`, `assignTask` and
+      `unassignTask` support US-29 (FR-22). Owning component: CMP-05 Tasks.
+      Added 2026-11-12 (INC-05).
+    - `listTaskComments` and `addTaskComment` support US-15 (FR-16). Owning
+      component: CMP-07 Comments. Added 2026-11-12 (INC-05).
 
     **Assumptions made in this specification** (not confirmed requirements):
     - **API-A1.** *Withdrawn 2026-11-12:* replaced by the session cookie
@@ -121,6 +127,8 @@ tags:
     description: "Derived project progress (FR-18, BR-15). Owning component: CMP-09 Progress Tracking."
   - name: Workspaces
     description: "Workspace members, read only (FR-03, FR-04). Owning component: CMP-02."
+  - name: Comments
+    description: "Comments on tasks (FR-16). Owning component: CMP-07 Comments."
   - name: Tasks
     description: |
       Tasks within projects: one action with exactly one owner, an optional due
@@ -857,6 +865,299 @@ paths:
         '404':
           $ref: '#/components/responses/TaskNotFound'
 
+  /projects/{project_id}/tasks/{task_id}/eligible-assignees:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/TaskId'
+    get:
+      tags: [Tasks]
+      operationId: listEligibleAssignees
+      summary: List the members who can be assigned to a task
+      description: |
+        The active members of the task's project, Viewers included, sorted by
+        name (FR-07, FR-22, BR-22). Deactivated members are never eligible
+        (SP-04). Members already assigned are included; `listTaskAssignees`
+        tells them apart. Only the member id, name and role are returned.
+        The same list serves as the owner choice for the task (AC-10.3).
+
+        **Who can perform it:** any active member of the project's workspace.
+      responses:
+        '200':
+          description: The eligible members.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EligibleMember'
+              examples:
+                websiteMembers:
+                  value:
+                    - member_id: mem_ana
+                      name: Ana Demo
+                      role: Project Manager
+                    - member_id: mem_ben
+                      name: Ben Demo
+                      role: Team Member
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/TaskNotFound'
+
+  /projects/{project_id}/tasks/{task_id}/assignees:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/TaskId'
+    get:
+      tags: [Tasks]
+      operationId: listTaskAssignees
+      summary: List a task's assignees
+      description: |
+        The members assigned to the task in addition to its owner (FR-22,
+        US-29), sorted by name. An assignee who was deactivated later is still
+        listed (as for owners, EC-04).
+
+        **Who can perform it:** any active member of the project's workspace,
+        including Viewers (FR-05).
+      responses:
+        '200':
+          description: The task's assignees; empty when there are none.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Assignee'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/TaskNotFound'
+    post:
+      tags: [Tasks]
+      operationId: assignTask
+      summary: Assign one or more members to a task
+      description: |
+        Adds the given members as assignees (FR-22, US-29). Being assigned
+        does not make a member the owner: the owner stays the only person
+        whose "My tasks", notifications and status rights depend on the task
+        (FR-10, FR-14, FR-17, AC-11.1; decided 2026-11-12).
+
+        **Who can perform it:** any active Project Manager of the project's
+        workspace (provisional until PD-01 is decided, approved 2026-11-12).
+        Team Members, Viewers and Workspace Administrators get 403.
+
+        **Rules, checked in this order; if any fails, nothing is saved:**
+        1. `member_ids` has 1 to 20 entries (422).
+        2. Every id is a valid id of an active member of the task's project
+           (422, BR-22). A member of another workspace is never eligible.
+        3. No id appears twice in the request, and none is already assigned
+           (409 `conflict`). The database also refuses a second assignment of
+           the same member to the same task (BR-22).
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignRequest'
+            examples:
+              benAndVera:
+                value:
+                  member_ids: [mem_ben, mem_vera]
+      responses:
+        '201':
+          description: The members were assigned. The full list of assignees is returned.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Assignee'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/TaskNotFound'
+        '409':
+          description: A member is already assigned to the task, or appears twice in the request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                alreadyAssigned:
+                  value:
+                    code: conflict
+                    message: Ben Demo is already assigned to this task.
+                    details:
+                      - field: member_ids
+                        issue: Ben Demo is already assigned to this task.
+        '422':
+          description: |
+            `member_ids` is missing, empty or has more than 20 entries, or an
+            id is not an active member of the task's project. An unknown field
+            is also refused.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                notEligible:
+                  value:
+                    code: validation_failed
+                    message: The members could not be assigned.
+                    details:
+                      - field: member_ids
+                        issue: Only active members of this project can be assigned.
+
+  /projects/{project_id}/tasks/{task_id}/assignees/{member_id}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/TaskId'
+      - name: member_id
+        in: path
+        required: true
+        description: The assigned member (Member.member_id).
+        schema:
+          $ref: '#/components/schemas/Id'
+    delete:
+      tags: [Tasks]
+      operationId: unassignTask
+      summary: Remove one assignee from a task
+      description: |
+        Removes this one assignment; other assignees and the owner stay
+        (US-29). **Who can perform it:** the same as `assignTask`.
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      responses:
+        '204':
+          description: The assignment was removed.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: The task was not found, or the member is not assigned to it.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /projects/{project_id}/tasks/{task_id}/comments:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/TaskId'
+    get:
+      tags: [Comments]
+      operationId: listTaskComments
+      summary: List a task's comments
+      description: |
+        Every comment of the task, oldest first, then by id (DA-07; order
+        decided 2026-11-12), with the author's name and the time it was posted.
+        No pages. A task that does not belong to `project_id` gives 404.
+
+        **Who can perform it:** any active member of the project's workspace,
+        including Viewers (FR-05, FR-13).
+      responses:
+        '200':
+          description: The comments; empty when there are none.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Comment'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/TaskNotFound'
+    post:
+      tags: [Comments]
+      operationId: addTaskComment
+      summary: Comment on a task
+      description: |
+        Adds a comment to the task (US-15, FR-16). Comments cannot be edited
+        or deleted in the MVP.
+
+        **Set by the server, never by the client:** the author is the
+        signed-in member and `created_at` is the server's time. Sending
+        `author_member_id`, `created_at` or any other field except `body` is
+        refused with 422.
+
+        **Rules:** `body` is required. Leading and trailing spaces are removed
+        and the stored text must be 1 to 2000 characters, so a comment of only
+        spaces is refused (BR-13, EC-08; limit decided 2026-11-12).
+
+        **Who can perform it:** an active Project Manager or Team Member who is
+        a member of the task's project (provisional rule approved 2026-11-12,
+        as for task creation, PD-20). Viewers are refused (FR-05, PD-17), and
+        Workspace Administrators (PD-03).
+
+        **Not yet implemented:** the "comment added" notification to the task's
+        owner (FR-17, BR-14, R-16), left for the notifications increment (CMP-08).
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommentCreateRequest'
+            examples:
+              question:
+                value:
+                  body: Should the photos use the new colours?
+      responses:
+        '201':
+          description: The comment was added and is returned with its author and date.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+              examples:
+                added:
+                  value:
+                    comment_id: cmt_001
+                    task_id: tsk_001
+                    author_member_id: mem_ben
+                    author_name: Ben Demo
+                    body: Should the photos use the new colours?
+                    created_at: '2026-11-12T17:40:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/TaskNotFound'
+        '422':
+          description: |
+            `body` is missing, `null`, only spaces, or longer than 2000
+            characters after trimming; or another field was sent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                empty:
+                  value:
+                    code: validation_failed
+                    message: The comment could not be posted.
+                    details:
+                      - field: body
+                        issue: A comment cannot be empty.
+
   /tasks/{task_id}:
     parameters:
       - $ref: '#/components/parameters/TaskId'
@@ -1055,7 +1356,11 @@ components:
           Administrator (PD-03), a Team Member setting another owner (PD-01),
           or not a member of the project (PD-20);
         - for `updateTask`, a sent field the member may not change (see that
-          operation); for `deleteTask`, the member did not create the task (BR-12).
+          operation); for `deleteTask`, the member did not create the task (BR-12);
+        - for `assignTask` and `unassignTask`, the member is not a Project
+          Manager (provisional, PD-01);
+        - for `addTaskComment`, the member is a Viewer or Workspace
+          Administrator, or not a member of the task's project (provisional).
       content:
         application/json:
           schema:
@@ -1416,6 +1721,81 @@ components:
                 type: integer
                 minimum: 0
 
+    EligibleMember:
+      type: object
+      description: A member who can be assigned to a task. No email or other account data.
+      required: [member_id, name, role]
+      properties:
+        member_id:
+          $ref: '#/components/schemas/Id'
+        name:
+          type: string
+          description: Personal data (database.md, Account.name).
+        role:
+          type: string
+          enum: [Workspace Administrator, Project Manager, Team Member, Viewer]
+
+    Assignee:
+      type: object
+      description: A member assigned to a task (TaskAssignee). No email or other account data.
+      required: [member_id, name, assigned_at]
+      properties:
+        member_id:
+          $ref: '#/components/schemas/Id'
+        name:
+          type: string
+          description: Personal data (database.md, Account.name).
+        assigned_at:
+          type: string
+          format: date-time
+          description: When the member was assigned, set by the server.
+
+    AssignRequest:
+      type: object
+      required: [member_ids]
+      additionalProperties: false
+      properties:
+        member_ids:
+          type: array
+          minItems: 1
+          maxItems: 20
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Id'
+
+    CommentCreateRequest:
+      type: object
+      required: [body]
+      additionalProperties: false
+      properties:
+        body:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: Trimmed by the server; 1 to 2000 characters after trimming, not only spaces.
+
+    Comment:
+      type: object
+      description: A comment on a task (database.md, Comment). No email or other account data of the author.
+      required: [comment_id, task_id, author_member_id, author_name, body, created_at]
+      properties:
+        comment_id:
+          $ref: '#/components/schemas/Id'
+        task_id:
+          $ref: '#/components/schemas/Id'
+        author_member_id:
+          $ref: '#/components/schemas/Id'
+        author_name:
+          type: string
+          description: Personal data (database.md, Account.name).
+        body:
+          type: string
+          description: May contain personal data entered by users (database.md).
+        created_at:
+          type: string
+          format: date-time
+          description: When the comment was posted, set by the server.
+
     TaskStatusUpdateRequest:
       type: object
       description: The only field this operation changes (FR-12).
@@ -1477,13 +1857,14 @@ components:
         code:
           type: string
           description: Stable, machine-readable error code.
-          enum: [malformed_request, not_authenticated, forbidden, not_found, validation_failed]
+          enum: [malformed_request, not_authenticated, session_expired, forbidden, csrf_invalid, not_found,
+                 validation_failed, conflict]
         message:
           type: string
           description: Human-readable summary in the interface language (NFR-09, pending PD-13).
         details:
           type: array
-          description: One entry per field that failed validation (422 only).
+          description: One entry per field that failed validation (422), or the conflicting field (409).
           items:
             type: object
             required: [field, issue]

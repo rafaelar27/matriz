@@ -1,6 +1,7 @@
 package com.matriz.projects;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -14,6 +15,9 @@ interface ProjectRepository extends JpaRepository<Project, UUID> {
     @Query(value = "SELECT EXISTS (SELECT 1 FROM project_member WHERE project_id = :projectId AND member_id = :memberId)",
             nativeQuery = true)
     boolean isProjectMember(UUID projectId, UUID memberId);
+
+    @Query(value = "SELECT member_id FROM project_member WHERE project_id = :projectId", nativeQuery = true)
+    List<UUID> memberIdsOf(UUID projectId);
 
     @Modifying
     @Query(value = "INSERT INTO project_member (project_id, member_id) VALUES (:projectId, :memberId) "

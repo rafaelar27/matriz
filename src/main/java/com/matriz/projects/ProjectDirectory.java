@@ -1,6 +1,8 @@
 package com.matriz.projects;
 
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -29,5 +31,11 @@ public class ProjectDirectory {
     @Transactional(readOnly = true)
     public boolean isProjectMember(UUID projectId, UUID memberId) {
         return projects.isProjectMember(projectId, memberId);
+    }
+
+    /** The member ids of everyone who takes part in the project (FR-07), active or not. */
+    @Transactional(readOnly = true)
+    public Set<UUID> memberIdsOf(UUID projectId) {
+        return new HashSet<>(projects.memberIdsOf(projectId));
     }
 }
