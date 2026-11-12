@@ -4,7 +4,7 @@
 
 Matriz is a project and task management platform designed for work teams. It covers project and task management and progress tracking (known facts KF-01 to KF-06 in [docs/requirements.md](docs/requirements.md#known-facts)).
 
-This repository currently holds the product documentation that serves as the single source of truth for future design and development.
+This repository holds the product documentation, which is the single source of truth, and the application built from it.
 
 ## Problem it aims to solve
 
@@ -22,13 +22,13 @@ Full definitions and their basis are in [docs/requirements.md](docs/requirements
 
 ## Features planned for the MVP
 
-The MVP serves four user types: Workspace Administrator, Project Manager, Team Member and Viewer. It includes 21 functional requirements: 18 Must have and 3 Should have. Details are in [docs/requirements.md](docs/requirements.md#functional-requirements).
+The MVP serves four user types: Workspace Administrator, Project Manager, Team Member and Viewer. It includes 22 functional requirements: 19 Must have and 3 Should have. Details are in [docs/requirements.md](docs/requirements.md#functional-requirements).
 
 | Area | Requirements |
 |---|---|
 | Access and workspace | FR-01 Sign up and sign in · FR-02 Workspace creation · FR-03 Invite and remove members · FR-04 Roles and permissions · FR-05 Read-only access |
 | Projects | FR-06 Create, edit and archive projects · FR-07 Project members · FR-08 Project list |
-| Tasks | FR-09 Create, edit and delete tasks · FR-10 Assign a responsible person · FR-11 Due dates · FR-12 Task status |
+| Tasks | FR-09 Create, edit and delete tasks · FR-10 Assign a responsible person · FR-11 Due dates · FR-12 Task status · FR-22 Task assignees |
 | Views | FR-13 Project task list · FR-14 "My tasks" · FR-15 Filter tasks |
 | Collaboration and notifications | FR-16 Task comments · FR-17 In-app notifications |
 | Progress tracking | FR-18 Project progress indicator · FR-19 Overdue highlighting |
@@ -44,14 +44,14 @@ The MVP serves four user types: Workspace Administrator, Project Manager, Team M
 | [docs/architecture.md](docs/architecture.md) | Architectural style (decided 2026-11-05), components (CMP-xx), requirement coverage, component diagram |
 | [docs/database.md](docs/database.md) | Conceptual and logical data model, business rules (BR-xx), data-model assumptions (DA-xx) |
 | [docs/database-diagram.md](docs/database-diagram.md) | Entity-relationship diagram of the data model |
-| [openapi.yaml](openapi.yaml) | Draft API specification for task creation and task status changes, API assumptions (API-Ax) |
+| [openapi.yaml](openapi.yaml) | Draft API specification (authentication, projects, progress, tasks, task assignees and comments), API assumptions (API-Ax) |
 | [docs/ui/README.md](docs/ui/README.md) | UI notes for the dashboard: screen elements (E-xx), navigation, UI assumptions (UI-Ax) |
 | [docs/ui/dashboard-wireframe.html](docs/ui/dashboard-wireframe.html) | Low-fidelity dashboard wireframe |
 | [docs/implementation-plan.md](docs/implementation-plan.md) | Implementation increments, their acceptance criteria and verification, status log |
 
 ## Getting started
 
-The application is a single Spring Boot application (Java 21) using a local PostgreSQL database. Commands below are for PowerShell on Windows and are run from the repository root. There is no user interface yet; the API is used through HTTP requests (see Authentication below).
+The application is a single Spring Boot application (Java 21) using a local PostgreSQL database. Commands below are for PowerShell on Windows and are run from the repository root. The user interface is served by the same application (see [User interface](#user-interface) below); the API can also be used directly through HTTP requests (see Authentication below).
 
 ### Prerequisites
 
@@ -91,6 +91,10 @@ Edit `.env` and replace every value: `MATRIZ_DB_PASSWORD` is the role password f
 | `MATRIZ_DB_PASSWORD` | Database role password |
 | `MATRIZ_DEMO_PASSWORD` | Password given to every demo account by the seed command (stored only as a BCrypt hash) |
 | `MATRIZ_PORT` | Optional HTTP port, default `8080` |
+| `MATRIZ_TEST_DB_URL` | JDBC URL of the separate test database used by `mvn verify`, default `jdbc:postgresql://localhost:5432/matriz_test` (same role and password) |
+| `MATRIZ_SESSION_TIMEOUT` | Optional sign-in session idle timeout, default `8h` (for example `30m` or `1m`) |
+| `MATRIZ_COOKIE_SECURE` | Optional; `true` sends the session cookie only over HTTPS. Default `false` for local HTTP use |
+| `MATRIZ_API_BASE_URL` | Optional base URL of the API for the user interface (property `matriz.api-base-url`). Default empty: the same server. Only a path on the same site is accepted, such as `/api` behind a proxy; any other value, such as another host, a scheme, a query or spaces, stops the application at startup, because the session and CSRF cookies are same-site only (TD-03) |
 
 ### 3. Install dependencies and build
 
@@ -104,7 +108,7 @@ mvn -DskipTests package
 mvn spring-boot:run
 ```
 
-Flyway applies any pending migrations from `src/main/resources/db/migration` at startup; on an empty database the log shows `Successfully applied 1 migration`, and on later starts `Schema "public" is up to date`. The application listens on port 8080. Stop it with `Ctrl+C`. Starting it again keeps all data.
+Flyway applies any pending migrations from `src/main/resources/db/migration` at startup; on an empty database the log shows `Successfully applied 3 migrations`, and on later starts `Schema "public" is up to date`. The application listens on port 8080. Stop it with `Ctrl+C`. Starting it again keeps all data.
 
 ### 5. Load the demo data
 
@@ -112,7 +116,7 @@ Flyway applies any pending migrations from `src/main/resources/db/migration` at 
 mvn spring-boot:run "-Dspring-boot.run.profiles=seed"
 ```
 
-The seed command inserts the demo data and exits. It never deletes data, and running it again inserts nothing (`Demo data: 0 new rows inserted`). Normal startup never seeds.
+The seed command inserts the demo data and exits. It never deletes data, and running it again inserts nothing (`Demo data: 0 new rows inserted`). Normal startup never seeds. On a database seeded before 2026-11-12, running it once more adds only the Orchard Office demo data (5 new rows).
 
 ### 6. Run the verification check
 
@@ -120,14 +124,16 @@ The seed command inserts the demo data and exits. It never deletes data, and run
 mvn verify
 ```
 
-Runs all automated tests. Expected result: `Tests run: 84, Failures: 0` and `BUILD SUCCESS`.
+Runs all automated tests. Expected result: `Tests run: 104, Failures: 0` and `BUILD SUCCESS`.
 
 - `DatabaseSetupTest` checks the database configured in `.env`: it answers queries, every migration succeeded and all 11 tables from [docs/database.md](docs/database.md) exist. It changes no data.
-- `AuthenticationTest`, `CsrfCookieTest`, `TaskAccessTest`, `ProjectApiTest`, `TaskApiTest`, `AssignmentApiTest` and `CommentApiTest` check sign-in, sign-out, the project, task, assignee and comment operations and every access rule through API requests. They use the separate `matriz_test` database (`MATRIZ_TEST_DB_URL`, default `jdbc:postgresql://localhost:5432/matriz_test`), load the demo data there and roll back every change. Create that database once, as the `matriz` role:
+- `AuthenticationTest`, `CsrfCookieTest`, `TaskAccessTest`, `ProjectApiTest`, `TaskApiTest`, `AssignmentApiTest`, `CommentApiTest` and `ClientConfigApiTest` check sign-in, sign-out, the project, task, assignee and comment operations, the open `GET /config.js` and every access rule through API requests. They use the separate `matriz_test` database (`MATRIZ_TEST_DB_URL`, default `jdbc:postgresql://localhost:5432/matriz_test`), load the demo data there and roll back every change. Create that database once, as the `matriz` role:
 
 ```powershell
 & "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U matriz -h localhost -d matriz -c "CREATE DATABASE matriz_test OWNER matriz"
 ```
+
+- `ClientConfigControllerTest` is a unit test without a database: it checks which `MATRIZ_API_BASE_URL` values are accepted or stop startup, and that an accepted value is safely encoded in `/config.js`.
 
 ### Authentication
 
@@ -153,6 +159,28 @@ TOKEN=$(awk '$6=="XSRF-TOKEN"{print $7}' jar.txt)
 curl -s -b jar.txt -c jar.txt -H "X-XSRF-TOKEN: $TOKEN" -H "Content-Type: application/json" -d '{"email":"ben@example.com","password":"your-demo-password"}' http://localhost:8080/auth/sign-in
 curl -s -b jar.txt http://localhost:8080/auth/me
 ```
+
+### User interface
+
+The user interface is static HTML, CSS and JavaScript in `src/main/resources/static`, served by the application itself; there is no separate front-end build or server. Start the application (step 4) and open <http://localhost:8080>.
+
+The interface finds the API through `GET /config.js`, which the application generates from `MATRIZ_API_BASE_URL` and which only `static/js/app.js` reads. Leave the variable empty to use the server that serves the page. Set it to a path such as `/api` only when a proxy on the same site forwards that path to the application. In Git Bash, set `MSYS_NO_PATHCONV=1` when passing `MATRIZ_API_BASE_URL` on the command line, or the shell rewrites `/api` into a Windows path. `GET /config.js` is open without a session and holds no secret; it is not part of the API contract.
+
+**Sign in** (FR-01, US-01):
+
+- A missing email or password, or an email without "@", shows a message at the field and moves the focus to the first one.
+- A wrong email or password shows "The email or password is incorrect."; the email is kept and the password is cleared. Repeated clicks send a single request.
+- If Matriz cannot be reached: "Matriz could not be reached. Check your connection and try again."
+- When the session ends, the interface returns to sign-in with "Your session has ended. Sign in again." The screen you were on is reopened only right after signing in, and only if the same account signs in; another account starts at the first screen, the dashboard (UI-A1, UI-A7). After a full page reload the earlier account is not known, so the screen is kept and the API still decides access.
+- Opening sign-in while already signed in always goes to the dashboard. Signing out shows "You have signed out." and forgets the earlier screen.
+
+**Dashboard** (`#/dashboard`; FR-08, FR-13, FR-18; [docs/ui/README.md](docs/ui/README.md#dashboard)) is the first screen after signing in, and the screen an unknown address opens (UI-A1):
+
+- The top bar shows the names of every workspace you belong to, as text (no workspace switcher, PD-16), and the main menu **Dashboard** and **Projects**.
+- The **Projects** section shows the first 10 of your projects with workspace, owner, due date, progress ("3 of 12 tasks done") and the number of tasks per status (Por fazer, Em curso, Concluída), the total number of projects, "Showing N of total" and **See all projects**. There is no total across projects (F41 is outside the initial scope).
+- With no projects it shows "No projects yet."; Project Managers also see **+ New project** there, once. Workspace Administrators do not see it (provisional, PD-03).
+- A section that cannot be loaded shows "This section could not be loaded." and **Try again**; a project whose task counts cannot be loaded shows "—" in its row.
+- My tasks, notifications, members, feedback and personal-data requests are not on the dashboard yet, because they have no API operations.
 
 ### Projects in the browser
 
@@ -220,6 +248,8 @@ All demo data is fictitious. Every demo account uses the password you set in `MA
 | `vera@example.com` | Acme Studio: Viewer | Read-only access (FR-05) in the shared project; **cannot access** "Lab inventory" |
 | `carla@example.com` | Acme Studio and Northwind Lab: Workspace Administrator | Member and role management (FR-03, FR-04); cannot create, edit or delete projects (provisional, PD-03) |
 | `dan@example.com` | Northwind Lab: Project Manager | Creates and edits Northwind projects; **sees no** Acme Studio project (NFR-01) |
+| `eva@example.com` | Orchard Office: Project Manager | A workspace without projects: the dashboard shows "No projects yet." with **+ New project**; **sees no** Acme Studio or Northwind Lab project (NFR-01). Creating a project as Eva ends the empty state; deleting it restores it |
+| `finn@example.com` | Orchard Office: Workspace Administrator | The same empty dashboard without **+ New project** (provisional, PD-03); keeps an administrator in Orchard Office (SP-07) |
 
 | Project | Workspace | Project members | Tasks |
 |---|---|---|---|
@@ -227,12 +257,14 @@ All demo data is fictitious. Every demo account uses the password you set in `MA
 | Trade fair stand | Acme Studio | Ana, Ben | 1 with no due date |
 | Lab inventory | Northwind Lab | Carla, Ana | 1, with 1 comment |
 
+Orchard Office has no projects on purpose, to show the empty state.
+
 Every member of a workspace can see all of its projects (FR-08), so access differences between users come from workspaces (NFR-01) and roles (FR-04), not from project membership.
 
 ## Current project status
 
 - **Stage:** development. The specification documents remain drafts pending client validation.
 - **Done:** initial analysis, functional proposal and MVP specifications. Architectural style decided on 2026-11-05 (modular monolith, see the [decision log](docs/constraints.md#decision-log)). Draft data model, ER diagram, API specification (authentication, projects, progress, tasks, assignees and comments), and dashboard wireframe. Technology stack chosen on 2026-11-12: Java 21 and Spring Boot 3, a static HTML/CSS/JS front end and PostgreSQL (see [Technology stack](docs/architecture.md#technology-stack)).
-- **In progress:** development. The project setup (INC-01), authentication and access control (INC-02), projects (INC-03), tasks (INC-04) and task collaboration (INC-05) increments are done (see [docs/implementation-plan.md](docs/implementation-plan.md)): sign-in, profile, sign-out, creating, listing, searching, viewing, editing and deleting projects, creating, listing, filtering, viewing, editing and deleting tasks and changing their status, assigning members to tasks, and commenting on tasks. The user interface covers sign-in, projects, tasks, assignees and comments. Hosting and other technical choices are still pending; see [pending technical decisions](docs/constraints.md#pending-technical-decisions).
+- **In progress:** development. The project setup (INC-01), authentication and access control (INC-02), projects (INC-03), tasks (INC-04) and task collaboration (INC-05) increments are done (see [docs/implementation-plan.md](docs/implementation-plan.md)): sign-in, profile, sign-out, creating, listing, searching, viewing, editing and deleting projects, creating, listing, filtering, viewing, editing and deleting tasks and changing their status, assigning members to tasks, and commenting on tasks. The user interface covers sign-in, the dashboard, projects, tasks, assignees and comments, and is being reworked one screen at a time (INC-06, in progress; the sign-in and dashboard screens are done). Hosting and other technical choices are still pending; see [pending technical decisions](docs/constraints.md#pending-technical-decisions).
 - **Blocking next step:** the five assumptions that shape the MVP most (AQ3, AQ6, AQ7, AQ11, AQ17) were confirmed on 2026-10-29 (see the [decision log](docs/constraints.md#decision-log)). The remaining [pending product decisions](docs/constraints.md#pending-product-decisions) (PD-01 to PD-13, PD-15 to PD-20 and PD-22 to PD-24; PD-04 and PD-13 in part) must be made before the features they affect are designed. While the client is unavailable, the project decision-maker makes them (KC-01).
 - **Last updated:** 2026-11-12.

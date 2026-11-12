@@ -11,6 +11,7 @@
 | INC-03 | Projects (first end-to-end flow) | Done (2026-11-12) |
 | INC-04 | Tasks within a project | Done (2026-11-12) |
 | INC-05 | Task collaboration: assignees (Feature A) and comments (Feature B) | Done (2026-11-12) |
+| INC-06 | User interface, one screen at a time | In progress |
 
 ### INC-01: Project setup
 
@@ -155,6 +156,45 @@
 | AC-INC05.11 | Comments persist after reopening the task, a reload and a backend restart. | Browser; SQL after restart | Pass |
 | AC-INC05.12 | Assignees and comments update without reloading the page; every operation without a session gets 401. | Browser; `AssignmentApiTest`, `CommentApiTest` | Pass |
 
+### INC-06: User interface
+
+**Goal:** rework the user interface one screen at a time, with shared form parts that every later form uses. Screen 1: sign-in. Screen 2: dashboard.
+
+**Basis:** FR-01; US-01; SP-01; TD-03 (decided 2026-11-12); NFR-06, NFR-07; CMP-11; UI-A1, UI-A7. Decisions of 2026-11-12 in the [decision log](constraints.md#decision-log): the `MATRIZ_API_BASE_URL` setting served as `GET /config.js` (open without a session, same-site paths only), the email kept and the password cleared after a failed sign-in, UI-A7. Screen 2: FR-08, FR-13, FR-18; US-09, US-17, US-19; AC-17.1, AC-19.1, AC-19.3; EC-05; NFR-01; E-01 to E-20, UI-A1, UI-A2, UI-A6 in [docs/ui/README.md](ui/README.md); PD-03 and PD-16 still pending; F41 stays outside the initial scope. Dashboard decisions Q1 to Q7 of 2026-11-12 in the [decision log](constraints.md#decision-log).
+
+**Built (screen 1, sign-in):** `ClientConfigController` (`GET /config.js`) and the property `matriz.api-base-url`; `SecurityConfig` opens `GET /config.js`; in `static/js/app.js`, one place for the API base URL, the shared form parts `formKit`, `guarded` and `errorText`, the reworked sign-in screen and the return to the earlier screen (UI-A7); the network message "Matriz could not be reached. Check your connection and try again."; tests `ClientConfigApiTest` and `ClientConfigControllerTest`. No migration; no change to the operations in [openapi.yaml](../openapi.yaml).
+
+**Built (screen 2, dashboard):** in `static/js/app.js`, `dashboardScreen` on the route `#/dashboard`, which is `HOME`, the first screen (UI-A1), also for unknown addresses; the top bar with E-01 (the names of every workspace of the member, text only, PD-16) and the main menu Dashboard and Projects, the current item marked with `aria-current`; shared helpers `section()` (E-19 loading and E-20 error with Try again, one load at a time), `loadProjectsWithProgress()`, `projectGrid()`, `statusCountTags()`, `newProjectLink()` and `projectCount()`, used by the dashboard, the Projects screen and the task list; `failure()` uses `errorText()`; parallel 401 responses go to sign-in once and keep "Your session has ended. Sign in again."; a project whose task counts cannot be loaded shows "—" in its row. In `index.html`, the Dashboard menu item and the E-01 text; in `app.css`, a wrapping menu and dashboard section styles. `DemoDataSeeder` adds the workspace Orchard Office, without projects, with Eva Demo (Project Manager) and Finn Demo (Workspace Administrator) (Q6). No migration, no change to [openapi.yaml](../openapi.yaml), no access-rule change, no new automated tests.
+
+| ID | Acceptance criterion | Verification method | Result |
+|---|---|---|---|
+| AC-INC06.1 | `GET /config.js` is open without a session, returns the base URL (empty by default), is not cached and holds no secret; every other operation still needs a session. | `ClientConfigApiTest` | Pass |
+| AC-INC06.2 | `MATRIZ_API_BASE_URL` accepts only an empty value or a same-site path; any other value stops startup, and an accepted value is safely encoded. | `ClientConfigControllerTest` | Pass |
+| AC-INC06.3 | After the session ends, the interface goes to sign-in with "Your session has ended. Sign in again." | Browser (expired session) | Pass |
+| AC-INC06.4 | Empty fields and an email without "@" show a message at the field and focus the first one. | Browser | Pass |
+| AC-INC06.5 | A wrong password shows "The email or password is incorrect.", keeps the email and clears the password; repeated clicks send one request. | Browser (fictitious wrong password, 3 rapid clicks, 1 request) | Pass |
+| AC-INC06.6 | Signing in again with the same account returns to the screen the member was on (UI-A7). | Browser (earlier project page) | Pass |
+| AC-INC06.7 | A signed-in member who opens sign-in goes to the first screen, the dashboard (UI-A1, UI-A7). | Browser (`#/sign-in` as Ana, re-checked with the dashboard) | Pass |
+| AC-INC06.8 | Signing out shows "You have signed out." | Browser | Pass |
+| AC-INC06.9 | The sign-in screen has no horizontal scroll at 375 and 768 px wide. | Browser | Pass |
+| AC-INC06.10 | After signing in, and when a signed-in member opens sign-in, the dashboard opens with Dashboard marked as current in the main menu (UI-A1). | Browser as Ana | Pass |
+| AC-INC06.11 | E-01 shows the names of every workspace the member belongs to, as text, without a switcher (PD-16). | Browser as Ana ("Acme Studio · Northwind Lab") and Eva ("Orchard Office") | Pass |
+| AC-INC06.12 | The Projects section shows at most 10 projects, the total from the API, "Showing N of total" and "See all projects". | Browser as Ana: 3 projects, "Showing 3 of 3"; with 11 fictitious projects added, "14 projects", 10 rows, "Showing 10 of 14"; test projects deleted afterwards and SQL showed no test rows and no orphans | Pass |
+| AC-INC06.13 | Each row shows workspace, owner, due date, progress "N of M tasks done" and the project's task counts by status with Portuguese labels, equal to `listTasks` `status_counts`; no total across projects (UI-A6, F41). | Browser as Ana: "3 of 12 tasks done", Por fazer 5 / Em curso 4 / Concluída 3, compared with the API response | Pass |
+| AC-INC06.14 | A workspace without projects shows "No projects yet."; a Project Manager also sees "+ New project", a Workspace Administrator does not (E-15, PD-03 provisional). | Browser as Eva and Finn | Pass |
+| AC-INC06.15 | On an empty project list "+ New project" appears once, in the empty state, on the dashboard and the Projects screen (Q7). | Browser as Eva after the fix: once on the dashboard and once on the Projects screen | Pass |
+| AC-INC06.16 | A section that cannot be loaded shows "This section could not be loaded." and Try again, which loads it again once (E-20). | Browser (recovery checked; the single-load guard added afterwards not re-checked) | Pass (recovery); single load Not verified |
+| AC-INC06.17 | A project whose task counts cannot be loaded shows "—" in its row; the rest of the section loads. | Browser | Not verified |
+| AC-INC06.18 | A member of another workspace cannot reach a project, its tasks or its progress through direct requests (NFR-01). | Browser as Eva: Acme project and its tasks 404, progress empty | Pass |
+| AC-INC06.19 | The dashboard has no page horizontal scroll at 375 and 768 px; the menu, account menu, "+ New project" and "See all projects" stay visible. | Browser | Pass |
+| AC-INC06.20 | No migration, contract or access change; all automated tests pass. | `mvn verify` (104 tests); security audit (pass, 2 low findings) | Pass |
+
+**Not verified yet:** another account signing in after a 401 goes to the first screen; the screen is forgotten after signing out; the network message when Matriz cannot be reached. Dashboard: the Viewer and Team Member dashboards in the browser (access covered by API tests); a screen reader; AC-INC06.17 and the single load of Try again after the fix; an unknown address going to the dashboard (code review only); parallel 401 responses going to sign-in once.
+
+**Not done yet:** the other screens (project list, project detail and form, tasks, assignees, comments) are reworked in later steps of INC-06; the project and task forms keep their own form code until then. On the dashboard, E-04 to E-06, E-09 to E-11, E-16 to E-18 and the E-07 items Send feedback and Request my personal data are not built, because FR-14, FR-17, FR-03/FR-04, FR-20 and FR-21 have no API operations yet (Q2, decided 2026-11-12). Open low security findings: S-01, `listTasks` with `size=1` returns one unused task per project; S-02, no Content-Security-Policy header.
+
+**Known gap:** a signed-in person with no active workspace sees an empty workspace name (E-01) and "No projects yet." on the dashboard. What they should see is pending PD-24; this stays as built until PD-24 is decided.
+
 ## Status log
 
 | Date | Increment | Change | Approved by |
@@ -164,3 +204,5 @@
 | 2026-11-12 | INC-03 | Plan approved (deletion with cascade, project name search, owner defaults to the creator, name 3–100 and description ≤ 1000 characters, any Project Manager edits or deletes, creator becomes a project member, page and size paging, a Northwind-only demo user, progress in the list). Project operations, migration `V2`, and the first user interface implemented; 18 new automated tests and a manual browser check pass. Status set to Done. | Project decision-maker |
 | 2026-11-12 | INC-04 | Plan approved (no priority, optional status on create, title 3–150 and description ≤ 2000 characters, Portuguese status labels, filters by status and owner, provisional task permissions, task paths under the project, owner choices from workspace members). Task operations and the Tasks section implemented; 16 new automated tests (69 in total) and a manual browser check pass, with status changes persisting after a reload and a restart. Status set to Done. | Project decision-maker |
 | 2026-11-12 | INC-05 | Feature A plan approved (Option 1: assignees besides the single owner; eligible = active project members; Project Managers assign; 409 for duplicates; primary key in migration `V3`), implemented, verified and confirmed. Feature B plan approved (comments 1 to 2000 characters trimmed, author and date from the server, oldest first, project members comment), implemented and verified. 15 new automated tests (84 in total) and manual browser checks pass, with assignments and comments persisting after a reload and a restart. Status set to Done. | Project decision-maker |
+| 2026-11-12 | INC-06 | Plan approved (one screen at a time; `MATRIZ_API_BASE_URL` served as `GET /config.js`, open without a session, same-site paths only; email kept and password cleared after a failed sign-in; UI-A7; shared form parts). Screen 1, sign-in, implemented; 20 new automated tests (104 in total) and manual browser checks pass. Status set to In progress. | Project decision-maker |
+| 2026-11-12 | INC-06 | Dashboard plan approved (Q1 B: per-project task counts by status from `listTasks` `status_counts`, no total across projects; Q2: My tasks, notifications, members, feedback and personal-data requests left out until they have API operations; Q3: every workspace name as text in E-01, no switcher, Workspace column kept; Q4: UI-A1 confirmed; Q5: first 10 projects with the API total, "Showing N of total" and "See all projects" in a footer; Q6 B: demo workspace Orchard Office with Eva Demo and Finn Demo; Q7: "+ New project" hidden for Workspace Administrators, provisional PD-03, once in the empty state). Screen 2, dashboard, implemented; no new automated tests (104 in total pass), manual browser checks and a security audit pass; open checks listed under INC-06. Status stays In progress. | Project decision-maker |

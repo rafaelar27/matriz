@@ -52,6 +52,14 @@ info:
     when the owner is a Team Member; only Project Managers change the owner
     (AC-10.4); Workspace Administrators can only read tasks (PD-03).
 
+    **Outside this contract:** the user interface files (`/`, `/index.html`,
+    `/css/**`, `/js/**`) and `GET /config.js`, a script generated from the
+    `MATRIZ_API_BASE_URL` setting that gives the interface the API's base URL
+    (approved 2026-11-12). They are served by the same application and are
+    open without a session because they hold no workspace content and no
+    secret (SP-01). They are not API operations and are not listed under
+    `paths`.
+
     **Sources of truth:** docs/requirements.md (FR, NFR), docs/user-stories.md
     (US, AC, EC), docs/constraints.md (AQ, SP, TD, PD), docs/architecture.md
     (CMP) and docs/database.md (entities, BR, DA). Attribute names, types and
