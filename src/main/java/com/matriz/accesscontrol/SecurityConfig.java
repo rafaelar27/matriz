@@ -54,6 +54,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/auth/sign-in").permitAll()
                 .requestMatchers(HttpMethod.GET, "/auth/csrf").permitAll()
                 .requestMatchers("/error").permitAll()
+                // The static user interface (CMP-11) holds no data; every data request still needs a session.
+                .requestMatchers(HttpMethod.GET, "/", "/index.html", "/css/**", "/js/**").permitAll()
                 .anyRequest().authenticated())
             .csrf(csrf -> csrf
                 .csrfTokenRepository(csrfTokens)

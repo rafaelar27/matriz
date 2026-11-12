@@ -120,10 +120,10 @@ The seed command inserts the demo data and exits. It never deletes data, and run
 mvn verify
 ```
 
-Runs all automated tests. Expected result: `Tests run: 35, Failures: 0` and `BUILD SUCCESS`.
+Runs all automated tests. Expected result: `Tests run: 53, Failures: 0` and `BUILD SUCCESS`.
 
 - `DatabaseSetupTest` checks the database configured in `.env`: it answers queries, every migration succeeded and all 11 tables from [docs/database.md](docs/database.md) exist. It changes no data.
-- `AuthenticationTest`, `CsrfCookieTest` and `TaskAccessTest` check sign-in, sign-out and every access rule through API requests. They use the separate `matriz_test` database (`MATRIZ_TEST_DB_URL`, default `jdbc:postgresql://localhost:5432/matriz_test`), load the demo data there and roll back every change. Create that database once, as the `matriz` role:
+- `AuthenticationTest`, `CsrfCookieTest`, `TaskAccessTest` and `ProjectApiTest` check sign-in, sign-out, the project operations and every access rule through API requests. They use the separate `matriz_test` database (`MATRIZ_TEST_DB_URL`, default `jdbc:postgresql://localhost:5432/matriz_test`), load the demo data there and roll back every change. Create that database once, as the `matriz` role:
 
 ```powershell
 & "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U matriz -h localhost -d matriz -c "CREATE DATABASE matriz_test OWNER matriz"
@@ -154,6 +154,20 @@ curl -s -b jar.txt -c jar.txt -H "X-XSRF-TOKEN: $TOKEN" -H "Content-Type: applic
 curl -s -b jar.txt http://localhost:8080/auth/me
 ```
 
+### Projects in the browser
+
+With the application running (step 4) and the demo data loaded (step 5), open <http://localhost:8080> and sign in with a demo account.
+
+| Screen | What you can do | Who |
+|---|---|---|
+| Projects | See every project in your workspaces with workspace, owner, due date and progress ("2 of 8 tasks done"); search by part of the name; move between pages | Every member |
+| + New project | Choose the workspace, name (3 to 100 characters), description (up to 1000), owner (you, unless you choose another member) and dates | Project Manager |
+| Project detail | See all of the project's details | Every member |
+| Edit project | Change the name, description, owner and dates | Any Project Manager of the workspace |
+| Delete project | Confirm in a dialog; the project, its tasks with their comments and notifications, and its project members are deleted. This cannot be undone. | Any Project Manager of the workspace |
+
+The same operations are in [openapi.yaml](openapi.yaml): `GET /projects?q=&page=&size=`, `POST /projects`, `GET`, `PATCH` and `DELETE /projects/{project_id}`, `GET /progress?project_id=` and `GET /workspaces/{workspace_id}/members`. Projects are stored in PostgreSQL, so they are still there after a reload or a restart. Restarting the application ends every session, so you sign in again.
+
 ### Demo users
 
 All demo data is fictitious. Every demo account uses the password you set in `MATRIZ_DEMO_PASSWORD`. Ids are fixed, so requests can use them directly.
@@ -174,7 +188,8 @@ All demo data is fictitious. Every demo account uses the password you set in `MA
 | `ana@example.com` | Acme Studio: Project Manager · Northwind Lab: Team Member | The same person with different roles in two workspaces; a Project Manager in the shared project "Website redesign" |
 | `ben@example.com` | Acme Studio: Team Member | A Team Member in the shared project; owns an overdue task; **cannot access** "Lab inventory" (another workspace, NFR-01) |
 | `vera@example.com` | Acme Studio: Viewer | Read-only access (FR-05) in the shared project; **cannot access** "Lab inventory" |
-| `carla@example.com` | Acme Studio and Northwind Lab: Workspace Administrator | Member and role management (FR-03, FR-04) |
+| `carla@example.com` | Acme Studio and Northwind Lab: Workspace Administrator | Member and role management (FR-03, FR-04); cannot create, edit or delete projects (provisional, PD-03) |
+| `dan@example.com` | Northwind Lab: Project Manager | Creates and edits Northwind projects; **sees no** Acme Studio project (NFR-01) |
 
 | Project | Workspace | Project members | Tasks |
 |---|---|---|---|
@@ -187,7 +202,7 @@ Every member of a workspace can see all of its projects (FR-08), so access diffe
 ## Current project status
 
 - **Stage:** development. The specification documents remain drafts pending client validation.
-- **Done:** initial analysis, functional proposal and MVP specifications. Architectural style decided on 2026-11-05 (modular monolith, see the [decision log](docs/constraints.md#decision-log)). Draft data model, ER diagram, API specification for two operations, and dashboard wireframe. Technology stack chosen on 2026-11-12: Java 21 and Spring Boot 3, a static HTML/CSS/JS front end and PostgreSQL (see [Technology stack](docs/architecture.md#technology-stack)).
-- **In progress:** development. The project setup (INC-01) and authentication and access control (INC-02) increments are done (see [docs/implementation-plan.md](docs/implementation-plan.md)): sign-in, profile, sign-out, and the createTask and updateTaskStatus operations. There is no user interface yet. Hosting and other technical choices are still pending; see [pending technical decisions](docs/constraints.md#pending-technical-decisions).
+- **Done:** initial analysis, functional proposal and MVP specifications. Architectural style decided on 2026-11-05 (modular monolith, see the [decision log](docs/constraints.md#decision-log)). Draft data model, ER diagram, API specification (authentication, projects, progress and two task operations), and dashboard wireframe. Technology stack chosen on 2026-11-12: Java 21 and Spring Boot 3, a static HTML/CSS/JS front end and PostgreSQL (see [Technology stack](docs/architecture.md#technology-stack)).
+- **In progress:** development. The project setup (INC-01), authentication and access control (INC-02) and projects (INC-03) increments are done (see [docs/implementation-plan.md](docs/implementation-plan.md)): sign-in, profile, sign-out, the createTask and updateTaskStatus operations, and creating, listing, searching, viewing, editing and deleting projects. The user interface covers sign-in and projects. Hosting and other technical choices are still pending; see [pending technical decisions](docs/constraints.md#pending-technical-decisions).
 - **Blocking next step:** the five assumptions that shape the MVP most (AQ3, AQ6, AQ7, AQ11, AQ17) were confirmed on 2026-10-29 (see the [decision log](docs/constraints.md#decision-log)). The remaining [pending product decisions](docs/constraints.md#pending-product-decisions) (PD-01 to PD-13 and PD-15 to PD-24) must be made before the features they affect are designed. While the client is unavailable, the project decision-maker makes them (KC-01).
 - **Last updated:** 2026-11-12.

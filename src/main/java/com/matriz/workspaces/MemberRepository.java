@@ -14,4 +14,7 @@ interface MemberRepository extends JpaRepository<Member, UUID> {
 
     @Query("select m from Member m join fetch m.workspace where m.accountId = :accountId order by m.workspace.name")
     List<Member> findAllByAccount(UUID accountId);
+
+    @Query("select m from Member m where m.workspace.id = :workspaceId")
+    List<Member> findAllByWorkspace(UUID workspaceId);
 }

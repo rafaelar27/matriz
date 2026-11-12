@@ -28,7 +28,6 @@ import org.springframework.web.bind.annotation.RestController;
 import com.matriz.accesscontrol.SecurityConfig;
 import com.matriz.shared.ApiError;
 import com.matriz.shared.ApiException;
-import com.matriz.workspaces.MemberDirectory;
 
 /**
  * Sign-in, current profile and sign-out (FR-01, SP-01, CMP-01).
@@ -49,10 +48,10 @@ class AuthController {
     private final AuthenticationManager authentication;
     private final SecurityContextRepository contexts;
     private final CookieCsrfTokenRepository csrfTokens;
-    private final MemberDirectory members;
+    private final MembershipProvider members;
 
     AuthController(AuthenticationManager authentication, SecurityContextRepository contexts,
-                   CookieCsrfTokenRepository csrfTokens, MemberDirectory members) {
+                   CookieCsrfTokenRepository csrfTokens, MembershipProvider members) {
         this.authentication = authentication;
         this.contexts = contexts;
         this.csrfTokens = csrfTokens;
@@ -121,6 +120,6 @@ class AuthController {
     }
 
     /** The signed-in person. Never contains the password or its hash. */
-    record Profile(UUID accountId, String name, String email, List<MemberDirectory.Membership> memberships) {
+    record Profile(UUID accountId, String name, String email, List<MembershipProvider.Membership> memberships) {
     }
 }

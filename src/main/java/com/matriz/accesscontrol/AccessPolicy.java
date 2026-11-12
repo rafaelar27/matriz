@@ -31,6 +31,23 @@ public class AccessPolicy {
         return actor;
     }
 
+    /**
+     * createProject, updateProject, deleteProject: any active Project Manager of the project's workspace (FR-06,
+     * US-06, US-24, US-27; "any Project Manager" decided 2026-11-12). Viewing needs only workspace access (FR-08).
+     */
+    public void checkManageProject(Actor actor) {
+        if (actor.role() == Role.VIEWER) {
+            throw ApiException.forbidden(VIEWER_READ_ONLY);
+        }
+        if (actor.role() == Role.WORKSPACE_ADMINISTRATOR) {
+            // PROVISIONAL (PD-03): FR-06 names Project Managers only.
+            throw ApiException.forbidden("Workspace Administrators cannot manage projects (pending decision PD-03).");
+        }
+        if (actor.role() != Role.PROJECT_MANAGER) {
+            throw ApiException.forbidden("Only Project Managers can create, edit or delete projects.");
+        }
+    }
+
     /** createTask: who may create a task in a project (FR-09, BR-12, FR-05, AC-19.2). */
     public void checkCreateTask(Actor actor, boolean actorIsProjectMember) {
         if (actor.role() == Role.VIEWER) {

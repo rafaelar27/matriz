@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Matriz</title>
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<!--
+  Matriz user interface (CMP-11), static HTML, CSS and plain JavaScript (Technology stack).
+  Layout follows docs/ui/dashboard-wireframe.html (top bar, project list E-12, "+ New project" E-14,
+  empty state E-15, loading E-19 and error E-20 states). All data comes from the REST API.
+-->
+<a class="skip" href="#main">Skip to content</a>
+<header id="bar" class="bar" hidden>
+  <span class="brand">Matriz</span>
+  <nav aria-label="Main menu"><a id="nav-projects" href="#/projects">Projects</a></nav>
+  <div class="acct">
+    <button id="acct-button" type="button" aria-haspopup="true" aria-expanded="false"></button>
+    <div id="acct-menu" class="menu" hidden>
+      <button id="sign-out" type="button">Sign out</button>
+    </div>
+  </div>
+</header>
+<main id="main" class="content" tabindex="-1"></main>
+<dialog id="confirm" aria-labelledby="confirm-title">
+  <form method="dialog">
+    <h2 id="confirm-title">Delete project?</h2>
+    <p id="confirm-text"></p>
+    <div class="actions">
+      <button value="cancel" type="submit" class="btn secondary" autofocus>Cancel</button>
+      <button value="delete" type="submit" class="btn danger">Delete project</button>
+    </div>
+  </form>
+</dialog>
+<script src="/js/app.js"></script>
+</body>
+</html>

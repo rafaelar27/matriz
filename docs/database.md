@@ -132,8 +132,8 @@ Attribute types are generic: `id` (a unique identifier), `string` (short text), 
 |---|---|---|---|---|
 | project_id | id | PK | Yes | Identifier of the project. |
 | workspace_id | id | FK → Workspace | Yes | The workspace the project belongs to (FR-02, NFR-01). |
-| name | string | | Yes | The project's name (FR-06). |
-| description | text | | No (DA-03) | The project's description (FR-06). |
+| name | string | | Yes | The project's name, 3 to 100 characters (FR-06, BR-21). |
+| description | text | | No (DA-03) | The project's description, at most 1000 characters (FR-06, BR-21). |
 | owner_member_id | id | FK → Member | No (DA-03) | The project's owner (FR-06, FR-08). |
 | start_date | date | | No (DA-03) | The project's start date (FR-06). |
 | due_date | date | | No (DA-03) | The project's due date (FR-06, FR-08). |
@@ -214,9 +214,9 @@ The primary key is the pair (project_id, member_id), so a member takes part in a
 | R-04 | sends | Member → Invitation | 1 to 0..* | A member sends zero or more invitations; each invitation has exactly one sender (FR-03). |
 | R-05 | contains | Workspace → Project | 1 to 0..* | A workspace contains zero or more projects; each project belongs to exactly one workspace (FR-02, FR-08). |
 | R-06 | owns | Member → Project | 0..1 to 0..* | A member owns zero or more projects; a project has at most one owner (FR-06; optional per DA-03). |
-| R-07 | includes | Project → ProjectMember | 1 to 0..* | A project has zero or more project members; each project member is for exactly one project (FR-07). |
+| R-07 | includes | Project → ProjectMember | 1 to 0..* | A project has zero or more project members; each project member is for exactly one project (FR-07). Deleting the project deletes its project members (BR-21). |
 | R-08 | takes part as | Member → ProjectMember | 1 to 0..* | A member takes part in zero or more projects; each project member is exactly one member (FR-07). Together with R-07, this resolves the many-to-many between Project and Member. |
-| R-09 | contains | Project → Task | 1 to 0..* | A project contains zero or more tasks; each task belongs to exactly one project (FR-09). |
+| R-09 | contains | Project → Task | 1 to 0..* | A project contains zero or more tasks; each task belongs to exactly one project (FR-09). Deleting the project deletes its tasks, and through DA-05 their comments and notifications (BR-21). |
 | R-10 | owns | Member → Task | 1 to 0..* | A member owns zero or more tasks; each task has exactly one owner (FR-10). |
 | R-11 | creates | Member → Task | 1 to 0..* | A member creates zero or more tasks; each task has exactly one creator (FR-09). |
 | R-12 | has | Task → Comment | 1 to 0..* | A task has zero or more comments; each comment is on exactly one task (FR-16). |
@@ -260,6 +260,7 @@ These are confirmed by the documentation.
 | BR-18 | Every record belongs to exactly one workspace, directly or through its parent, and never references records in another workspace. | NFR-01, SP-02 |
 | BR-19 | No payment data is stored. | NFR-10, SP-06 |
 | BR-20 | The customer organization owns the data stored in its workspace. | SP-05, decision log 2026-10-29 |
+| BR-21 | A Project Manager of the workspace can delete a project. Deleting it also deletes its project members and its tasks with their comments and notifications, and cannot be undone. A project's name is 3 to 100 characters long and its description at most 1000 characters. The creator of a project becomes one of its project members. | FR-06, US-27, decision log 2026-11-12 |
 
 ## Assumptions to confirm
 
