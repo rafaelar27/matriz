@@ -41,6 +41,25 @@ A **significant change** is any change that does at least one of the following:
 - **P2.** Only an explicit "yes" to the plan you presented counts as approval. If the scope changes during the work, stop and present an updated plan.
 - **P3.** Changes that are not significant may proceed without a plan.
 
+## Project agents
+
+Specialised agents are defined in `.claude/agents/`. Whenever a request falls within an agent's area, delegate that part to the agent instead of doing it directly. When a request spans several areas, use the agents in the order below. Each agent follows this file; its definition says what it may change.
+
+| Order | Agent | Use it for |
+|---|---|---|
+| 1 | `planner` | Analysing and planning a new feature, increment or significant change, before any code is written |
+| 2 | `database` | Any change to the schema, migrations or demo seed data |
+| 3 | Main session | Implementing application code, after the plan is approved |
+| 4 | `tester` | Writing or running automated tests derived from acceptance criteria and edge cases |
+| 5 | `reviewer` | Reviewing a diff, increment, branch or pull request |
+| 6 | `security-auditor` | Auditing authentication, authorization, data exposure and secrets, after changes in those areas and before each delivery |
+| 7 | `doc-keeper` | Checking or updating documentation after an increment, before it is marked Done |
+
+- **A1.** Agents cannot ask the human directly. When an agent returns a plan, a question or an approval request, present it to the human unchanged and wait. After approval, run the agent again with the approved plan quoted.
+- **A2.** Approval of an agent's plan follows P2 and C1, as for any other plan.
+- **A3.** An agent's report is not proof. Check its result before telling the human the work is done.
+- **A4.** Do not do an agent's work directly because it seems quicker. If an agent cannot be used, say so and ask.
+
 ## Safety, security and confidentiality
 
 - **C1.** Ask for explicit approval immediately before every destructive or sensitive action, even if an approved plan includes it. Say what the action is, what it affects and whether it can be undone. Examples include:
