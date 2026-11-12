@@ -51,7 +51,7 @@ The MVP serves four user types: Workspace Administrator, Project Manager, Team M
 
 ## Getting started
 
-The application is a single Spring Boot application (Java 21) using a local PostgreSQL database. Commands below are for PowerShell on Windows and are run from the repository root. No feature logic exists yet; this sets up the project, the database schema and demo data.
+The application is a single Spring Boot application (Java 21) using a local PostgreSQL database. Commands below are for PowerShell on Windows and are run from the repository root. There is no user interface yet; the API is used through HTTP requests (see Authentication below).
 
 ### Prerequisites
 
@@ -120,11 +120,54 @@ The seed command inserts the demo data and exits. It never deletes data, and run
 mvn verify
 ```
 
-Runs `DatabaseSetupTest`, which connects to the configured database and checks that it answers queries, that every migration succeeded and that all 11 tables from [docs/database.md](docs/database.md) exist. It changes no data. Expected result: `Tests run: 3, Failures: 0` and `BUILD SUCCESS`.
+Runs all automated tests. Expected result: `Tests run: 35, Failures: 0` and `BUILD SUCCESS`.
+
+- `DatabaseSetupTest` checks the database configured in `.env`: it answers queries, every migration succeeded and all 11 tables from [docs/database.md](docs/database.md) exist. It changes no data.
+- `AuthenticationTest`, `CsrfCookieTest` and `TaskAccessTest` check sign-in, sign-out and every access rule through API requests. They use the separate `matriz_test` database (`MATRIZ_TEST_DB_URL`, default `jdbc:postgresql://localhost:5432/matriz_test`), load the demo data there and roll back every change. Create that database once, as the `matriz` role:
+
+```powershell
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U matriz -h localhost -d matriz -c "CREATE DATABASE matriz_test OWNER matriz"
+```
+
+### Authentication
+
+Matriz uses a **server-side session cookie** (TD-03, decided 2026-11-12). The API contract is in [openapi.yaml](openapi.yaml).
+
+| Step | Request | Result |
+|---|---|---|
+| 1. Get a CSRF token | `GET /auth/csrf` | Sets the `XSRF-TOKEN` cookie |
+| 2. Sign in | `POST /auth/sign-in` with `{"email": "...", "password": "..."}` and header `X-XSRF-TOKEN` | 200 with the profile; sets a new `MATRIZ_SESSION` cookie (HttpOnly, SameSite=Lax) and a new `XSRF-TOKEN` |
+| 3. Use the API | Send the `MATRIZ_SESSION` cookie; requests that change data also send `X-XSRF-TOKEN` | Without a session: 401 `not_authenticated`; without the CSRF header: 403 `csrf_invalid` |
+| 4. Profile | `GET /auth/me` | The account and its active memberships with roles |
+| 5. Sign out | `POST /auth/sign-out` with `X-XSRF-TOKEN` | 204; the session is destroyed on the server |
+
+**Session lifecycle:** created at sign-in (always a new session id); kept in memory on the server; expires after **8 hours without requests** (`MATRIZ_SESSION_TIMEOUT`, for example `30m` or `1m`); ended by sign-out or by restarting the application. A request with an ended or expired session gets 401 `session_expired` ("Your session has ended. Sign in again."). Passwords are stored only as BCrypt hashes and never appear in responses or logs. A wrong password and an unknown email get the same response: 401 `invalid_credentials`.
+
+**Who may do what:** the backend reads the caller's identity only from the session, and their role and status from the database on every request. A project or task in another workspace returns 404, as if it did not exist; a refused action inside the caller's own workspace returns 403. Some rules are **provisional** until their pending decisions are made: Workspace Administrators cannot create tasks (PD-03), Team Members can only create tasks they own and only owners change a task's status (PD-01), Viewers are refused even on tasks they own (PD-17), and only project members can create tasks in a project (PD-20).
+
+**Try it with curl** (Git Bash or any shell with `curl`; replace `your-demo-password` with your `MATRIZ_DEMO_PASSWORD`):
+
+```bash
+curl -s -c jar.txt http://localhost:8080/auth/csrf
+TOKEN=$(awk '$6=="XSRF-TOKEN"{print $7}' jar.txt)
+curl -s -b jar.txt -c jar.txt -H "X-XSRF-TOKEN: $TOKEN" -H "Content-Type: application/json" -d '{"email":"ben@example.com","password":"your-demo-password"}' http://localhost:8080/auth/sign-in
+curl -s -b jar.txt http://localhost:8080/auth/me
+```
 
 ### Demo users
 
-All demo data is fictitious. Every demo account uses the password you set in `MATRIZ_DEMO_PASSWORD`. Sign-in itself is not implemented yet (TD-03).
+All demo data is fictitious. Every demo account uses the password you set in `MATRIZ_DEMO_PASSWORD`. Ids are fixed, so requests can use them directly.
+
+| Test | Sign in as | Request | Expected |
+|---|---|---|---|
+| Create a task for a project member | `ana@example.com` | `POST /projects/d0000000-0000-0000-0000-000000000001/tasks` with owner `c0000000-0000-0000-0000-000000000003` (Ben) | 201 |
+| Project in another workspace | `ben@example.com` | `POST /projects/d0000000-0000-0000-0000-000000000003/tasks` ("Lab inventory") | 404 |
+| Task in another workspace | `vera@example.com` | `PATCH /tasks/e0000000-0000-0000-0000-000000000005` | 404 |
+| Viewer is read-only | `vera@example.com` | `POST /projects/d0000000-0000-0000-0000-000000000001/tasks` | 403 |
+| Owner changes status | `ben@example.com` | `PATCH /tasks/e0000000-0000-0000-0000-000000000001` with `{"status":"Done"}` | 200 |
+| Non-owner changes status | `ana@example.com` | the same request | 403 (provisional, PD-01) |
+| Owner not in the project | `ana@example.com` | `POST /projects/d0000000-0000-0000-0000-000000000002/tasks` with owner `c0000000-0000-0000-0000-000000000004` (Vera) | 422 |
+| Spoofed creator | `ben@example.com` | `POST /projects/d0000000-0000-0000-0000-000000000002/tasks` with `created_by_member_id` | 422 |
 
 | Email | Workspace and role | Use it to test |
 |---|---|---|
@@ -145,6 +188,6 @@ Every member of a workspace can see all of its projects (FR-08), so access diffe
 
 - **Stage:** development. The specification documents remain drafts pending client validation.
 - **Done:** initial analysis, functional proposal and MVP specifications. Architectural style decided on 2026-11-05 (modular monolith, see the [decision log](docs/constraints.md#decision-log)). Draft data model, ER diagram, API specification for two operations, and dashboard wireframe. Technology stack chosen on 2026-11-12: Java 21 and Spring Boot 3, a static HTML/CSS/JS front end and PostgreSQL (see [Technology stack](docs/architecture.md#technology-stack)).
-- **In progress:** development. The project setup increment is done (see [docs/implementation-plan.md](docs/implementation-plan.md)); no feature is implemented yet. Hosting and other technical choices are still pending; see [pending technical decisions](docs/constraints.md#pending-technical-decisions).
+- **In progress:** development. The project setup (INC-01) and authentication and access control (INC-02) increments are done (see [docs/implementation-plan.md](docs/implementation-plan.md)): sign-in, profile, sign-out, and the createTask and updateTaskStatus operations. There is no user interface yet. Hosting and other technical choices are still pending; see [pending technical decisions](docs/constraints.md#pending-technical-decisions).
 - **Blocking next step:** the five assumptions that shape the MVP most (AQ3, AQ6, AQ7, AQ11, AQ17) were confirmed on 2026-10-29 (see the [decision log](docs/constraints.md#decision-log)). The remaining [pending product decisions](docs/constraints.md#pending-product-decisions) (PD-01 to PD-13 and PD-15 to PD-24) must be made before the features they affect are designed. While the client is unavailable, the project decision-maker makes them (KC-01).
 - **Last updated:** 2026-11-12.

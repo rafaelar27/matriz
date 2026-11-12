@@ -2,15 +2,49 @@ openapi: 3.1.0
 
 info:
   title: Matriz API
-  version: 0.1.0-draft
-  summary: Draft API for the Matriz MVP (task creation and task status changes).
+  version: 0.2.0-draft
+  summary: Draft API for the Matriz MVP (authentication, task creation and task status changes).
   description: |
-    Draft specification of two operations of the Matriz MVP, a project and task
-    management platform for work teams.
+    Draft specification of the Matriz MVP API, a project and task management
+    platform for work teams: sign-in, the signed-in profile and sign-out, and two
+    task operations.
 
-    **Status:** draft, written on 2026-11-05. The technology stack is chosen in
-    docs/architecture.md (Technology stack, 2026-11-12); this contract stays
-    implementation-agnostic. No authentication method has been chosen (TD-03).
+    **Status:** draft, written on 2026-11-05; authentication added on 2026-11-12
+    (INC-02, docs/implementation-plan.md). The technology stack is chosen in
+    docs/architecture.md (Technology stack). Authentication uses a server-side
+    session cookie (TD-03, decided 2026-11-12); see `components.securitySchemes`.
+
+    **Authentication and session lifecycle:**
+    1. `GET /auth/csrf` sets the `XSRF-TOKEN` cookie.
+    2. `POST /auth/sign-in` checks the email and password (stored only as a
+       BCrypt hash) and creates a new server-side session, identified by the
+       `MATRIZ_SESSION` cookie (HttpOnly, SameSite=Lax). A new session id is
+       issued on every sign-in, and a new CSRF token with it.
+    3. Every other request needs that cookie. Every request that changes data
+       (POST, PATCH, PUT, DELETE) also needs the header `X-XSRF-TOKEN` with the
+       value of the `XSRF-TOKEN` cookie; without it the response is 403
+       `csrf_invalid`.
+    4. The session expires after 8 hours without requests (configurable). It
+       also ends at `POST /auth/sign-out` and when the application restarts
+       (sessions are kept in memory).
+    5. A request with an ended or expired session gets 401 `session_expired`; a
+       request without a session gets 401 `not_authenticated`.
+
+    **Identity:** the caller is always the signed-in account. Fields that would
+    set identity, such as `created_by_member_id`, are refused (422). Membership,
+    role and status are read on every request, so deactivation and role changes
+    apply immediately (SP-03, SP-04).
+
+    **403 or 404:** a project or task in a workspace the caller does not belong
+    to returns 404, as if it did not exist (API-A3). Inside the caller's own
+    workspace, an action the caller may not perform returns 403.
+
+    **Provisional rules** (most restrictive reading of pending decisions, approved
+    by the project decision-maker on 2026-11-12, to be revisited when decided):
+    Workspace Administrators cannot create tasks (PD-03); Team Members can only
+    create tasks they own (PD-01); only a task's owner changes its status, also
+    for Project Managers (PD-01); Viewers are refused even on tasks they own
+    (PD-17); only project members can create tasks in a project (PD-20).
 
     **Sources of truth:** docs/requirements.md (FR, NFR), docs/user-stories.md
     (US, AC, EC), docs/constraints.md (AQ, SP, TD, PD), docs/architecture.md
@@ -18,12 +52,14 @@ info:
     required fields follow the Task entity in docs/database.md.
 
     **Operations:**
+    - `getCsrfToken`, `signIn`, `getCurrentProfile`, `signOut` support FR-01
+      and US-01 (SP-01). Owning component: CMP-01 Accounts and Sign-in.
     - `createTask` supports US-10 (FR-09, FR-10, FR-11, FR-12). Owning component: CMP-05 Tasks.
     - `updateTaskStatus` supports US-11 (FR-12). Owning component: CMP-05 Tasks.
 
     **Assumptions made in this specification** (not confirmed requirements):
-    - **API-A1.** Authentication uses a generic bearer credential. This is a
-      placeholder only; the sign-in method is pending TD-03.
+    - **API-A1.** *Withdrawn 2026-11-12:* replaced by the session cookie
+      (TD-03).
     - **API-A2.** A body that cannot be parsed returns 400. A well-formed body
       that breaks a business or validation rule returns 422.
     - **API-A3.** A project or task in another workspace returns 404, exactly as
@@ -49,19 +85,134 @@ info:
     - **PD-17:** whether a Viewer who owns a task can change its status.
 
 servers:
-  - url: https://api.example.com
-    description: Placeholder only. No hosting or environment has been chosen (TD-01, TD-02).
+  - url: http://localhost:8080
+    description: Local development (README, Getting started). No hosting has been chosen (TD-02).
 
 security:
-  - memberAuth: []
+  - sessionCookie: []
 
 tags:
+  - name: Authentication
+    description: |
+      Sign-in, the signed-in profile and sign-out with a server-side session
+      (FR-01, SP-01, TD-03). Owning component: CMP-01 Accounts and Sign-in.
   - name: Tasks
     description: |
       Tasks within projects: one action with exactly one owner, an optional due
       date and one of three statuses (FR-09 to FR-12). Owning component: CMP-05 Tasks.
 
 paths:
+  /auth/csrf:
+    get:
+      tags: [Authentication]
+      operationId: getCsrfToken
+      summary: Get a CSRF token cookie
+      description: |
+        Sets the `XSRF-TOKEN` cookie. Call it before the first request that
+        changes data, normally `signIn`. Open to everyone.
+      security: []
+      responses:
+        '204':
+          description: The `XSRF-TOKEN` cookie is set.
+          headers:
+            Set-Cookie:
+              description: '`XSRF-TOKEN=<token>; Path=/; SameSite=Lax` (readable by the front end).'
+              schema:
+                type: string
+
+  /auth/sign-in:
+    post:
+      tags: [Authentication]
+      operationId: signIn
+      summary: Sign in with email and password
+      description: |
+        Checks the email and password and starts a new session (FR-01, SP-01).
+        Open to everyone, but needs the `X-XSRF-TOKEN` header (see `getCsrfToken`).
+        A wrong password, an unknown email and empty fields all get the same
+        401 response, which does not say which field was wrong. Passwords are
+        stored only as BCrypt hashes and never appear in responses or logs.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignInRequest'
+            examples:
+              ben:
+                summary: Demo account (fictitious)
+                value:
+                  email: ben@example.com
+                  password: your-demo-password
+      responses:
+        '200':
+          description: |
+            Signed in. A new `MATRIZ_SESSION` cookie and a new `XSRF-TOKEN`
+            cookie are set; any earlier session of this browser is ended.
+          headers:
+            Set-Cookie:
+              description: '`MATRIZ_SESSION=<id>; Path=/; HttpOnly; SameSite=Lax` and a new `XSRF-TOKEN`.'
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: The email or password is incorrect. Same response for every reason.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalidCredentials:
+                  value:
+                    code: invalid_credentials
+                    message: The email or password is incorrect.
+        '403':
+          $ref: '#/components/responses/CsrfInvalid'
+
+  /auth/me:
+    get:
+      tags: [Authentication]
+      operationId: getCurrentProfile
+      summary: Get the signed-in person's profile
+      description: |
+        Returns the signed-in account and its active workspace memberships with
+        their roles (FR-01, FR-04). Deactivated memberships are not listed (SP-04).
+      responses:
+        '200':
+          description: The signed-in profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/sign-out:
+    post:
+      tags: [Authentication]
+      operationId: signOut
+      summary: Sign out
+      description: |
+        Ends the session on the server and clears the `MATRIZ_SESSION` and
+        `XSRF-TOKEN` cookies. Any later request with the old session cookie gets
+        401 `session_expired`.
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      responses:
+        '204':
+          description: Signed out.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/CsrfInvalid'
+
   /projects/{project_id}/tasks:
     parameters:
       - $ref: '#/components/parameters/ProjectId'
@@ -93,9 +244,16 @@ paths:
         (FR-17, BR-14, US-16). Whether it is created when members assign a task
         to themselves is pending PD-12.
 
-        **Pending:** whether a Team Member may set an owner other than themselves
-        (PD-01); whether the caller must be a project member; behaviour in an
-        archived project (PD-05).
+        **Provisional rules until decided (403):** Workspace Administrators are
+        refused (PD-03); a Team Member may only set themselves as the owner
+        (PD-01); the caller must be a member of the project (PD-20).
+
+        **Pending:** behaviour in an archived project (PD-05).
+
+        **Not yet implemented (INC-02):** the "task assigned" notification side
+        effect, which belongs to the notifications increment (CMP-08, FR-17).
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
       requestBody:
         required: true
         content:
@@ -204,13 +362,17 @@ paths:
         (FR-05, AC-11.3, AC-19.2), including a Viewer who owns the task, until
         PD-17 is decided. Deactivated members are refused (SP-04).
 
-        **Pending:** whether members may change the status of tasks they don't
-        own (PD-01); whether a Done task may move back to an earlier status
+        **Provisional rule until decided (403):** members who do not own the task,
+        including Project Managers, cannot change its status (PD-01).
+
+        **Pending:** whether a Done task may move back to an earlier status
         (PD-06); which change wins when two people change the status at the same
         time (PD-11, TD-07). Whatever is decided, the task always ends up in
         exactly one of the three statuses (EC-07, BR-11).
 
         Sending the task's current status succeeds and leaves the task unchanged.
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
       requestBody:
         required: true
         content:
@@ -276,17 +438,31 @@ paths:
 
 components:
   securitySchemes:
-    memberAuth:
-      type: http
-      scheme: bearer
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: MATRIZ_SESSION
       description: |
-        **Assumption API-A1 — placeholder.** Every operation requires a signed-in
-        member (FR-01, SP-01). How accounts sign in and which credential is sent
-        is pending TD-03; this scheme does not commit to any token format,
-        provider or product. Permissions are then checked by role (FR-04,
-        SP-03, CMP-03 Access Control), and deactivated members are refused (SP-04).
+        Server-side session created by `signIn` (TD-03, decided 2026-11-12).
+        The cookie is HttpOnly and SameSite=Lax (and Secure when served over
+        HTTPS). The session expires after 8 hours without requests
+        (`MATRIZ_SESSION_TIMEOUT`), and ends at `signOut` or when the
+        application restarts. Every operation except `getCsrfToken` and `signIn`
+        requires it (FR-01, SP-01). Permissions are then checked by role
+        (FR-04, SP-03, CMP-03 Access Control), and deactivated members are
+        refused (SP-04). Requests that change data also need `X-XSRF-TOKEN`.
 
   parameters:
+    CsrfHeader:
+      name: X-XSRF-TOKEN
+      in: header
+      required: true
+      description: |
+        The value of the `XSRF-TOKEN` cookie (set by `getCsrfToken` and renewed
+        by `signIn`). Required on every request that changes data; without a
+        valid value the response is 403 `csrf_invalid`.
+      schema:
+        type: string
     ProjectId:
       name: project_id
       in: path
@@ -322,8 +498,10 @@ components:
                 message: The request body could not be read.
     Unauthorized:
       description: |
-        No valid sign-in credential was sent. Workspace content is only available
-        to signed-in members (FR-01, SP-01).
+        No valid session. Workspace content is only available to signed-in
+        members (FR-01, SP-01). `not_authenticated`: no session cookie was
+        sent. `session_expired`: the session cookie belongs to a session that
+        expired, was ended by sign-out, or was lost at a restart.
       content:
         application/json:
           schema:
@@ -333,13 +511,32 @@ components:
               value:
                 code: not_authenticated
                 message: Sign in to continue.
+            sessionExpired:
+              value:
+                code: session_expired
+                message: Your session has ended. Sign in again.
+    CsrfInvalid:
+      description: The request changes data but has no valid `X-XSRF-TOKEN` header.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            csrfInvalid:
+              value:
+                code: csrf_invalid
+                message: The request has no valid security token. Reload the page and try again.
     Forbidden:
       description: |
-        The signed-in person may not perform this action. Triggers:
+        The signed-in person may not perform this action, or the request has no
+        valid `X-XSRF-TOKEN` header (`csrf_invalid`). Triggers:
         - the member's role is Viewer (FR-05, AC-11.3, AC-19.2);
         - the member is deactivated (FR-03, SP-04);
         - for `updateTaskStatus`, the member is not the task's owner
-          (AC-11.1; exceptions pending PD-01).
+          (AC-11.1; provisional for Project Managers, PD-01);
+        - provisional rules for `createTask`: the member is a Workspace
+          Administrator (PD-03), a Team Member setting another owner (PD-01),
+          or not a member of the project (PD-20).
       content:
         application/json:
           schema:
@@ -380,6 +577,59 @@ components:
                 message: The task was not found.
 
   schemas:
+    SignInRequest:
+      type: object
+      required: [email, password]
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          description: The account's email address (DA-01).
+        password:
+          type: string
+          writeOnly: true
+          description: Checked against the stored BCrypt hash; never stored, returned or logged.
+
+    Profile:
+      type: object
+      description: The signed-in person. Never contains the password or its hash.
+      required: [account_id, name, email, memberships]
+      properties:
+        account_id:
+          $ref: '#/components/schemas/Id'
+        name:
+          type: string
+        email:
+          type: string
+        memberships:
+          type: array
+          description: Active memberships only (SP-04).
+          items:
+            $ref: '#/components/schemas/Membership'
+      examples:
+        - account_id: a0000000-0000-0000-0000-000000000001
+          name: Ana Demo
+          email: ana@example.com
+          memberships:
+            - member_id: c0000000-0000-0000-0000-000000000002
+              workspace_id: b0000000-0000-0000-0000-000000000001
+              workspace_name: Acme Studio
+              role: Project Manager
+
+    Membership:
+      type: object
+      required: [member_id, workspace_id, workspace_name, role]
+      properties:
+        member_id:
+          $ref: '#/components/schemas/Id'
+        workspace_id:
+          $ref: '#/components/schemas/Id'
+        workspace_name:
+          type: string
+        role:
+          type: string
+          enum: [Workspace Administrator, Project Manager, Team Member, Viewer]
+
     Id:
       type: string
       minLength: 1

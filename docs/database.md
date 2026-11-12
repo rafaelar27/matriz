@@ -12,7 +12,7 @@ The model describes the data Matriz must keep to support the MVP: FR-01 to FR-21
 
 - **Derived values.** A project's progress (FR-18) and whether a task is overdue (FR-19) are calculated from task data and not stored (BR-15, BR-16).
 - **Undecided behaviour.** There are no attributes for project statuses (PD-05), invitation expiry or resending (PD-09), concurrent-edit handling (PD-11, TD-07) or a notification's read state, which FR-17 does not mention (PD-22). See [Open questions and pending decisions](#open-questions-and-pending-decisions).
-- **Sign-in credentials.** The sign-in method is pending (TD-03), so no credential data is modelled (DA-08).
+- **Sign-in sessions.** Sessions are kept in the application's memory, not in the database (TD-03, decided 2026-11-12).
 - **Features outside the initial scope.** For example task priority (F17), subtasks (F18), attachments (F32), task history (F33), email notifications (F37), labels (F22), guest access (F07) and billing (F46).
 
 Attribute types are generic: `id` (a unique identifier), `string` (short text), `text` (long text), `boolean`, `date`, `datetime` and `enum` (a fixed list of values).
@@ -37,7 +37,7 @@ Attribute types are generic: `id` (a unique identifier), `string` (short text), 
 
 | FR | Supported by |
 |---|---|
-| FR-01 Sign up and sign in | Account (credentials pending TD-03, DA-08) |
+| FR-01 Sign up and sign in | Account (password_hash, TD-03) |
 | FR-02 Workspace creation | Workspace, Member |
 | FR-03 Invite and remove members | Invitation, Member.status |
 | FR-04 Roles and permissions | Member.role, Invitation.role |
@@ -96,6 +96,7 @@ Attribute types are generic: `id` (a unique identifier), `string` (short text), 
 | account_id | id | PK | Yes | Identifier of the account. |
 | name | string | | Yes | The person's name, shown as task owner and comment author (FR-13, FR-16). **Personal data.** Required: DA-02. |
 | email | string | UK | Yes | The person's email address. Used to match invitations to people (FR-03, EC-01). **Personal data.** Uniqueness: DA-01. |
+| password_hash | string | | Yes | BCrypt hash of the account's password (TD-03, decided 2026-11-12). Never the password itself; never returned in responses or written to logs (SP-01, AGENTS.md C2). |
 
 ### Workspace
 
@@ -273,7 +274,7 @@ These are not confirmed. Each one must be confirmed or replaced by the project d
 | DA-05 | Deleting a task also deletes its comments and notifications. | FR-09 allows deletion and AC-17.3 removes the task from the count; nothing suggests keeping orphan comments. | If they must be kept, Comment and Notification need to survive without their task, and R-12 and R-15 become optional on the task side. |
 | DA-06 | A personal-data request is either received or completed. | FR-21 allows manual handling, which needs a minimal status to track. | Status values change (for example adding "rejected"); no structural change. |
 | DA-07 | Comments, notifications and feedback record when they were created, to order them. | Lists of these need a sensible order; no requirement states one. | The ordering attribute or rule changes. |
-| DA-08 | No credential data is modelled until TD-03 decides how sign-in works. | Modelling credentials would pre-empt TD-03. | Once TD-03 is decided, credential attributes or a separate entity are added to Account, under SP-01. |
+| DA-08 | *Superseded 2026-11-12:* TD-03 was decided, and Account.password_hash was added. Previously: no credential data is modelled until TD-03 decides how sign-in works. | Modelling credentials would pre-empt TD-03. | Once TD-03 is decided, credential attributes or a separate entity are added to Account, under SP-01. |
 | DA-09 | Workspace membership of tasks, comments, notifications and project members is found through their parent records, not stored on every record. | Avoids redundant attributes. This is how this model reads architecture rule 4 ("every record that belongs to a workspace is marked with its workspace"). | If every record must carry its own workspace identifier, a workspace_id attribute is added to those entities, with a rule that it matches the parent's. |
 | DA-10 | Personal-data requests are linked to the account, not to a membership. | Personal data such as name and email belongs to the person, not to one workspace. | If requests are per workspace, PersonalDataRequest links to Member instead. |
 | DA-11 | Archiving is recorded as a yes/no flag on the project. | FR-06 says projects can be archived; PD-05 decides what archiving changes. | If PD-05 introduces project statuses, the flag is replaced by a status attribute. |
@@ -288,7 +289,7 @@ The model also relies on AQ23 (stored data is moderately confidential, with no p
 | Personal data of non-members | Invitation.email | Stored for people who may never join. How long pending invitations are kept is open (PD-09). | NFR-02, SP-05 |
 | Free text written by users | Project.description, Task.title, Task.description, Comment.body, Feedback.message | May contain personal data typed by users. Relevant to copy and deletion requests (PD-18). | FR-21, PD-18 |
 | Personal-data requests | PersonalDataRequest | Sensitive in itself. Which support staff can access it, and how the requester is verified, is pending (PD-19). | FR-21, SP-05, PD-19, TD-09 |
-| Credentials | Not modelled | Whatever TD-03 decides, credentials must never be stored in readable form or written to logs. | SP-01, TD-03, AGENTS.md C2 |
+| Credentials | Account.password_hash | Only a BCrypt hash is stored; passwords and hashes are never returned in responses or written to logs. | SP-01, TD-03, AGENTS.md C2 |
 | Workspace isolation | All entities except Account and PersonalDataRequest | Every read and change is limited to the signed-in member's workspace. | NFR-01, SP-02, BR-18 |
 | Access by role | Member.role, Member.status | Permissions are set by role; deactivated members lose access. | SP-03, SP-04 |
 | Payment data | None | No entity or attribute holds payment data. | SP-06, NFR-10 |
@@ -328,7 +329,6 @@ DA-01 to DA-11 above need confirmation. DA-03, DA-05, DA-06 and DA-08 were propo
 | ID | Effect on the model |
 |---|---|
 | TD-02 | Where data is stored and hosted. This model is independent of it. |
-| TD-03 | Credential data for Account (DA-08). |
 | TD-07 | Version or timestamp attributes for concurrent edits on Task. |
 | TD-08 | How notifications reach the member; may add delivery attributes to Notification. |
 

@@ -79,7 +79,6 @@ None of these has been decided. Each must be decided in the design stage so that
 |---|---|---|
 | TD-01 | How users access Matriz on computers | NFR-08 |
 | TD-02 | Where data is stored and hosted, including the geographic region | NFR-01, NFR-02 |
-| TD-03 | How accounts are created and how sign-in works | FR-01, SP-01 |
 | TD-04 | How invitation emails are sent | FR-03 |
 | TD-05 | How saved work is protected against loss (backup and recovery) | NFR-03 |
 | TD-06 | How availability and capacity targets are met and monitored, once set | NFR-04, NFR-05 |
@@ -88,7 +87,7 @@ None of these has been decided. Each must be decided in the design stage so that
 | TD-09 | How personal-data requests are received and fulfilled in the MVP | FR-21 |
 | TD-12 | How module boundaries and the no-cycle rule are checked, for example by automated checks or code review | Architecture decision rules 1–3; raised in [architecture.md](architecture.md#pending-decisions) |
 
-TD-10 and TD-11 have been resolved and are recorded in the decision log. Their IDs are not reused.
+TD-03, TD-10 and TD-11 have been resolved and are recorded in the decision log. Their IDs are not reused.
 
 ## Scope limitations
 
@@ -147,3 +146,4 @@ Decisions made by a person, recorded under AGENTS.md D2. Approvers are recorded 
 | 2026-11-05 | The MVP is built as a modular monolith with the components CMP-01 to CMP-13. No technology is chosen by this decision. | Project decision-maker | — | architecture.md |
 | 2026-11-05 | The dashboard combines existing MVP views only and is not a new feature; F41 Manager overview stays outside the initial scope. | Project decision-maker | — | docs/ui/README.md (UI-A6) |
 | 2026-11-12 | The MVP uses Java 21 and Spring Boot 3, a static HTML/CSS/JS front end and PostgreSQL. | Project decision-maker | TD-10, TD-11 | architecture.md (Technology stack) |
+| 2026-11-12 | Sign-in uses email and password, with passwords stored only as BCrypt hashes, and a server-side session cookie (HttpOnly, SameSite=Lax) with CSRF protection and an 8-hour idle timeout. | Project decision-maker | TD-03 | database.md (Account, DA-08), openapi.yaml, docs/implementation-plan.md (INC-02) |
