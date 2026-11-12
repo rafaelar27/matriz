@@ -81,7 +81,7 @@ Every edit described here requires approval under C1.
 
 ## Technology-specific guidelines
 
-> **Placeholder — not yet decided.** No technologies have been chosen; see [pending technical decisions](docs/constraints.md#pending-technical-decisions) (TD-01 to TD-12). Complete this section once those decisions are recorded in [docs/constraints.md](docs/constraints.md). Until then, apply W2.
+> **Stack chosen; guidelines not yet defined.** The technology stack was confirmed on 2026-11-12 (see the [decision log](docs/constraints.md#decision-log) and [Technology stack](docs/architecture.md#technology-stack)): Java 21 and Spring Boot 3, a static HTML/CSS/JS front end, PostgreSQL, Maven, Spring Data JPA, Flyway, and JUnit 5 with Spring Boot Test and MockMvc. Do not add other technologies without approval (W2, P1). The items below stay *to be defined* until the project skeleton exists. Remaining technical decisions are listed under [pending technical decisions](docs/constraints.md#pending-technical-decisions).
 
 - **Setup:** *to be defined*
 - **Build and run:** *to be defined*

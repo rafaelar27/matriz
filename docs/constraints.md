@@ -10,7 +10,7 @@ These are facts about the situation, not assumptions.
 |---|---|
 | KC-01 | The client is not available to answer clarification questions. While that is the case, the project decision-maker makes pending decisions and confirms or rejects assumptions. Everything beyond the known facts (KF-01 to KF-06 in [requirements.md](requirements.md#known-facts)) and the items marked **Confirmed** below is an assumption until confirmed. |
 | KC-02 | The only sources are the client's one-sentence description and the project description. |
-| KC-03 | No technologies, architecture or code have been chosen at this stage. Open choices are listed under [Pending technical decisions](#pending-technical-decisions). |
+| KC-03 | The architectural style and the technology stack are decided (see the [decision log](#decision-log)). No code has been written yet, and hosting has not been chosen. Open choices are listed under [Pending technical decisions](#pending-technical-decisions). |
 | KC-04 | No budget has been given. The working assumption is AQ29. |
 | KC-05 | No timeline has been given. The working assumption is AQ30. |
 | KC-06 | The legal availability of the name "Matriz" has not been checked. The working assumption is AQ33. |
@@ -86,9 +86,9 @@ None of these has been decided. Each must be decided in the design stage so that
 | TD-07 | How simultaneous edits to the same task are handled, once the product rule is decided | EC-07, PD-11 |
 | TD-08 | How in-app notifications are delivered | FR-17 |
 | TD-09 | How personal-data requests are received and fulfilled in the MVP | FR-21 |
-| TD-10 | Programming language and application framework for the deployable unit | All FRs; raised in [architecture.md](architecture.md#pending-decisions) |
-| TD-11 | Type of data store, including how it supports saving related changes together and workspace scoping. TD-02 covers only where data is stored. | NFR-01, NFR-03; raised in [architecture.md](architecture.md#pending-decisions) |
 | TD-12 | How module boundaries and the no-cycle rule are checked, for example by automated checks or code review | Architecture decision rules 1–3; raised in [architecture.md](architecture.md#pending-decisions) |
+
+TD-10 and TD-11 have been resolved and are recorded in the decision log. Their IDs are not reused.
 
 ## Scope limitations
 
@@ -146,3 +146,4 @@ Decisions made by a person, recorded under AGENTS.md D2. Approvers are recorded 
 | 2026-10-29 | File attachments on tasks (F32) are an exception to the "no file storage" exclusion. | Project decision-maker | — | AQ19, Scope limitations |
 | 2026-11-05 | The MVP is built as a modular monolith with the components CMP-01 to CMP-13. No technology is chosen by this decision. | Project decision-maker | — | architecture.md |
 | 2026-11-05 | The dashboard combines existing MVP views only and is not a new feature; F41 Manager overview stays outside the initial scope. | Project decision-maker | — | docs/ui/README.md (UI-A6) |
+| 2026-11-12 | The MVP uses Java 21 and Spring Boot 3, a static HTML/CSS/JS front end and PostgreSQL. | Project decision-maker | TD-10, TD-11 | architecture.md (Technology stack) |

@@ -1,6 +1,6 @@
 # Matriz — UI wireframes
 
-> **Status:** draft, written on 2026-11-05. Low-fidelity design artifacts only: grayscale structure, placeholder text, no branding and no final styling. No front-end technology has been chosen (TD-01). Requirement IDs are defined in [requirements.md](../requirements.md), user stories in [user-stories.md](../user-stories.md), data in [database.md](../database.md) and pending decisions in [constraints.md](../constraints.md#pending-product-decisions). Assumptions are labelled **UI-Ax** and must be confirmed before they are treated as rules.
+> **Status:** draft, written on 2026-11-05. Low-fidelity design artifacts only: grayscale structure, placeholder text, no branding and no final styling. The front end is static HTML, CSS and JavaScript ([Technology stack](../architecture.md#technology-stack), 2026-11-12). These wireframes do not depend on it. Requirement IDs are defined in [requirements.md](../requirements.md), user stories in [user-stories.md](../user-stories.md), data in [database.md](../database.md) and pending decisions in [constraints.md](../constraints.md#pending-product-decisions). Assumptions are labelled **UI-Ax** and must be confirmed before they are treated as rules.
 
 ## Files
 

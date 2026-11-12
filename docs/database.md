@@ -1,6 +1,6 @@
 # Matriz — Data Model
 
-> **Status:** draft, written on 2026-11-05. This is a conceptual and logical model only. No database technology, data store type or product has been chosen (TD-02, TD-11). Types are generic. Business rules marked **BR-xx** are confirmed by the documentation. Items marked **DA-xx** are assumptions made for this model and must be confirmed before they are treated as rules. Requirement IDs are defined in [requirements.md](requirements.md), user stories in [user-stories.md](user-stories.md), constraints and pending decisions in [constraints.md](constraints.md), and components (CMP-xx) in [architecture.md](architecture.md).
+> **Status:** draft, written on 2026-11-05. This is a conceptual and logical model only. The data store is PostgreSQL, a relational database (see the [decision log](constraints.md#decision-log), 2026-11-12). Hosting is pending (TD-02). Types are generic. Business rules marked **BR-xx** are confirmed by the documentation. Items marked **DA-xx** are assumptions made for this model and must be confirmed before they are treated as rules. Requirement IDs are defined in [requirements.md](requirements.md), user stories in [user-stories.md](user-stories.md), constraints and pending decisions in [constraints.md](constraints.md), and components (CMP-xx) in [architecture.md](architecture.md).
 
 ## Purpose and scope of the model
 
@@ -327,7 +327,7 @@ DA-01 to DA-11 above need confirmation. DA-03, DA-05, DA-06 and DA-08 were propo
 
 | ID | Effect on the model |
 |---|---|
-| TD-02 and TD-11 | Where data is stored and the type of data store. This model is independent of both. |
+| TD-02 | Where data is stored and hosted. This model is independent of it. |
 | TD-03 | Credential data for Account (DA-08). |
 | TD-07 | Version or timestamp attributes for concurrent edits on Task. |
 | TD-08 | How notifications reach the member; may add delivery attributes to Notification. |

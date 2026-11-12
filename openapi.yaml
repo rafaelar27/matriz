@@ -8,9 +8,9 @@ info:
     Draft specification of two operations of the Matriz MVP, a project and task
     management platform for work teams.
 
-    **Status:** draft, written on 2026-11-05. It is implementation-agnostic: no
-    language, framework, data store, hosting provider or authentication product
-    has been chosen (KC-03, TD-01 to TD-12).
+    **Status:** draft, written on 2026-11-05. The technology stack is chosen in
+    docs/architecture.md (Technology stack, 2026-11-12); this contract stays
+    implementation-agnostic. No authentication method has been chosen (TD-03).
 
     **Sources of truth:** docs/requirements.md (FR, NFR), docs/user-stories.md
     (US, AC, EC), docs/constraints.md (AQ, SP, TD, PD), docs/architecture.md

@@ -51,7 +51,7 @@ The MVP serves four user types: Workspace Administrator, Project Manager, Team M
 ## Current project status
 
 - **Stage:** design, in draft. The specification documents remain drafts pending client validation.
-- **Done:** initial analysis, functional proposal and MVP specifications. Architectural style decided on 2026-11-05 (modular monolith, see the [decision log](docs/constraints.md#decision-log)). Draft data model, ER diagram, API specification for two operations, and dashboard wireframe.
-- **Not started:** technology choices and development. No technology has been chosen; see [pending technical decisions](docs/constraints.md#pending-technical-decisions) (TD-01 to TD-12).
+- **Done:** initial analysis, functional proposal and MVP specifications. Architectural style decided on 2026-11-05 (modular monolith, see the [decision log](docs/constraints.md#decision-log)). Draft data model, ER diagram, API specification for two operations, and dashboard wireframe. Technology stack chosen on 2026-11-12: Java 21 and Spring Boot 3, a static HTML/CSS/JS front end and PostgreSQL (see [Technology stack](docs/architecture.md#technology-stack)).
+- **Not started:** development. Hosting and other technical choices are still pending; see [pending technical decisions](docs/constraints.md#pending-technical-decisions).
 - **Blocking next step:** the five assumptions that shape the MVP most (AQ3, AQ6, AQ7, AQ11, AQ17) were confirmed on 2026-10-29 (see the [decision log](docs/constraints.md#decision-log)). The remaining [pending product decisions](docs/constraints.md#pending-product-decisions) (PD-01 to PD-13 and PD-15 to PD-24) must be made before the features they affect are designed. While the client is unavailable, the project decision-maker makes them (KC-01).
-- **Last updated:** 2026-11-05.
+- **Last updated:** 2026-11-12.

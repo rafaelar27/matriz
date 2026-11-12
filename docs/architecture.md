@@ -1,6 +1,6 @@
 # Matriz — Architecture
 
-> **Status:** decided on 2026-11-05 by the project decision-maker (KC-01). This decision covers the architectural style and the logical components of the MVP only. No language, framework, data store product, hosting provider or tool has been chosen; those choices are listed under [Pending decisions](#pending-decisions). Requirement IDs are defined in [requirements.md](requirements.md), user stories in [user-stories.md](user-stories.md), and constraints, assumptions and pending decisions in [constraints.md](constraints.md).
+> **Status:** decided on 2026-11-05 by the project decision-maker (KC-01). This decision covers the architectural style and the logical components of the MVP. The language, framework, front-end approach and database are chosen under [Technology stack](#technology-stack) (confirmed on 2026-11-12). No hosting provider has been chosen; the remaining choices are listed under [Pending decisions](#pending-decisions). Requirement IDs are defined in [requirements.md](requirements.md), user stories in [user-stories.md](user-stories.md), and constraints, assumptions and pending decisions in [constraints.md](constraints.md).
 
 ## Context
 
@@ -17,7 +17,7 @@ The MVP is limited to FR-01 to FR-21 and NFR-01 to NFR-10 ([MVP scope](requireme
 | Availability during working hours; brief interruptions are tolerable. | NFR-04 | Requirement (basis: AQ27, **assumption**); target pending PD-15 |
 | Strict data-protection rules apply; personal-data requests may be handled manually. | NFR-02, FR-21 | Requirement (basis: AQ24, **assumption**) |
 | The product will change after the pilot: 23 product decisions are still pending, 27 features are planned for later releases and 3 are not planned. | [Pending product decisions](constraints.md#pending-product-decisions), [Features outside the initial scope](requirements.md#features-outside-the-initial-scope), OBJ-05 | Fact about the documentation |
-| No technology has been chosen. | KC-03 | Fact |
+| No technology had been chosen when the architectural style was decided. The stack was chosen later; see [Technology stack](#technology-stack). | KC-03 | Fact |
 
 The last two forces matter as much as the first: the MVP must be cheap to build and run, and it must also be easy to change once the pending decisions are made and pilot feedback arrives.
 
@@ -220,6 +220,168 @@ flowchart TB
     EML --> EXT
 ```
 
+## Technology stack
+
+> **Status:** proposed on 2026-11-05 and **confirmed on 2026-11-12 by the project decision-maker** (KC-01). It resolves TD-10 and TD-11 and narrows TD-01. It does **not** decide TD-02, TD-03, TD-04, TD-05, TD-06, TD-07, TD-08, TD-09 or TD-12.
+
+### Summary
+
+| Layer | Choice |
+|---|---|
+| Language and back-end framework | **Java 21 (LTS) with Spring Boot 3** (Spring Web, Spring Security, Spring Data JPA, Bean Validation) |
+| Front-end approach | **Static HTML, CSS and plain JavaScript**, served by the same Spring Boot application and calling the REST API in [openapi.yaml](../openapi.yaml) |
+| Database | **PostgreSQL** (relational), installed on the developer's computer |
+| Supporting tools | **Maven** (build), **Hibernate** through Spring Data JPA (data access), **Flyway** (schema migrations), **JUnit 5 with Spring Boot Test and MockMvc** (tests) |
+
+### Inputs specific to this decision
+
+These come from the project decision-maker's request on 2026-11-05. Items marked TS-Ax are **assumptions** made for this decision and must be confirmed.
+
+| Input | Source | Status |
+|---|---|---|
+| The developer is one student, familiar with Java and JavaScript. | Project decision-maker, 2026-11-05; KC-08 | Stated input |
+| The MVP must be built in **1 week**. | Project decision-maker, 2026-11-05 | Stated input. **Conflicts with AQ30** ("within a few months"); see the report. |
+| Matriz runs **locally** for the course; there is no hosted deployment. | Project decision-maker, 2026-11-05 | Stated input. TD-02, TD-05 and TD-06 remain pending for any deployment beyond local use. |
+| **TS-A1.** No course or instructor requirement fixes a technology. | None was given | **Assumption** |
+| **TS-A2.** "Familiar with JavaScript" means plain JavaScript in the browser, not TypeScript or a front-end framework such as React. | Team context | **Assumption** |
+| **TS-A3.** The developer can install a JDK and PostgreSQL on their own computer. | Local running | **Assumption** |
+
+The comparison considers only FR-01 to FR-21 and NFR-01 to NFR-10. No option was rated on how well it supports features outside the initial scope.
+
+### Evaluation criteria
+
+| ID | Criterion | Why it matters for Matriz |
+|---|---|---|
+| C1 | Fit with architecture and API style | The MVP is a modular monolith with explicit module interfaces and data ownership (decision rules 1–3) and a REST/JSON API ([openapi.yaml](../openapi.yaml)) with distinct 400, 401, 403, 404 and 422 responses (API-A2, API-A3). |
+| C2 | Fit with the data model | [database.md](database.md) has 11 entities, 18 relationships (R-01 to R-18), composite keys (ProjectMember), composite uniqueness (Member: workspace_id + account_id) and unique email (DA-01). |
+| C3 | Team familiarity and learning curve | One developer (KC-08) who knows Java and JavaScript; there is no time to learn a new language. |
+| C4 | Development speed for the MVP | 1 week for 21 functional requirements (stated input). |
+| C5 | Security support | Signed-in access only (FR-01, SP-01), role-based permissions in one place (FR-04, FR-05, SP-03, CMP-03), deactivated members locked out (SP-04), workspace isolation (NFR-01, SP-02), input validation (AC-10.2, EC-08), safe queries, and support for password hashing should TD-03 choose passwords. |
+| C6 | Testing support | Acceptance criteria and edge cases (for example AC-10.x, AC-11.x, AC-17.x, EC-03) must be checkable; NFR-01 and NFR-03 should be testable at one boundary (see Justification above). |
+| C7 | Ecosystem, documentation and community | A single student developer relies on documentation and examples to solve problems quickly. |
+| C8 | Ease of local setup | Matriz runs locally for the course (stated input). |
+| C9 | Long-term maintainability | 23 product decisions are pending and the product will change after the pilot (OBJ-05); the stack should not make those changes harder. |
+
+### Language and back-end framework
+
+| Criterion | Java 21 + Spring Boot 3 | TypeScript + NestJS (Node.js) | JavaScript + Express (Node.js) |
+|---|---|---|---|
+| C1 Architecture and API | **High.** Packages per module (CMP-01 to CMP-10), dependency injection for public interfaces, in-process events (`ApplicationEventPublisher`) for "task assigned" and "comment added" (rule 3), and `@ControllerAdvice` to map errors to 400/401/403/404/422. | **High.** Modules, providers and exception filters map closely to the CMP structure and the API's error codes. | **Medium.** Routing is simple, but module structure, event handling and error mapping must be built by hand, so boundaries depend on discipline alone. |
+| C2 Data model | **High.** JPA maps every entity, composite key and relationship; constraints live in the database. | **Medium.** TypeORM or Prisma can map the model, but composite keys and unique pairs are less smooth than in JPA. | **Medium.** Depends on choosing and configuring a separate ORM or query builder. |
+| C3 Familiarity | **High.** The developer knows Java. Spring has a learning curve, mainly Spring Security. | **Low.** Needs TypeScript and NestJS's decorator-based style, neither of which is known (TS-A2). | **High.** Plain JavaScript is known; Express is small. |
+| C4 Speed for 1 week | **High.** Spring Initializr generates a working project; validation, security, data access and JSON handling are built in. | **Medium.** Structured, but learning TypeScript and NestJS costs part of the week. | **Medium.** Fast to start, but choosing and wiring validation, authentication, ORM and error handling takes time. |
+| C5 Security | **High.** Spring Security provides authentication, method-level authorization, CSRF protection and password encoders (BCrypt); Bean Validation checks input; JPA uses parameterized queries. | **High.** Guards, Passport and class-validator cover the same needs. | **Medium.** Possible with Passport, a validation library and a hashing library, but each is a separate choice and easier to misconfigure. |
+| C6 Testing | **High.** JUnit 5, Spring Boot Test and MockMvc test each module and each endpoint, including 401/403/404 cases. | **High.** Jest and Supertest are well supported. | **Medium.** Jest and Supertest work, but the test setup is assembled by hand. |
+| C7 Ecosystem | **High.** Very mature, extensive official guides and community answers. | **Medium.** Good documentation, smaller community than Spring or Express. | **High.** Very large community, but advice is fragmented across many library combinations. |
+| C8 Local setup | **Medium.** Needs a JDK; the app runs as one executable JAR. | **Medium.** Needs Node.js and a TypeScript build step. | **High.** Needs Node.js only. |
+| C9 Maintainability | **High.** Static typing and enforced structure help when PD-01, PD-03 or PD-17 change permission rules in CMP-03. | **High.** Static typing and enforced modules. | **Low.** No static typing and no enforced structure; rules risk spreading across the code, which the modular monolith decision explicitly avoids. |
+
+### Front-end approach
+
+The MVP includes a web user interface (CMP-11, NFR-08). Options are compared with the chosen back end.
+
+| Criterion | Static HTML, CSS and JavaScript calling the REST API | Server-rendered templates (Thymeleaf) | Single-page app (React + Vite) |
+|---|---|---|---|
+| C1 Architecture and API | **High.** The UI uses the same REST API defined in openapi.yaml, and is served by the same deployable unit, so there is one set of endpoints and one unit. | **Medium.** Fits one deployable unit, but pages are produced by separate controllers, so every feature needs both page handlers and the REST API. | **High.** Consumes the REST API directly, but is usually built and served as a second project. |
+| C2 Data model | **High.** Uses the API's JSON; no direct data access. | **High.** Uses the same services. | **High.** Uses the API's JSON. |
+| C3 Familiarity | **High.** Plain JavaScript is known (TS-A2). | **Medium.** Java is known; Thymeleaf syntax is new but small. | **Low.** React, JSX and its state model are new (TS-A2). |
+| C4 Speed for 1 week | **Medium.** No build step, but DOM updates are written by hand for a few screens (dashboard, project list, task list, task detail, members, forms). | **High** for pages alone, **Medium** overall because the REST API must also be built. | **Low.** Learning React and setting up the toolchain costs part of the week. |
+| C5 Security | **Medium.** Must avoid inserting user text as HTML (use `textContent`) and handle the sign-in credential carefully, once TD-03 is decided. | **High.** Escapes output by default and works with Spring Security's CSRF protection. | **Medium.** Escapes by default, but credential handling between two projects adds work. |
+| C6 Testing | **Medium.** API tests cover the rules; the UI itself is checked manually against the acceptance criteria. | **Medium.** Controllers are testable with MockMvc; page rendering is checked manually. | **Medium.** Component tests are possible but add another toolchain. |
+| C7 Ecosystem | **High.** Web standards, documented by MDN. | **High.** Mature and well documented. | **High.** Very large community. |
+| C8 Local setup | **High.** Files are served by the Spring Boot application; nothing else to install. | **High.** Part of the Spring Boot application. | **Medium.** Needs Node.js, npm and a second dev server. |
+| C9 Maintainability | **Medium.** Fine for the MVP's small number of screens; becomes harder if the UI grows a lot after the pilot. | **Medium.** Easy to maintain, but duplicates the API. | **High.** Scales well to larger interfaces. |
+
+Semantic HTML forms, links and buttons work without a mouse by default, which supports NFR-06 with any of the three options.
+
+### Database
+
+| Criterion | PostgreSQL | Embedded relational database (H2 or SQLite) | MongoDB (document store) |
+|---|---|---|---|
+| C1 Architecture and API | **High.** One logical store for all modules (CMP-12); transactions save the changes of one action together (rule for CMP-12, NFR-03). | **High.** Same relational model and transactions. | **Medium.** Multi-document transactions exist but are more complex; the data model is highly connected. |
+| C2 Data model | **High.** Primary and foreign keys for R-01 to R-18, composite keys (ProjectMember), unique constraints (Account.email per DA-01; Member workspace_id + account_id), CHECK constraints for the enums (role, status, notification type, request type), and a unique, nullable Notification.comment_id for R-16 (0..1 to 0..1). | **Medium.** Supports keys and uniqueness; SQLite has weaker type checking and limited ALTER TABLE support. | **Low.** No foreign keys; uniqueness across collections and relationships such as ProjectMember must be enforced in code. |
+| C3 Familiarity | **Medium.** Standard SQL; widely taught. | **Medium.** Standard SQL. | **Low.** Different data and query model. |
+| C4 Speed for 1 week | **Medium.** A local install takes some time once (TS-A3). | **High.** No installation. | **Medium.** Install plus a new query model. |
+| C5 Security | **High.** Constraints in the database back up the application's checks; parameterized queries through JPA. | **Medium.** Constraints exist; file-based storage relies on file permissions. | **Medium.** Schema rules depend on the application. |
+| C6 Testing | **High.** Tests can run against a local PostgreSQL test database, the same engine used to run Matriz. | **High.** Very easy to start for tests. | **Medium.** Needs a running server for tests. |
+| C7 Ecosystem | **High.** Very mature, excellent documentation, first-class Spring support. | **High.** Well known; H2 is common in Spring examples. | **High.** Large community. |
+| C8 Local setup | **Medium.** One install and one database to create. | **High.** Runs inside the application or as a single file. | **Medium.** One install. |
+| C9 Maintainability | **High.** Same engine can be used if Matriz is later deployed; handles the expected growth (NFR-05, AQ25). | **Low.** Usually needs replacing before any real deployment, with SQL dialect differences. | **Medium.** Flexible schema, but integrity rules stay in code. |
+
+### Supporting tools
+
+Only tools needed to build, store data and test are chosen. Each is compared with one realistic alternative using the same criteria, in short form.
+
+| Need | Chosen | Alternative | Why the choice |
+|---|---|---|---|
+| Build | **Maven** | Gradle | Both work with Spring Boot (C1, C8). Maven's declarative configuration has the most examples and the least to learn (C3, C4, C7). |
+| Data access | **Spring Data JPA (Hibernate)** | Spring JDBC (`JdbcClient`) with hand-written SQL | JPA maps the 11 entities and their relationships with little code (C2, C4) and uses parameterized queries (C5). Plain SQL gives more control but takes longer to write for every operation (C4). Risk: lazy loading and extra queries must be watched (C9). |
+| Schema | **Flyway** migrations | Hibernate automatic schema generation | Versioned SQL scripts declare every key and constraint from database.md exactly and keep the schema in Git (C2, C9). Automatic generation is faster at first but can miss or change constraints and is not reviewable (NFR-03). |
+| Tests | **JUnit 5, Spring Boot Test, MockMvc** | — | Included with Spring Boot; there is no simpler realistic alternative in the Java ecosystem (C6). |
+
+### Decision and justification
+
+**The Matriz MVP is built with Java 21 and Spring Boot 3, a static HTML, CSS and JavaScript front end served by the same application, and a PostgreSQL database**, with Maven, Spring Data JPA, Flyway and JUnit 5.
+
+- **Java and Spring Boot** score High on fit, speed, security, testing and maintainability, and use the language the developer already knows. Module packages, in-process events and one place for permission rules (CMP-03, through Spring Security and method-level checks) follow decision rules 1–3 directly. Everything needed for the two operations in openapi.yaml is built in: JSON request handling, Bean Validation for 422 responses, a parse-error handler for 400, Spring Security for 401 and 403, and workspace-scoped queries returning 404 for other workspaces (API-A3).
+- **Static HTML, CSS and JavaScript** keeps one deployable unit and one API, uses the JavaScript the developer knows, and needs no front-end toolchain, which matters most in a 1-week schedule.
+- **PostgreSQL** represents every entity, relationship and constraint in database.md in the database itself (see the C2 row), saves related changes together (NFR-03) and stays usable if Matriz is deployed later.
+
+**Rejected alternatives:**
+
+- **TypeScript + NestJS:** a good architectural fit, but the developer would have to learn TypeScript and NestJS within the 1-week schedule (C3, C4).
+- **JavaScript + Express:** familiar and quick to start, but validation, security, data access and module structure would each need separate choices and wiring, and its lack of structure works against the modular monolith (C1, C5, C9).
+- **Thymeleaf:** strong security defaults, but every screen would need page controllers in addition to the REST API that openapi.yaml already defines (C1, C4).
+- **React + Vite:** best for large interfaces, but new to the developer and adds a second project and toolchain (C3, C4, C8).
+- **H2 or SQLite:** easiest to set up, but weaker for durability and constraints and usually replaced before any real deployment (C2, C9).
+- **MongoDB:** the data is relational, with many foreign keys and uniqueness rules that a document store cannot enforce (C2).
+
+**Trade-offs and risks accepted:**
+
+- Spring Security has a learning curve; configuring sign-in waits for TD-03.
+- Hand-written front-end JavaScript is slower per screen than a framework and harder to maintain if the UI grows a lot.
+- PostgreSQL must be installed locally (TS-A3), which costs some setup time in the first day.
+- JPA can generate inefficient queries if relationships are loaded carelessly.
+- The 1-week schedule is tight for 21 functional requirements whatever the stack; this choice reduces, but does not remove, that risk.
+
+### How the stack supports the documented design
+
+| Area | How |
+|---|---|
+| Modular monolith (decision rules 1–3) | One Spring Boot application. One Java package per module (CMP-01 to CMP-10) exposing a public service interface. In-process events for "task assigned" and "comment added". How boundaries are checked stays pending (TD-12); the stack allows automated checks or code review. |
+| Workspace scoping (rule 4, NFR-01, SP-02) | Every repository query is limited to the signed-in member's workspace, in the data-access layer (CMP-12). Whether every table carries workspace_id directly is still open (database.md, DA-09). |
+| Data model (database.md) | 11 entities become 11 tables created by Flyway migrations, with primary keys, foreign keys for R-01 to R-18, composite keys and the unique constraints listed above. Rules that span rows, such as keeping at least one Workspace Administrator (SP-07, R-02), are enforced in CMP-02 inside a transaction. |
+| API (openapi.yaml) | `createTask` and `updateTaskStatus` become REST controller methods in CMP-05, with request validation and one shared error handler for 400/401/403/404/422. |
+| Security (SP-01 to SP-07) | Spring Security requires sign-in for every request (SP-01) and rejects deactivated members (SP-04). Permission rules are checked in CMP-03 (SP-03). Password hashing (BCrypt) is available if TD-03 chooses passwords. No payment data is stored (SP-06). |
+| No loss of saved work (NFR-03) | Each action runs in one database transaction. Backup and recovery remain pending (TD-05). |
+
+### Consequences
+
+**Positive**
+
+- One language for the back end and familiar JavaScript for the front end, so the week is spent on features rather than learning.
+- Security, validation, data access and testing are covered by mature, documented parts of one framework.
+- Data integrity rules from database.md are enforced by the database as well as by the application.
+- The same stack can be used if Matriz is later deployed beyond local use.
+
+**Negative**
+
+- Spring Boot is heavier than Express, with more configuration to understand.
+- The hand-written front end has no component structure.
+- A local PostgreSQL installation is required to run and test Matriz.
+- Choosing JPA ties data access to Hibernate's behaviour.
+
+### Conditions for revisiting the technology stack
+
+Revisit this choice, recording the outcome in the [decision log](constraints.md#decision-log), if:
+
+1. A course or instructor requirement fixes a technology (TS-A1).
+2. The front end grows beyond what plain JavaScript can maintain, for example after pilot feedback asks for more interactive views; consider a front-end framework then.
+3. Matriz is deployed beyond local use; TD-02, TD-05 and TD-06 must then be decided, and the database setup reviewed.
+4. TD-03 chooses a sign-in method that Spring Security does not support well.
+5. The development team changes (KC-08) and its skills differ from Java and JavaScript.
+6. Performance problems appear that come from the data-access layer rather than from the data model.
+
 ## Pending decisions
 
 ### Technical decisions already listed in constraints.md
@@ -228,7 +390,7 @@ None of these is decided by this document. The architectural style narrows each 
 
 | ID | Decision | Effect of this architecture |
 |---|---|---|
-| TD-01 | How users access Matriz on computers | Decides how CMP-11 User Interface is delivered. |
+| TD-01 | How users access Matriz on computers | Decides how CMP-11 User Interface is delivered. Narrowed by [Technology stack](#technology-stack): a web interface of static HTML, CSS and JavaScript, used in a browser. |
 | TD-02 | Where data is stored and hosted, including the region | Applies to the single logical store, CMP-12. |
 | TD-03 | How accounts are created and how sign-in works | Implemented inside CMP-01. |
 | TD-04 | How invitation emails are sent | Implemented behind CMP-13. |
@@ -242,11 +404,11 @@ None of these is decided by this document. The architectural style narrows each 
 
 These are registered under [Pending technical decisions](constraints.md#pending-technical-decisions) in constraints.md.
 
-| ID | Decision |
-|---|---|
-| TD-10 | Programming language and application framework for the deployable unit. |
-| TD-11 | Type of data store, for example how it supports saving related changes together (NFR-03) and workspace scoping (NFR-01). TD-02 covers only where data is stored. |
-| TD-12 | How module boundaries and the no-cycle rule are checked, for example by automated checks or code review. |
+| ID | Decision | Status |
+|---|---|---|
+| TD-10 | Programming language and application framework for the deployable unit. | Resolved by [Technology stack](#technology-stack): Java 21 and Spring Boot 3 (confirmed 2026-11-12). |
+| TD-11 | Type of data store, for example how it supports saving related changes together (NFR-03) and workspace scoping (NFR-01). TD-02 covers only where data is stored. | Resolved by [Technology stack](#technology-stack): PostgreSQL, a relational database (confirmed 2026-11-12). |
+| TD-12 | How module boundaries and the no-cycle rule are checked, for example by automated checks or code review. | Pending |
 
 ### Product decisions that affect components
 
