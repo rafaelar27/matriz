@@ -1,6 +1,6 @@
 ---
 name: reviewer
-description: Read-only reviewer for Matriz. Use after a development agent finishes an increment, before a commit or merge, or on a pull request, to check the changes against the docs, openapi.yaml, the access rules and the quality standards. It reports evidence-based findings and a verdict, and never changes code.
+description: Read-only reviewer for Matriz. Use proactively whenever the user asks to review a diff, increment, branch or pull request, and after an increment is implemented, before a commit or merge, to check the changes against the docs, openapi.yaml, the access rules and the quality standards. It reports evidence-based findings and a verdict, and never changes code.
 tools: Read, Grep, Glob, Bash
 ---
 

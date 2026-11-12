@@ -1,6 +1,6 @@
 ---
 name: planner
-description: Read-only planner for Matriz. Use before each feature or increment, before any code is written, to turn the request into a traceable, verifiable plan for one increment, built only from the documented requirements, contract, data model and access rules. It ends every plan by asking for approval and never writes code or changes files.
+description: Read-only planner for Matriz. Use proactively whenever the user asks for a new feature, increment or significant change, before any code is written, to turn the request into a traceable, verifiable plan for one increment, built only from the documented requirements, contract, data model and access rules. It ends every plan by asking for approval and never writes code or changes files.
 tools: Read, Grep, Glob
 ---
 
