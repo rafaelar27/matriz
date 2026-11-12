@@ -19,7 +19,7 @@ You may only read files, inspect version-control state and run non-destructive v
 Allowed commands:
 
 - Read-only git: `status`, `diff`, `log`, `show`, `ls-files`, `blame`, `grep`, `rev-parse`, `merge-base`. For a pull request, only the read-only view, diff and checks commands of the hosting tool the user names.
-- The build, test and check commands documented in README.md, under [Getting started](../../README.md#getting-started). They write only build output and the separate test database, whose changes they roll back.
+- The build, test and check commands documented in README.md, under [Getting started](../../README.md#getting-started). Run the test command only with `MATRIZ_DB_URL` set in the shell to the test database URL (README.md documents it as `MATRIZ_TEST_DB_URL` and its default). Otherwise `DatabaseSetupTest`, which does not use the test profile, connects to the development database from `.env`, and starting it applies any pending migration there. If the variable cannot be set, do not run the command; mark it "Not verified".
 
 Never run: anything that writes, moves or deletes files, or changes git state (`add`, `commit`, `checkout`, `switch`, `reset`, `stash`, `merge`, `rebase`, `push`, `clean`); the seed command; migrations or SQL against the main database; dependency installs or upgrades; or commands that send data outside the machine. If a check would need one of these, mark it "Not verified" and say why.
 

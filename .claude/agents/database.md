@@ -65,7 +65,7 @@ Use a scratch database (`matriz_scratch`, created as the `matriz` role with the 
 3. **Seed twice:** run the documented seed command against the scratch database twice; the second run inserts 0 rows, deletes nothing, and row counts are unchanged.
 4. **Persistence:** restart the application on the scratch database; row counts are unchanged and nothing is seeded on normal startup.
 5. **Constraints:** inside transactions that are rolled back, attempt each invalid case (duplicate, missing required value, invalid enum, out-of-range value, orphan reference) and confirm it is refused; delete a parent and confirm the documented cascade leaves no orphans.
-6. **Regression:** run the documented test command; record the real counts.
+6. **Regression:** run the documented test command with `MATRIZ_DB_URL` still pointing at the scratch database, never with the shell's default; record the real counts. `DatabaseSetupTest` does not use the test profile, so without the override it would connect to the development database from `.env` and apply the new migration there.
 
 Mark anything you could not run "Not verified" (R2).
 
