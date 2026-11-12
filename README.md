@@ -120,10 +120,10 @@ The seed command inserts the demo data and exits. It never deletes data, and run
 mvn verify
 ```
 
-Runs all automated tests. Expected result: `Tests run: 53, Failures: 0` and `BUILD SUCCESS`.
+Runs all automated tests. Expected result: `Tests run: 69, Failures: 0` and `BUILD SUCCESS`.
 
 - `DatabaseSetupTest` checks the database configured in `.env`: it answers queries, every migration succeeded and all 11 tables from [docs/database.md](docs/database.md) exist. It changes no data.
-- `AuthenticationTest`, `CsrfCookieTest`, `TaskAccessTest` and `ProjectApiTest` check sign-in, sign-out, the project operations and every access rule through API requests. They use the separate `matriz_test` database (`MATRIZ_TEST_DB_URL`, default `jdbc:postgresql://localhost:5432/matriz_test`), load the demo data there and roll back every change. Create that database once, as the `matriz` role:
+- `AuthenticationTest`, `CsrfCookieTest`, `TaskAccessTest`, `ProjectApiTest` and `TaskApiTest` check sign-in, sign-out, the project and task operations and every access rule through API requests. They use the separate `matriz_test` database (`MATRIZ_TEST_DB_URL`, default `jdbc:postgresql://localhost:5432/matriz_test`), load the demo data there and roll back every change. Create that database once, as the `matriz` role:
 
 ```powershell
 & "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U matriz -h localhost -d matriz -c "CREATE DATABASE matriz_test OWNER matriz"
@@ -168,6 +168,23 @@ With the application running (step 4) and the demo data loaded (step 5), open <h
 
 The same operations are in [openapi.yaml](openapi.yaml): `GET /projects?q=&page=&size=`, `POST /projects`, `GET`, `PATCH` and `DELETE /projects/{project_id}`, `GET /progress?project_id=` and `GET /workspaces/{workspace_id}/members`. Projects are stored in PostgreSQL, so they are still there after a reload or a restart. Restarting the application ends every session, so you sign in again.
 
+### Tasks in the browser
+
+Open a project from the project list. Its **Tasks** section lists the project's tasks with owner, due date and status, the number of tasks per status, and pages of 10.
+
+| Action | How | Who (provisional rules, see [openapi.yaml](openapi.yaml) `updateTask`) |
+|---|---|---|
+| Filter | Choose a **Status** and/or an **Owner**; both combine with the pages, and the choice stays in the address after a reload | Every member |
+| View | Click a task's title | Every member |
+| + New task | Title (3 to 150 characters, not only spaces), description (up to 2000), owner, due date, status (Por fazer by default) | Project Managers and Team Members who are members of the project; Team Members own the tasks they create |
+| Edit | **Edit** on the row | Project Managers, or the owner if a Team Member; only Project Managers change the owner |
+| Change status | The status list on the row | The task's owner |
+| Delete | **Delete** on the row, then confirm; the task's comments and notifications are deleted with it | The member who created the task |
+
+Statuses are shown as **Por fazer**, **Em curso** and **Concluída**, but the API always uses `To do`, `In progress` and `Done`. After every change the list, the counts and the project's progress update without reloading the page. Task priority is not part of the MVP (F17).
+
+**Try it:** sign in as `ana@example.com`, open "Website redesign", create a task without choosing a status (it shows Por fazer), change "Approve page layout" to Em curso, filter by Em curso, reload the page, then restart the application and sign in again: the change is still there. Sign in as `dan@example.com` and open `#/projects/d0000000-0000-0000-0000-000000000001`: the project is not found. The same operations through the API: `GET` and `POST /projects/{project_id}/tasks?status=&owner_member_id=&page=&size=`, and `GET`, `PATCH`, `DELETE /projects/{project_id}/tasks/{task_id}`.
+
 ### Demo users
 
 All demo data is fictitious. Every demo account uses the password you set in `MATRIZ_DEMO_PASSWORD`. Ids are fixed, so requests can use them directly.
@@ -202,7 +219,7 @@ Every member of a workspace can see all of its projects (FR-08), so access diffe
 ## Current project status
 
 - **Stage:** development. The specification documents remain drafts pending client validation.
-- **Done:** initial analysis, functional proposal and MVP specifications. Architectural style decided on 2026-11-05 (modular monolith, see the [decision log](docs/constraints.md#decision-log)). Draft data model, ER diagram, API specification (authentication, projects, progress and two task operations), and dashboard wireframe. Technology stack chosen on 2026-11-12: Java 21 and Spring Boot 3, a static HTML/CSS/JS front end and PostgreSQL (see [Technology stack](docs/architecture.md#technology-stack)).
-- **In progress:** development. The project setup (INC-01), authentication and access control (INC-02) and projects (INC-03) increments are done (see [docs/implementation-plan.md](docs/implementation-plan.md)): sign-in, profile, sign-out, the createTask and updateTaskStatus operations, and creating, listing, searching, viewing, editing and deleting projects. The user interface covers sign-in and projects. Hosting and other technical choices are still pending; see [pending technical decisions](docs/constraints.md#pending-technical-decisions).
-- **Blocking next step:** the five assumptions that shape the MVP most (AQ3, AQ6, AQ7, AQ11, AQ17) were confirmed on 2026-10-29 (see the [decision log](docs/constraints.md#decision-log)). The remaining [pending product decisions](docs/constraints.md#pending-product-decisions) (PD-01 to PD-13 and PD-15 to PD-24) must be made before the features they affect are designed. While the client is unavailable, the project decision-maker makes them (KC-01).
+- **Done:** initial analysis, functional proposal and MVP specifications. Architectural style decided on 2026-11-05 (modular monolith, see the [decision log](docs/constraints.md#decision-log)). Draft data model, ER diagram, API specification (authentication, projects, progress and tasks), and dashboard wireframe. Technology stack chosen on 2026-11-12: Java 21 and Spring Boot 3, a static HTML/CSS/JS front end and PostgreSQL (see [Technology stack](docs/architecture.md#technology-stack)).
+- **In progress:** development. The project setup (INC-01), authentication and access control (INC-02), projects (INC-03) and tasks (INC-04) increments are done (see [docs/implementation-plan.md](docs/implementation-plan.md)): sign-in, profile, sign-out, creating, listing, searching, viewing, editing and deleting projects, and creating, listing, filtering, viewing, editing and deleting tasks and changing their status. The user interface covers sign-in, projects and tasks. Hosting and other technical choices are still pending; see [pending technical decisions](docs/constraints.md#pending-technical-decisions).
+- **Blocking next step:** the five assumptions that shape the MVP most (AQ3, AQ6, AQ7, AQ11, AQ17) were confirmed on 2026-10-29 (see the [decision log](docs/constraints.md#decision-log)). The remaining [pending product decisions](docs/constraints.md#pending-product-decisions) (PD-01 to PD-13, PD-15 to PD-20 and PD-22 to PD-24; PD-04 and PD-13 in part) must be made before the features they affect are designed. While the client is unavailable, the project decision-maker makes them (KC-01).
 - **Last updated:** 2026-11-12.

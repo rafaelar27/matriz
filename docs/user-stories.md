@@ -64,7 +64,8 @@ Every story is in the MVP. The seven stories US-03, US-10, US-11, US-13, US-17, 
 - **AC-10.2 (validation):** **Given** I am creating a task in P, **when** I leave the title empty and try to save, **then** the task is not created and a message states that a title is required.
 - **AC-10.3 (validation):** **Given** Ben is a member of workspace W but not of project P, **when** I choose an owner for a task in P, **then** Ben is not offered as an owner.
 - **AC-10.4 (single owner):** **Given** a task in P has owner Ana, **when** I change its owner to Carla, who is a member of P, **then** Carla is shown as the task's only owner and Ana is no longer shown as its owner.
-- **Pending:** whether due date and description are required, and the maximum title length (PD-04). Whether Team Members may assign tasks to others (PD-01).
+- **AC-10.5 (title rule):** **Given** I am creating a task in P, **when** I enter a title of only spaces, or a title shorter than 3 or longer than 150 characters after removing leading and trailing spaces, **then** the task is not created and a message states the rule. A title of exactly 3 or 150 characters is accepted (decided 2026-11-12).
+- **Pending:** whether due date and description are required (PD-04). Whether Team Members may assign tasks to others (PD-01).
 
 ### US-11: Change a task's status
 
@@ -114,12 +115,14 @@ Every story is in the MVP. The seven stories US-03, US-10, US-11, US-13, US-17, 
 ### US-25: Edit a task
 
 - **AC-25.1 (validation):** **Given** I am editing task T, **when** I clear its title and try to save, **then** the change is not saved and a message states that a title is required (FR-09).
-- **Pending:** who may edit which tasks (PD-01). Whether a title of spaces only is rejected (PD-21).
+- **AC-25.2 (limits):** **Given** I am editing task T, **when** I enter a title of only spaces or a description longer than 2000 characters and try to save, **then** the change is not saved and a message states the rule (decided 2026-11-12).
+- **Pending:** who may edit which tasks (PD-01); provisional rules are in openapi.yaml (`updateTask`).
 
 ### US-26: Delete a task I created
 
 - **AC-26.1 (success):** **Given** I created task T in project P, **when** I delete T, **then** T no longer appears in P's task list. The effect on P's progress is covered by AC-17.3.
 - **AC-26.2 (permission):** **Given** task T in project P was created by Ben, **when** I open T, **then** no option to delete T is available to me.
+- **AC-26.3 (confirmation):** **Given** I created task T, which has 2 comments, **when** I choose to delete T, **then** I am asked to confirm and told that this cannot be undone; T is kept if I cancel, and if I confirm, T and its comments and notifications no longer exist (DA-05).
 
 ### US-27: Delete a project
 

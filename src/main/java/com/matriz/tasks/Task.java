@@ -46,14 +46,12 @@ class Task {
     protected Task() {
     }
 
-    /** A new task always starts as To do (FR-12, BR-11). The creator comes from the session (BR-12). */
-    Task(UUID projectId, String title, String description, UUID ownerMemberId, LocalDate dueDate,
-         UUID createdByMemberId) {
+    /**
+     * A new task in a project. The status defaults to To do (FR-12, BR-11) and the creator comes from the session
+     * (BR-12). Other fields are set by {@link TaskService} after validation.
+     */
+    Task(UUID projectId, UUID createdByMemberId) {
         this.projectId = projectId;
-        this.title = title;
-        this.description = description;
-        this.ownerMemberId = ownerMemberId;
-        this.dueDate = dueDate;
         this.status = TaskStatus.TO_DO;
         this.createdByMemberId = createdByMemberId;
     }
@@ -92,5 +90,21 @@ class Task {
 
     void changeStatus(TaskStatus status) {
         this.status = status;
+    }
+
+    void setTitle(String title) {
+        this.title = title;
+    }
+
+    void setDescription(String description) {
+        this.description = description;
+    }
+
+    void setOwnerMemberId(UUID ownerMemberId) {
+        this.ownerMemberId = ownerMemberId;
+    }
+
+    void setDueDate(LocalDate dueDate) {
+        this.dueDate = dueDate;
     }
 }

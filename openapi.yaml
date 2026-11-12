@@ -2,15 +2,16 @@ openapi: 3.1.0
 
 info:
   title: Matriz API
-  version: 0.3.0-draft
-  summary: Draft API for the Matriz MVP (authentication, projects, task creation and task status changes).
+  version: 0.4.0-draft
+  summary: Draft API for the Matriz MVP (authentication, projects, progress and tasks).
   description: |
     Draft specification of the Matriz MVP API, a project and task management
-    platform for work teams: sign-in, the signed-in profile and sign-out, and two
-    task operations.
+    platform for work teams: sign-in, the signed-in profile and sign-out,
+    projects, progress and tasks.
 
     **Status:** draft, written on 2026-11-05; authentication added on 2026-11-12
-    (INC-02, docs/implementation-plan.md). The technology stack is chosen in
+    (INC-02, docs/implementation-plan.md); projects on 2026-11-12 (INC-03); task
+    listing, viewing, editing and deletion on 2026-11-12 (INC-04). The technology stack is chosen in
     docs/architecture.md (Technology stack). Authentication uses a server-side
     session cookie (TD-03, decided 2026-11-12); see `components.securitySchemes`.
 
@@ -45,6 +46,10 @@ info:
     create tasks they own (PD-01); only a task's owner changes its status, also
     for Project Managers (PD-01); Viewers are refused even on tasks they own
     (PD-17); only project members can create tasks in a project (PD-20).
+    Added for INC-04 on 2026-11-12: a task's title, description and due date
+    can be edited by Project Managers of the workspace and by the task's owner
+    when the owner is a Team Member; only Project Managers change the owner
+    (AC-10.4); Workspace Administrators can only read tasks (PD-03).
 
     **Sources of truth:** docs/requirements.md (FR, NFR), docs/user-stories.md
     (US, AC, EC), docs/constraints.md (AQ, SP, TD, PD), docs/architecture.md
@@ -62,6 +67,9 @@ info:
     - `listWorkspaceMembers` lets the project form offer an owner (FR-06). Owning component: CMP-02.
     - `createTask` supports US-10 (FR-09, FR-10, FR-11, FR-12). Owning component: CMP-05 Tasks.
     - `updateTaskStatus` supports US-11 (FR-12). Owning component: CMP-05 Tasks.
+    - `listTasks`, `getTask`, `updateTask` and `deleteTask` support US-10,
+      US-11, US-12, US-14, US-25 and US-26 (FR-09 to FR-13, FR-15). Owning
+      component: CMP-05 Tasks. Added 2026-11-12 (INC-04).
 
     **Assumptions made in this specification** (not confirmed requirements):
     - **API-A1.** *Withdrawn 2026-11-12:* replaced by the session cookie
@@ -78,9 +86,11 @@ info:
       and whether non-owners may change a task's status.
     - **PD-20:** whether a member must belong to the project to create a task
       in it (not stated by FR-09 or FR-07).
-    - **PD-21:** whether a title of spaces only is rejected (FR-09, BR-10
-      only say the title is required). This draft rejects only an empty title.
-    - **PD-04:** maximum title length; whether description and due date are required.
+    - **PD-04:** whether description and due date are required (both are
+      optional here, DA-04). The title and description lengths were decided
+      on 2026-11-12: title 3 to 150 characters after trimming, description at
+      most 2000 characters. A title of spaces only is refused (PD-21, decided
+      2026-11-12).
     - **PD-05:** whether tasks can be created or changed in an archived project.
     - **PD-06:** whether a Done task may move back to an earlier status.
     - **PD-11 / TD-07:** which change wins when two people change the same task (EC-07).
@@ -512,26 +522,124 @@ paths:
   /projects/{project_id}/tasks:
     parameters:
       - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags: [Tasks]
+      operationId: listTasks
+      summary: List a project's tasks
+      description: |
+        The tasks of one project with their owner, status and due date (US-12,
+        FR-13), optionally filtered by status and owner (US-14, FR-15).
+        Filters combine (AND), and paging applies to the filtered result.
+        `status_counts` always counts every task of the project, whatever the
+        filters, so it matches the project's progress (FR-18, BR-15).
+
+        **Order:** earliest due date first, tasks without a due date last, then
+        by title ignoring case, then by id (decided 2026-11-12).
+
+        **Who can perform it:** any active member of the project's workspace,
+        including Viewers and Workspace Administrators (FR-05, FR-13, AC-19.1).
+        A project in another workspace gives 404 (API-A3).
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Only tasks with exactly this status.
+          schema:
+            $ref: '#/components/schemas/TaskStatus'
+        - name: owner_member_id
+          in: query
+          required: false
+          description: Only tasks owned by this member.
+          schema:
+            $ref: '#/components/schemas/Id'
+        - name: page
+          in: query
+          required: false
+          description: Zero-based page number.
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          required: false
+          description: Number of tasks per page.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: One page of the project's tasks.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskPage'
+              examples:
+                filteredByStatus:
+                  summary: Tasks "In progress", first page
+                  value:
+                    items:
+                      - task_id: tsk_001
+                        project_id: prj_website
+                        title: Draft homepage text
+                        description: null
+                        owner_member_id: mem_ben
+                        owner_name: Ben Demo
+                        due_date: '2026-11-04'
+                        status: In progress
+                        created_by_member_id: mem_ana
+                    page: 0
+                    size: 20
+                    total: 1
+                    status_counts:
+                      - status: To do
+                        count: 1
+                      - status: In progress
+                        count: 1
+                      - status: Done
+                        count: 1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProjectNotFound'
+        '422':
+          description: |
+            `status` is not exactly one of `To do`, `In progress`, `Done`;
+            `owner_member_id` is not a valid id; or `page` or `size` is outside
+            its range or not a whole number.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
     post:
       tags: [Tasks]
       operationId: createTask
       summary: Create a task in a project
       description: |
         Creates a task in the given project with a title, an optional description,
-        exactly one owner and an optional due date (US-10; FR-09, FR-10, FR-11, FR-12).
+        exactly one owner, an optional due date and an optional status (US-10;
+        FR-09, FR-10, FR-11, FR-12).
 
         **Who can perform it:** an active member of the project's workspace whose
         role is Project Manager or Team Member (FR-09, BR-12). Viewers and
         deactivated members are refused (FR-05, AC-19.2, SP-04).
 
-        **Set by the server, not by the client:**
-        - `status` is always `To do` (FR-12, BR-11, AC-10.1).
+        **Defaults and server-set fields:**
+        - `status` is `To do` when it is not sent (FR-12, BR-11, AC-10.1);
+          otherwise it must be exactly one of the three statuses (decided
+          2026-11-12).
         - `created_by_member_id` is the signed-in member; it decides who may
           later delete the task (FR-09, BR-12).
 
         **Rules checked:**
-        - `title` is required and not empty (BR-10, AC-10.2). Whether a title of
-          spaces only is refused is not decided (see info).
+        - `title` is required. Leading and trailing spaces are removed, and the
+          result must be 3 to 150 characters long, so a title of spaces only is
+          refused (BR-10, AC-10.2; PD-04 and PD-21 decided 2026-11-12).
+        - `description`, when sent, is at most 2000 characters (decided 2026-11-12).
         - `owner_member_id` must be a member of this project (FR-10, BR-09, AC-10.3).
           A Viewer who is a project member may be the owner (FR-10).
         - All referenced records belong to the project's workspace (NFR-01, BR-18).
@@ -572,7 +680,8 @@ paths:
       responses:
         '201':
           description: |
-            The task was created. Its status is `To do` (AC-10.1). It now appears
+            The task was created. Its status is `To do` unless another was sent
+            (AC-10.1). It now appears
             in the project task list (FR-13) and in the owner's "My tasks" (FR-14).
           headers:
             Location:
@@ -593,6 +702,7 @@ paths:
                     title: Draft homepage text
                     description: First draft of the homepage copy for review.
                     owner_member_id: mem_ana
+                    owner_name: Ana Demo
                     due_date: '2026-11-06'
                     status: To do
                     created_by_member_id: mem_carla
@@ -607,13 +717,17 @@ paths:
         '422':
           description: |
             The body is well formed but breaks a validation rule. Triggers:
-            - `title` is missing or empty (AC-10.2, BR-10).
+            - `title` is missing, or shorter than 3 or longer than 150
+              characters after trimming, including a title of spaces only
+              (AC-10.2, BR-10).
+            - `description` is longer than 2000 characters.
+            - `status` is not exactly one of `To do`, `In progress`, `Done`.
             - `owner_member_id` is missing (BR-09).
             - `owner_member_id` does not refer to a member of this project,
               including a member of the workspace who is not in the project
               (AC-10.3, BR-09) or a member of another workspace (NFR-01).
             - `due_date` is not a valid calendar date.
-            - An unknown field is sent, including `status` or `created_by_member_id`.
+            - An unknown field is sent, including `created_by_member_id`.
           content:
             application/json:
               schema:
@@ -635,6 +749,113 @@ paths:
                     details:
                       - field: owner_member_id
                         issue: The owner must be a member of this project.
+
+  /projects/{project_id}/tasks/{task_id}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/TaskId'
+    get:
+      tags: [Tasks]
+      operationId: getTask
+      summary: Get a task of a project
+      description: |
+        Any active member of the project's workspace, including Viewers (FR-05,
+        FR-13). A task that does not belong to `project_id` gives 404, even if
+        the task exists in another project the caller can see, so a task can
+        only be reached through its own project.
+      responses:
+        '200':
+          description: The task.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/TaskNotFound'
+    patch:
+      tags: [Tasks]
+      operationId: updateTask
+      summary: Edit a task
+      description: |
+        Changes the sent fields (US-25, AC-10.4, US-11). Fields not sent stay
+        unchanged; `null` clears `description` or `due_date`. The same rules as
+        `createTask` apply to each value. A body with no fields changes nothing.
+        The task must belong to `project_id` (404 otherwise).
+
+        **Who can change which field** (provisional until PD-01, PD-03 and
+        PD-17 are decided; approved 2026-11-12):
+        - `title`, `description`, `due_date`: any active Project Manager of the
+          project's workspace, or the task's owner when the owner is a Team Member.
+        - `owner_member_id`: Project Managers only (AC-10.4). The new owner
+          must be a member of the project (BR-09, AC-10.3).
+        - `status`: the task's owner only, as in `updateTaskStatus` (AC-11.1).
+        - Viewers and Workspace Administrators cannot change tasks.
+
+        Permissions are checked before values. If any sent field may not be
+        changed by the caller, nothing is changed and the response is 403.
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskUpdateRequest'
+            examples:
+              newOwner:
+                summary: Give the task to Carla (AC-10.4)
+                value:
+                  owner_member_id: mem_carla
+              rename:
+                summary: Change the title and clear the due date
+                value:
+                  title: Draft homepage text, second round
+                  due_date: null
+      responses:
+        '200':
+          description: The task after the change.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/TaskNotFound'
+        '422':
+          $ref: '#/components/responses/TaskValidationFailed'
+    delete:
+      tags: [Tasks]
+      operationId: deleteTask
+      summary: Delete a task
+      description: |
+        Deletes the task together with its comments and notifications in one
+        transaction, so no dependent record remains (US-26, FR-09, DA-05). The
+        task leaves the task list and the progress count (AC-17.3). Cannot be
+        undone. The task must belong to `project_id` (404 otherwise).
+
+        **Who can perform it:** the member who created the task (BR-12,
+        AC-26.1, AC-26.2), unless they are now a Viewer or deactivated (FR-05,
+        SP-04).
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      responses:
+        '204':
+          description: The task and its comments and notifications were deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/TaskNotFound'
 
   /tasks/{task_id}:
     parameters:
@@ -832,7 +1053,9 @@ components:
           (AC-11.1; provisional for Project Managers, PD-01);
         - provisional rules for `createTask`: the member is a Workspace
           Administrator (PD-03), a Team Member setting another owner (PD-01),
-          or not a member of the project (PD-20).
+          or not a member of the project (PD-20);
+        - for `updateTask`, a sent field the member may not change (see that
+          operation); for `deleteTask`, the member did not create the task (BR-12).
       content:
         application/json:
           schema:
@@ -890,6 +1113,26 @@ components:
               value:
                 code: not_found
                 message: The task was not found.
+    TaskValidationFailed:
+      description: |
+        The body is well formed but breaks a validation rule: `title` shorter
+        than 3 or longer than 150 characters after trimming (including spaces
+        only or `null`); `description` longer than 2000 characters; `status`
+        not exactly one of `To do`, `In progress`, `Done`; `owner_member_id`
+        `null` or not a member of the task's project; an invalid date; or a
+        field that cannot be sent.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            titleTooShort:
+              value:
+                code: validation_failed
+                message: The task could not be saved.
+                details:
+                  - field: title
+                    issue: The title must be 3 to 150 characters long.
 
   schemas:
     SignInRequest:
@@ -1084,14 +1327,17 @@ components:
       properties:
         title:
           type: string
-          minLength: 1
+          minLength: 3
+          maxLength: 150
           description: |
-            Required (FR-09, BR-10, AC-10.2). Maximum length pending PD-04.
-            Whether a title of spaces only is refused is not decided.
+            Required (FR-09, BR-10, AC-10.2). Leading and trailing spaces are
+            removed; the lengths apply to the trimmed value, so a title of
+            spaces only is refused (decided 2026-11-12).
           examples: [Draft homepage text]
         description:
           type: string
-          description: Optional (DA-04); whether it is required is pending PD-04.
+          maxLength: 2000
+          description: Optional (DA-04); at most 2000 characters (decided 2026-11-12).
           examples: [First draft of the homepage copy for review.]
         owner_member_id:
           allOf:
@@ -1108,6 +1354,67 @@ components:
             Optional due date (FR-11; DA-04; pending PD-04). A task without a due
             date is never overdue (EC-06, BR-16).
           examples: ['2026-11-06']
+        status:
+          allOf:
+            - $ref: '#/components/schemas/TaskStatus'
+          description: Optional; `To do` when not sent (BR-11, decided 2026-11-12).
+
+    TaskUpdateRequest:
+      type: object
+      description: |
+        Fields that `updateTask` can change; each is optional. Who may change
+        which field is described in `updateTask`.
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 3
+          maxLength: 150
+          description: Same rule as in `TaskCreateRequest`; cannot be `null`.
+        description:
+          type: ['string', 'null']
+          maxLength: 2000
+          description: '`null` or an empty string clears it.'
+        owner_member_id:
+          allOf:
+            - $ref: '#/components/schemas/Id'
+          description: A member of the task's project (BR-09, AC-10.4); cannot be `null`.
+        due_date:
+          type: ['string', 'null']
+          format: date
+          description: '`null` clears it.'
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+
+    TaskPage:
+      type: object
+      required: [items, page, size, total, status_counts]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Task'
+        page:
+          type: integer
+        size:
+          type: integer
+        total:
+          type: integer
+          description: Number of tasks matching the filters across all pages.
+        status_counts:
+          type: array
+          description: |
+            Number of the project's tasks per status, always the three statuses
+            in the order `To do`, `In progress`, `Done`, ignoring the filters.
+          items:
+            type: object
+            required: [status, count]
+            properties:
+              status:
+                $ref: '#/components/schemas/TaskStatus'
+              count:
+                type: integer
+                minimum: 0
 
     TaskStatusUpdateRequest:
       type: object
@@ -1137,7 +1444,8 @@ components:
           $ref: '#/components/schemas/Id'
         title:
           type: string
-          minLength: 1
+          minLength: 3
+          maxLength: 150
         description:
           type: ['string', 'null']
           description: Null or absent when not given (DA-04).
@@ -1145,6 +1453,11 @@ components:
           allOf:
             - $ref: '#/components/schemas/Id'
           description: The task's single owner (FR-10, BR-09, AC-10.4).
+        owner_name:
+          type: ['string', 'null']
+          description: |
+            The owner's name, for display (FR-13). Read only. Personal data
+            (database.md, Account.name).
         due_date:
           type: ['string', 'null']
           format: date

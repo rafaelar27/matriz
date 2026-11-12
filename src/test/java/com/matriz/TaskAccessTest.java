@@ -73,10 +73,16 @@ class TaskAccessTest extends ApiTestSupport {
     }
 
     @Test
-    void clientSuppliedStatusIsRefused() throws Exception {
+    void statusIsOptionalOnCreateButMustBeValid() throws Exception {
+        // Contract 0.4.0 (decided 2026-11-12): status may be sent; To do is the default.
         createTask(signIn("ana@example.com"), WEBSITE,
-                "{\"title\":\"x\",\"owner_member_id\":\"" + ACME_ANA + "\",\"status\":\"Done\"}")
-                .andExpect(status().isUnprocessableEntity());
+                "{\"title\":\"Placeholder task\",\"owner_member_id\":\"" + ACME_ANA + "\",\"status\":\"Done\"}")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("Done"));
+        createTask(signIn("ana@example.com"), WEBSITE,
+                "{\"title\":\"Placeholder task\",\"owner_member_id\":\"" + ACME_ANA + "\",\"status\":\"DONE\"}")
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.details[0].field").value("status"));
     }
 
     @Test
@@ -91,14 +97,14 @@ class TaskAccessTest extends ApiTestSupport {
     @Test
     void ownerWhoIsNotAProjectMemberIsRefused() throws Exception {
         // Vera is a member of Acme Studio but not of "Trade fair stand" (AC-10.3).
-        createTask(signIn("ana@example.com"), TRADE_FAIR, task("x", ACME_VERA))
+        createTask(signIn("ana@example.com"), TRADE_FAIR, task("Placeholder task", ACME_VERA))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.details[0].field").value("owner_member_id"));
     }
 
     @Test
     void ownerFromAnotherWorkspaceIsRefused() throws Exception {
-        createTask(signIn("ana@example.com"), WEBSITE, task("x", NW_CARLA))
+        createTask(signIn("ana@example.com"), WEBSITE, task("Placeholder task", NW_CARLA))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.details[0].field").value("owner_member_id"));
     }
@@ -116,27 +122,27 @@ class TaskAccessTest extends ApiTestSupport {
 
     @Test
     void viewerCannotCreateTasks() throws Exception {
-        createTask(signIn("vera@example.com"), WEBSITE, task("x", ACME_VERA))
+        createTask(signIn("vera@example.com"), WEBSITE, task("Placeholder task", ACME_VERA))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.message").value("Viewers have read-only access."));
     }
 
     @Test
     void workspaceAdministratorCannotCreateTasksUntilPd03() throws Exception {
-        createTask(signIn("carla@example.com"), LAB, task("x", NW_CARLA))
+        createTask(signIn("carla@example.com"), LAB, task("Placeholder task", NW_CARLA))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     void teamMemberCannotAssignSomeoneElseUntilPd01() throws Exception {
-        createTask(signIn("ben@example.com"), WEBSITE, task("x", ACME_ANA))
+        createTask(signIn("ben@example.com"), WEBSITE, task("Placeholder task", ACME_ANA))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     void creatorMustBeAProjectMemberUntilPd20() throws Exception {
         jdbc.update("DELETE FROM project_member WHERE project_id = ?::uuid AND member_id = ?::uuid", TRADE_FAIR, ACME_BEN);
-        createTask(signIn("ben@example.com"), TRADE_FAIR, task("x", ACME_BEN))
+        createTask(signIn("ben@example.com"), TRADE_FAIR, task("Placeholder task", ACME_BEN))
                 .andExpect(status().isForbidden());
     }
 
@@ -147,7 +153,7 @@ class TaskAccessTest extends ApiTestSupport {
         // The test shares one persistence context across requests; a real request starts with an empty one.
         entityManager.clear();
         // Takes effect on the next request, without signing out (SP-04).
-        createTask(ben, TRADE_FAIR, task("x", ACME_BEN)).andExpect(status().isForbidden());
+        createTask(ben, TRADE_FAIR, task("Placeholder task", ACME_BEN)).andExpect(status().isForbidden());
         changeStatus(ben, T_IMAGES, "{\"status\":\"Done\"}").andExpect(status().isForbidden());
     }
 
@@ -155,7 +161,7 @@ class TaskAccessTest extends ApiTestSupport {
 
     @Test
     void projectInAnotherWorkspaceIsNotFound() throws Exception {
-        createTask(signIn("ben@example.com"), LAB, task("x", ACME_BEN))
+        createTask(signIn("ben@example.com"), LAB, task("Placeholder task", ACME_BEN))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("not_found"));
     }
@@ -169,7 +175,7 @@ class TaskAccessTest extends ApiTestSupport {
     @Test
     void unknownAndMalformedIdsAreNotFound() throws Exception {
         MockHttpSession ana = signIn("ana@example.com");
-        createTask(ana, "d0000000-0000-0000-0000-000000000999", task("x", ACME_ANA)).andExpect(status().isNotFound());
+        createTask(ana, "d0000000-0000-0000-0000-000000000999", task("Placeholder task", ACME_ANA)).andExpect(status().isNotFound());
         changeStatus(ana, "not-an-id", "{\"status\":\"Done\"}").andExpect(status().isNotFound());
     }
 

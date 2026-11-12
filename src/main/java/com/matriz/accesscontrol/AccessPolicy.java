@@ -88,4 +88,48 @@ public class AccessPolicy {
             throw ApiException.forbidden("Only the task's owner can change its status (pending decision PD-01).");
         }
     }
+
+    /**
+     * updateTask (US-25, AC-10.4, FR-09, FR-10, FR-12): checks every field group that was sent, before any value is
+     * validated, so a refused request changes nothing. PROVISIONAL rules approved 2026-11-12 (PD-01, PD-03, PD-17).
+     *
+     * @param changesContent title, description or due date was sent
+     * @param changesOwner   owner_member_id was sent
+     * @param changesStatus  status was sent
+     */
+    public void checkEditTask(Actor actor, UUID taskOwnerMemberId, boolean changesContent, boolean changesOwner,
+                              boolean changesStatus) {
+        requireTaskWriter(actor, "edit");
+        boolean owner = actor.memberId().equals(taskOwnerMemberId);
+        if (changesContent && actor.role() != Role.PROJECT_MANAGER && !owner) {
+            // PROVISIONAL (PD-01): Team Members edit only the tasks they own.
+            throw ApiException.forbidden("Team Members can only edit tasks they own (pending decision PD-01).");
+        }
+        if (changesOwner && actor.role() != Role.PROJECT_MANAGER) {
+            // PROVISIONAL (PD-01): only Project Managers reassign tasks (AC-10.4).
+            throw ApiException.forbidden("Only Project Managers can change a task's owner (pending decision PD-01).");
+        }
+        if (changesStatus) {
+            checkChangeStatus(actor, taskOwnerMemberId);
+        }
+    }
+
+    /** deleteTask (US-26, BR-12, AC-26.2): only the member who created the task, never a Viewer (FR-05). */
+    public void checkDeleteTask(Actor actor, UUID taskCreatorMemberId) {
+        requireTaskWriter(actor, "delete");
+        if (!actor.memberId().equals(taskCreatorMemberId)) {
+            throw ApiException.forbidden("Only the member who created a task can delete it.");
+        }
+    }
+
+    /** Viewers are read-only (FR-05); Workspace Administrators only read tasks (PROVISIONAL, PD-03). */
+    private static void requireTaskWriter(Actor actor, String action) {
+        if (actor.role() == Role.VIEWER) {
+            throw ApiException.forbidden(VIEWER_READ_ONLY);
+        }
+        if (actor.role() == Role.WORKSPACE_ADMINISTRATOR) {
+            throw ApiException.forbidden("Workspace Administrators cannot " + action
+                    + " tasks (pending decision PD-03).");
+        }
+    }
 }

@@ -154,8 +154,8 @@ The primary key is the pair (project_id, member_id), so a member takes part in a
 |---|---|---|---|---|
 | task_id | id | PK | Yes | Identifier of the task. |
 | project_id | id | FK → Project | Yes | The project the task belongs to (FR-09). |
-| title | string | | Yes | The task's title (FR-09, AC-10.2). Maximum length: PD-04. |
-| description | text | | No (DA-04) | The task's description (FR-09). Whether required: PD-04. |
+| title | string | | Yes | The task's title, 3 to 150 characters after trimming (FR-09, AC-10.2, BR-10; decided 2026-11-12). |
+| description | text | | No (DA-04) | The task's description, at most 2000 characters (FR-09; decided 2026-11-12). Whether required: PD-04. |
 | owner_member_id | id | FK → Member | Yes | The task's single owner (FR-10, BR-09). |
 | due_date | date | | No (DA-04) | The task's due date (FR-11). Whether required: PD-04. |
 | status | enum (To do, In progress, Done) | | Yes | The task's status; a new task starts as To do (FR-12, BR-11). |
@@ -249,7 +249,7 @@ These are confirmed by the documentation.
 | BR-07 | Deactivated members cannot access the workspace. Their tasks are not deleted and keep their comments; they stay in task lists and the progress count. | FR-03, SP-04, EC-04 |
 | BR-08 | Any workspace member, including a Viewer, can be a project member. Project members belong to the project's workspace. | FR-07, NFR-01, decision log 2026-10-29 |
 | BR-09 | Each task has exactly one owner, who must be a member of the task's project when assigned. A Viewer can be a task owner. | FR-10, AC-10.3, AC-10.4 |
-| BR-10 | A task's title is required. | FR-09, AC-10.2 |
+| BR-10 | A task's title is required. It is trimmed and must be 3 to 150 characters long, so a title of only spaces is refused. | FR-09, AC-10.2, AC-10.5, decision log 2026-11-12 |
 | BR-11 | A task has exactly one of three statuses (To do, In progress, Done). A new task starts as To do. | FR-12, AC-10.1, AC-11.2 |
 | BR-12 | A member can delete the tasks they created, but not tasks created by others. Project Managers and Team Members can create tasks. | FR-09, decision log 2026-10-29 |
 | BR-13 | Empty comments, or comments containing only spaces, are not saved. | FR-16, EC-08 |
@@ -312,7 +312,7 @@ DA-01 to DA-11 above need confirmation. DA-03, DA-05, DA-06 and DA-08 were propo
 | PD-01 | Who may edit tasks or assign them to others. Permission rule only; no structural change expected. |
 | PD-02 | Which roles a Project Manager may give in an Invitation. Rule only. |
 | PD-03 | If a member may hold more than one role, Member.role becomes a separate entity or a list. |
-| PD-04 | Whether Task.description and Task.due_date are required, and the maximum length of Task.title (DA-04). |
+| PD-04 | Whether Task.description and Task.due_date are required (DA-04). The lengths were decided on 2026-11-12. |
 | PD-05 | Project statuses and the effect of archiving may replace Project.is_archived (DA-11). |
 | PD-06 | Whether Done tasks can go back to an earlier status and appear in "My tasks". Rule only. |
 | PD-07 | Progress percentage and rounding. Derived; no stored data. |

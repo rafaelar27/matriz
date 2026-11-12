@@ -9,6 +9,7 @@
 | INC-01 | Project setup | Done (2026-11-12) |
 | INC-02 | Authentication and access control | Done (2026-11-12) |
 | INC-03 | Projects (first end-to-end flow) | Done (2026-11-12) |
+| INC-04 | Tasks within a project | Done (2026-11-12) |
 
 ### INC-01: Project setup
 
@@ -104,6 +105,32 @@
 
 **Not implemented in INC-03:** archiving and project statuses (PD-05), choosing project members (US-08), the task list and task screens.
 
+### INC-04: Tasks within a project
+
+**Goal:** create, list, view, edit and delete the tasks of an accessible project, change their status, filter by status and owner with pages, and keep lists and counts up to date without reloading the page.
+
+**Basis:** FR-05, FR-09 to FR-13, FR-15, FR-18; US-10, US-11, US-12, US-14, US-19, US-25, US-26; AC-10.1 to AC-10.5, AC-11.1 to AC-11.3, AC-17.2, AC-17.3, AC-19.1, AC-19.2, AC-25.1, AC-25.2, AC-26.1 to AC-26.3; BR-09 to BR-12, BR-15; DA-04, DA-05; NFR-01; API-A3. Decisions of 2026-11-12 in the [decision log](constraints.md#decision-log): title and description lengths (PD-21; PD-04 in part), Portuguese status labels (PD-13 in part), optional status on create, filters and order, provisional task permissions. **Left out:** task priority (F17, outside the initial scope) and filtering by due date.
+
+**Built:** [openapi.yaml](../openapi.yaml) 0.4.0-draft with `listTasks`, `getTask`, `updateTask` and `deleteTask` and the changed `createTask`; `TaskService`, `TaskController`, `TaskFields`, `TaskView`, `TaskRepository` queries and `AccessPolicy.checkEditTask` and `checkDeleteTask`; the Tasks section of the project view (filters, pages, counts per status, create and edit form, status list per row, read-only details, delete confirmation). No migration was needed.
+
+| ID | Acceptance criterion | Verification method | Result |
+|---|---|---|---|
+| AC-INC04.1 | A task created without a status is `To do`; the list, counts and progress update at once. | `TaskApiTest`; browser ("Collect logo files", response `"status":"To do"`, Por fazer 1 → 2) | Pass |
+| AC-INC04.2 | Title: 2 and 151 characters, spaces only and missing are refused; 3 and 150 are accepted; limits apply after trimming. | `TaskApiTest`; browser (spaces only) | Pass |
+| AC-INC04.3 | Description: 2000 characters accepted, 2001 refused, on create and edit. | `TaskApiTest` | Pass |
+| AC-INC04.4 | A status other than `To do`, `In progress`, `Done` (such as `DONE`, `done`, `Concluída`) is refused on create, edit and as a filter. | `TaskApiTest` | Pass |
+| AC-INC04.5 | Filters by status, by owner and combined, with pages over the filtered result and the documented order. | `TaskApiTest`; browser (Em curso + Ben) | Pass |
+| AC-INC04.6 | Status changes and edits persist after a page reload and a backend restart. | Browser reload; app restarted, rows checked with SQL, list shown again after signing in | Pass |
+| AC-INC04.7 | Lists and counts update without reloading after create, edit, status change and delete. | Browser | Pass |
+| AC-INC04.8 | A user of another workspace cannot list, view, create, edit or delete the project's tasks (404). | `TaskApiTest` (Dan) | Pass |
+| AC-INC04.9 | A task reached through a different project id is not found (404), and is not changed. | `TaskApiTest` | Pass |
+| AC-INC04.10 | Deleting a task asks for confirmation and leaves no comments or notifications of it. | `TaskApiTest` (orphan checks); browser (Cancel, then Delete) and SQL check | Pass |
+| AC-INC04.11 | The interface shows Portuguese status labels; requests and responses use the API values. | Browser (option values and network bodies) | Pass |
+| AC-INC04.12 | Permissions: Viewers and Workspace Administrators read only; Team Members edit their own tasks and never reassign; only owners change status; only creators delete; a refused request changes nothing. | `TaskApiTest`, `TaskAccessTest` | Pass |
+| AC-INC04.13 | Without a session every task operation gets 401, and the interface goes to sign-in. | `TaskApiTest`; browser after a restart | Pass |
+
+**Known gap:** AC-10.3 ("Ben is not offered as an owner") is not met in the interface: the form offers every workspace member, because no endpoint lists a project's members (decided 2026-11-12). The backend refuses owners outside the project (422).
+
 ## Status log
 
 | Date | Increment | Change | Approved by |
@@ -111,3 +138,4 @@
 | 2026-11-12 | INC-01 | Plan approved; project skeleton, migration `V1__initial_schema.sql`, seed command and `DatabaseSetupTest` created; all acceptance criteria verified. Status set to Done. | Project decision-maker |
 | 2026-11-12 | INC-02 | Plan approved (session cookie, 8-hour idle timeout, scope limited to authentication and the two documented operations, provisional rules for PD-01, PD-03, PD-17, PD-20). Sign-in, profile, sign-out, `AccessPolicy`, `createTask` and `updateTaskStatus` implemented; 32 new automated tests and manual curl checks pass. Status set to Done. | Project decision-maker |
 | 2026-11-12 | INC-03 | Plan approved (deletion with cascade, project name search, owner defaults to the creator, name 3–100 and description ≤ 1000 characters, any Project Manager edits or deletes, creator becomes a project member, page and size paging, a Northwind-only demo user, progress in the list). Project operations, migration `V2`, and the first user interface implemented; 18 new automated tests and a manual browser check pass. Status set to Done. | Project decision-maker |
+| 2026-11-12 | INC-04 | Plan approved (no priority, optional status on create, title 3–150 and description ≤ 2000 characters, Portuguese status labels, filters by status and owner, provisional task permissions, task paths under the project, owner choices from workspace members). Task operations and the Tasks section implemented; 16 new automated tests (69 in total) and a manual browser check pass, with status changes persisting after a reload and a restart. Status set to Done. | Project decision-maker |

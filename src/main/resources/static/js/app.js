@@ -9,6 +9,18 @@ const NAME_MIN = 3;
 const NAME_MAX = 100;
 const DESCRIPTION_MAX = 1000;
 const PAGE_SIZE = 10;
+const TASK_TITLE_MIN = 3;
+const TASK_TITLE_MAX = 150;
+const TASK_DESCRIPTION_MAX = 2000;
+
+// Task statuses. The API always sends and receives these technical values (openapi.yaml: TaskStatus); the interface
+// shows Portuguese labels (PD-13, decided 2026-11-12 for task statuses). This is the only place they are mapped.
+const TASK_STATUSES = ['To do', 'In progress', 'Done'];
+const STATUS_LABELS = { 'To do': 'Por fazer', 'In progress': 'Em curso', 'Done': 'Concluída' };
+
+function statusLabel(value) {
+  return STATUS_LABELS[value] || value;
+}
 
 const main = document.getElementById('main');
 const state = { profile: null, flash: null };
@@ -299,7 +311,7 @@ function projectTable(data, progress, q) {
       data.page + 1 < pages ? link(data.page + 1, 'Next →') : null));
 }
 
-async function projectDetailScreen(id) {
+async function projectDetailScreen(id, params) {
   await loadProfile();
   showBar(true);
   render(loading('Loading the project…'));
@@ -315,12 +327,15 @@ async function projectDetailScreen(id) {
         h('a', { class: 'btn', href: '#/projects' }, '← Back to projects'));
       return;
     }
-    render(failure(err, () => projectDetailScreen(id)));
+    render(failure(err, () => projectDetailScreen(id, params)));
     return;
   }
+  progress = progress || { project_id: id, done: 0, total: 0 };
   const manage = canManage(project.workspace_id);
   const deleteButton = manage ? h('button', { class: 'btn danger', type: 'button', onclick: () => confirmDelete(project, progress) },
     'Delete project') : null;
+  // Updated in place by the task section after every task change, so the figure never needs a reload.
+  const progressText = h('dd', { id: 'project-progress' }, progressLabel(progress));
   render(
     takeFlash(),
     h('p', {}, h('a', { href: '#/projects' }, '← Projects')),
@@ -331,22 +346,37 @@ async function projectDetailScreen(id) {
         h('dt', {}, 'Owner'), h('dd', {}, project.owner_name || '—'),
         h('dt', {}, 'Start date'), h('dd', {}, formatDate(project.start_date)),
         h('dt', {}, 'Due date'), h('dd', {}, formatDate(project.due_date)),
-        h('dt', {}, 'Progress'), h('dd', {}, progress ? progress.done + ' of ' + progress.total + ' tasks done' : '—')),
+        h('dt', {}, 'Progress'), progressText),
       h('h2', { class: 'skip' }, 'Description'),
       h('p', { class: 'description' }, project.description || 'No description.'),
       manage ? h('div', { class: 'actions' },
-        h('a', { class: 'btn', href: '#/projects/' + project.project_id + '/edit' }, 'Edit project'), deleteButton) : null));
+        h('a', { class: 'btn', href: '#/projects/' + project.project_id + '/edit' }, 'Edit project'), deleteButton) : null),
+    taskSection(project, progress, progressText, params || new URLSearchParams()));
 }
 
-function confirmDelete(project, progress) {
+function progressLabel(progress) {
+  return progress.done + ' of ' + progress.total + ' tasks done';
+}
+
+/** Shows the shared confirmation dialog; resolves true only when the delete button was chosen. */
+function askConfirm(title, text, okLabel) {
   const dialog = document.getElementById('confirm');
-  const tasks = progress ? progress.total : 0;
-  document.getElementById('confirm-text').textContent = '“' + project.name + '” will be deleted' +
-    (tasks ? ', together with its ' + tasks + ' task' + (tasks === 1 ? '' : 's') + ' and their comments' : '') +
-    '. This cannot be undone.';
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-text').textContent = text;
+  document.getElementById('confirm-ok').textContent = okLabel;
   dialog.returnValue = '';
-  dialog.onclose = async () => {
-    if (dialog.returnValue !== 'delete') return;
+  return new Promise(resolve => {
+    dialog.onclose = () => resolve(dialog.returnValue === 'delete');
+    dialog.showModal();
+  });
+}
+
+async function confirmDelete(project, progress) {
+  const tasks = progress ? progress.total : 0;
+  const ok = await askConfirm('Delete project?', '“' + project.name + '” will be deleted' +
+    (tasks ? ', together with its ' + tasks + ' task' + (tasks === 1 ? '' : 's') + ' and their comments' : '') +
+    '. This cannot be undone.', 'Delete project');
+  if (ok) {
     try {
       await api('DELETE', '/projects/' + encodeURIComponent(project.project_id));
       state.flash = '“' + project.name + '” was deleted.';
@@ -356,8 +386,362 @@ function confirmDelete(project, progress) {
         main.prepend(message(err.status === 404 ? 'This project no longer exists.' : err.message));
       }
     }
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Tasks of a project (INC-04; FR-09 to FR-13, FR-15). Shown inside the project view; every change refreshes the
+// list, the counts per status and the project's progress without reloading the page.
+// ---------------------------------------------------------------------------------------------------------------
+
+function taskSection(project, progress, progressText, params) {
+  const me = (state.profile.memberships || []).find(m => m.workspace_id === project.workspace_id) || {};
+  const writer = me.role === 'Project Manager' || me.role === 'Team Member';
+  const isPm = me.role === 'Project Manager';
+  // Mirrors AccessPolicy so that refused actions are hidden (CMP-11); the backend still decides.
+  const can = {
+    create: writer,
+    edit: t => isPm || (writer && t.owner_member_id === me.member_id),
+    reassign: isPm,
+    status: t => writer && t.owner_member_id === me.member_id,
+    remove: t => writer && t.created_by_member_id === me.member_id,
   };
-  dialog.showModal();
+  const filters = {
+    status: TASK_STATUSES.includes(params.get('status')) ? params.get('status') : '',
+    owner: params.get('owner') || '',
+    page: Math.max(0, parseInt(params.get('page') || '0', 10) || 0),
+  };
+  const base = '/projects/' + encodeURIComponent(project.project_id) + '/tasks';
+  const taskPath = t => base + '/' + encodeURIComponent(t.task_id);
+  let members = [];
+
+  const notice = h('div', { 'aria-live': 'polite' });
+  const counts = h('p', { class: 'counts' });
+  const formArea = h('div', {});
+  const results = h('div', {}, loading('Loading tasks…'));
+  const say = (text, isError) => notice.replaceChildren(message(text, isError ? null : 'info'));
+
+  const statusFilter = h('select', { id: 'task-status-filter' }, h('option', { value: '' }, 'All statuses'),
+    TASK_STATUSES.map(s => h('option', { value: s, selected: s === filters.status }, statusLabel(s))));
+  const ownerFilter = h('select', { id: 'task-owner-filter' }, h('option', { value: '' }, 'All owners'));
+  const onFilter = () => {
+    filters.status = statusFilter.value;
+    filters.owner = ownerFilter.value;
+    filters.page = 0;
+    refresh();
+  };
+  statusFilter.addEventListener('change', onFilter);
+  ownerFilter.addEventListener('change', onFilter);
+  const clearFilters = () => {
+    statusFilter.value = '';
+    ownerFilter.value = '';
+    onFilter();
+  };
+
+  // Keeps filters and page in the address, so a reload shows the same list (no hashchange, so no re-render).
+  const syncAddress = () => {
+    const q = new URLSearchParams();
+    if (filters.status) q.set('status', filters.status);
+    if (filters.owner) q.set('owner', filters.owner);
+    if (filters.page) q.set('page', String(filters.page));
+    const qs = q.toString();
+    history.replaceState(null, '', '#/projects/' + project.project_id + (qs ? '?' + qs : ''));
+  };
+
+  const showCounts = list => {
+    const by = {};
+    list.forEach(c => { by[c.status] = c.count; });
+    counts.replaceChildren(...TASK_STATUSES.flatMap((s, i) =>
+      [i ? ' ' : '', h('span', { class: 'tag' }, statusLabel(s) + ': ' + (by[s] || 0))]));
+    progress.done = by['Done'] || 0;
+    progress.total = list.reduce((n, c) => n + c.count, 0);
+    progressText.textContent = progressLabel(progress);
+  };
+
+  const refresh = async () => {
+    syncAddress();
+    results.setAttribute('aria-busy', 'true');
+    try {
+      const query = new URLSearchParams({ page: String(filters.page), size: String(PAGE_SIZE) });
+      if (filters.status) query.set('status', filters.status);
+      if (filters.owner) query.set('owner_member_id', filters.owner);
+      const data = await api('GET', base + '?' + query);
+      if (!data.items.length && data.page > 0 && data.total > 0) {
+        filters.page = Math.ceil(data.total / data.size) - 1; // the last page became empty after a delete
+        return refresh();
+      }
+      showCounts(data.status_counts);
+      results.replaceChildren(table(data));
+    } catch (err) {
+      if (err.status !== 401) results.replaceChildren(failure(err, refresh));
+    } finally {
+      results.removeAttribute('aria-busy');
+    }
+  };
+
+  const statusSelect = t => {
+    const select = h('select', { 'aria-label': 'Status of ' + t.title },
+      TASK_STATUSES.map(s => h('option', { value: s, selected: s === t.status }, statusLabel(s))));
+    select.addEventListener('change', async () => {
+      select.disabled = true;
+      try {
+        await api('PATCH', taskPath(t), { status: select.value });
+        say('“' + t.title + '” is now ' + statusLabel(select.value) + '.');
+        await refresh();
+      } catch (err) {
+        if (err.status === 401) return;
+        select.value = t.status;
+        select.disabled = false;
+        say(err.status === 404 ? 'This task no longer exists.' : err.message, true);
+        if (err.status === 404) refresh();
+      }
+    });
+    return select;
+  };
+
+  const table = data => {
+    if (!data.items.length) {
+      const filtered = filters.status || filters.owner;
+      return h('div', { class: 'empty' },
+        h('strong', {}, filtered ? 'No tasks match these filters.' : 'No tasks in this project yet.'),
+        filtered ? h('button', { class: 'btn secondary', type: 'button', onclick: clearFilters }, 'Clear filters')
+          : (can.create ? h('button', { class: 'btn primary', type: 'button', onclick: () => openForm(null) }, '+ New task') : null));
+    }
+    const rows = data.items.map(t => h('tr', {},
+      h('td', {}, h('button', { class: 'link', type: 'button', onclick: () => openDetails(t) }, t.title)),
+      h('td', {}, t.owner_name || '—'),
+      h('td', {}, formatDate(t.due_date)),
+      h('td', {}, can.status(t) ? statusSelect(t) : h('span', { class: 'tag' }, statusLabel(t.status))),
+      h('td', {}, h('div', { class: 'row-actions' },
+        can.edit(t) ? h('button', { class: 'btn secondary', type: 'button', 'aria-label': 'Edit “' + t.title + '”',
+          onclick: () => openForm(t) }, 'Edit') : null,
+        can.remove(t) ? h('button', { class: 'btn secondary', type: 'button', 'aria-label': 'Delete “' + t.title + '”',
+          onclick: () => removeTask(t) }, 'Delete') : null))));
+    const pages = Math.max(1, Math.ceil(data.total / data.size));
+    const pageButton = (target, label) => h('button', { class: 'btn secondary', type: 'button', onclick: () => {
+      filters.page = target;
+      refresh();
+    } }, label);
+    return h('div', {},
+      h('div', { class: 'wrap' }, h('table', {},
+        h('caption', { class: 'skip' }, 'Tasks of ' + project.name),
+        h('thead', {}, h('tr', {}, ['Task', 'Owner', 'Due date', 'Status', 'Actions'].map(t => h('th', { scope: 'col' }, t)))),
+        h('tbody', {}, rows))),
+      h('nav', { class: 'pager', 'aria-label': 'Task pages' },
+        data.page > 0 ? pageButton(data.page - 1, '← Previous') : null,
+        h('span', {}, 'Page ' + (data.page + 1) + ' of ' + pages + ' · ' + data.total + ' task' + (data.total === 1 ? '' : 's')),
+        data.page + 1 < pages ? pageButton(data.page + 1, 'Next →') : null));
+  };
+
+  const removeTask = async t => {
+    const ok = await askConfirm('Delete task?',
+      '“' + t.title + '” will be deleted, together with its comments. This cannot be undone.', 'Delete task');
+    if (!ok) return;
+    try {
+      await api('DELETE', taskPath(t));
+      formArea.replaceChildren();
+      say('“' + t.title + '” was deleted.');
+      await refresh();
+    } catch (err) {
+      if (err.status === 401) return;
+      say(err.status === 404 ? 'This task no longer exists.' : err.message, true);
+      refresh();
+    }
+  };
+
+  // Read-only view of one task (getTask), for every member.
+  const openDetails = async t => {
+    formArea.replaceChildren(loading('Loading the task…'));
+    let task;
+    try {
+      task = await api('GET', taskPath(t));
+    } catch (err) {
+      if (err.status === 401) return;
+      formArea.replaceChildren();
+      say(err.status === 404 ? 'This task no longer exists.' : err.message, true);
+      if (err.status === 404) refresh();
+      return;
+    }
+    const close = h('button', { class: 'btn secondary', type: 'button', onclick: () => formArea.replaceChildren() }, 'Close');
+    formArea.replaceChildren(h('section', { class: 'panel task-panel', 'aria-label': 'Task details' },
+      h('h3', {}, task.title),
+      h('dl', { class: 'facts' },
+        h('dt', {}, 'Owner'), h('dd', {}, task.owner_name || '—'),
+        h('dt', {}, 'Due date'), h('dd', {}, formatDate(task.due_date)),
+        h('dt', {}, 'Status'), h('dd', {}, statusLabel(task.status))),
+      h('p', { class: 'description' }, task.description || 'No description.'),
+      h('div', { class: 'actions' },
+        can.edit(task) ? h('button', { class: 'btn', type: 'button', onclick: () => openForm(task) }, 'Edit') : null,
+        close)));
+    close.focus();
+  };
+
+  // Create (task null) or edit. Only fields the caller may change are enabled, and only changed fields are sent.
+  const openForm = async task => {
+    const editing = Boolean(task);
+    if (editing) {
+      try {
+        task = await api('GET', taskPath(task)); // latest values
+      } catch (err) {
+        if (err.status === 401) return;
+        say(err.status === 404 ? 'This task no longer exists.' : err.message, true);
+        if (err.status === 404) refresh();
+        return;
+      }
+    }
+    const fields = {};
+    const field = (name, label, control, hint) => {
+      const error = h('div', { class: 'error', id: 'task-' + name + '-error', hidden: true });
+      control.id = 'task-' + name;
+      control.setAttribute('aria-describedby', error.id + (hint ? ' task-' + name + '-hint' : ''));
+      const wrapper = h('div', { class: 'field' }, h('label', { for: control.id }, label), control,
+        hint ? h('div', { class: 'hint', id: 'task-' + name + '-hint' }, hint) : null, error);
+      fields[name] = { control, error, wrapper };
+      return wrapper;
+    };
+    const setError = (name, text) => {
+      const f = fields[name];
+      if (!f) return false;
+      f.error.textContent = text || '';
+      f.error.hidden = !text;
+      f.wrapper.classList.toggle('invalid', Boolean(text));
+      f.control.setAttribute('aria-invalid', text ? 'true' : 'false');
+      return true;
+    };
+
+    const title = h('input', { type: 'text', required: true, maxlength: TASK_TITLE_MAX + 20, value: editing ? task.title : '' });
+    const description = h('textarea', {});
+    description.value = editing && task.description ? task.description : '';
+    const dueDate = h('input', { type: 'date', value: editing && task.due_date ? task.due_date : '' });
+    const status = h('select', {}, TASK_STATUSES.map(s =>
+      h('option', { value: s, selected: s === (editing ? task.status : 'To do') }, statusLabel(s))));
+    const owner = h('select', { required: true });
+    const titleCount = h('span', {});
+    const descriptionCount = h('span', {});
+    const counters = () => {
+      titleCount.textContent = chars(title.value.trim()) + ' / ' + TASK_TITLE_MAX;
+      descriptionCount.textContent = chars(description.value) + ' / ' + TASK_DESCRIPTION_MAX;
+    };
+    title.addEventListener('input', counters);
+    description.addEventListener('input', counters);
+
+    const contentAllowed = !editing || can.edit(task);
+    title.disabled = !contentAllowed;
+    description.disabled = !contentAllowed;
+    dueDate.disabled = !contentAllowed;
+    status.disabled = editing && !can.status(task);
+    const ownerChoices = can.reassign ? members : members.filter(m => m.member_id === me.member_id);
+    const currentOwner = editing ? task.owner_member_id : me.member_id;
+    owner.replaceChildren(...(ownerChoices.length ? ownerChoices : [{ member_id: currentOwner, name: editing ? task.owner_name : state.profile.name, role: '' }])
+      .map(m => h('option', { value: m.member_id, selected: m.member_id === currentOwner }, m.name + (m.role ? ' (' + m.role + ')' : ''))));
+    if (editing && ![...owner.options].some(o => o.value === currentOwner)) {
+      owner.prepend(h('option', { value: currentOwner, selected: true }, task.owner_name || 'Current owner'));
+    }
+    owner.value = currentOwner;
+    owner.disabled = !can.reassign;
+
+    const banner = h('div', { 'aria-live': 'assertive' });
+    const submit = h('button', { class: 'btn primary', type: 'submit' }, editing ? 'Save task' : 'Create task');
+    const cancel = h('button', { class: 'btn secondary', type: 'button', onclick: () => formArea.replaceChildren() }, 'Cancel');
+
+    const validate = () => {
+      const n = chars(title.value.trim());
+      const titleError = n === 0 ? 'A title is required.'
+        : (n < TASK_TITLE_MIN || n > TASK_TITLE_MAX ? 'The title must be 3 to 150 characters long.' : '');
+      const descriptionError = chars(description.value) > TASK_DESCRIPTION_MAX
+        ? 'The description can be at most 2000 characters long.' : '';
+      setError('title', titleError);
+      setError('description', descriptionError);
+      return !titleError && !descriptionError;
+    };
+
+    const form = h('form', { class: 'panel task-panel', novalidate: true, 'aria-label': editing ? 'Edit task' : 'New task',
+      onsubmit: async e => {
+        e.preventDefault();
+        banner.replaceChildren();
+        Object.keys(fields).forEach(k => setError(k, ''));
+        if (!validate()) {
+          banner.append(message('Check the highlighted fields.'));
+          const first = Object.values(fields).find(f => !f.error.hidden);
+          if (first) first.control.focus();
+          return;
+        }
+        const values = {
+          title: title.value.trim(),
+          description: description.value === '' ? null : description.value,
+          owner_member_id: owner.value,
+          due_date: dueDate.value || null,
+          status: status.value,
+        };
+        let body = values;
+        if (editing) {
+          const before = { title: task.title, description: task.description || null, owner_member_id: task.owner_member_id,
+            due_date: task.due_date || null, status: task.status };
+          body = {};
+          Object.keys(values).forEach(k => { if (values[k] !== before[k]) body[k] = values[k]; });
+          if (!Object.keys(body).length) {
+            formArea.replaceChildren();
+            return;
+          }
+        } else {
+          if (!body.description) delete body.description;
+          if (!body.due_date) delete body.due_date;
+        }
+        submit.disabled = true;
+        try {
+          const saved = editing ? await api('PATCH', taskPath(task), body) : await api('POST', base, body);
+          formArea.replaceChildren();
+          say(editing ? '“' + saved.title + '” was saved.' : '“' + saved.title + '” was created.');
+          await refresh();
+        } catch (err) {
+          if (err.status === 401) return;
+          const details = (err.body && err.body.details) || [];
+          let shown = false;
+          const formField = { title: 'title', description: 'description', owner_member_id: 'owner', due_date: 'due', status: 'status' };
+          details.forEach(d => { shown = setError(formField[d.field], d.issue) || shown; });
+          banner.append(message(shown ? 'Check the highlighted fields.'
+            : (err.status === 404 ? 'This task or project no longer exists.' : err.message)));
+        } finally {
+          submit.disabled = false;
+        }
+      } },
+    h('h3', {}, editing ? 'Edit task' : 'New task'),
+    banner,
+    field('title', 'Title (required)', title, h('span', {}, '3 to 150 characters. ', titleCount)),
+    field('description', 'Description', description, h('span', {}, 'Up to 2000 characters. ', descriptionCount)),
+    h('div', { class: 'row' },
+      field('owner', 'Owner', owner, can.reassign ? 'Members of this project can own its tasks.' : 'You own the tasks you create.'),
+      field('due', 'Due date', dueDate)),
+    field('status', 'Status', status, editing && !can.status(task) ? 'Only the task’s owner can change its status.' : null),
+    h('div', { class: 'actions' }, submit, cancel));
+
+    formArea.replaceChildren(form);
+    counters();
+    (contentAllowed ? title : owner).focus();
+  };
+
+  // Owners for the filter and the form (workspace members; the backend refuses owners outside the project).
+  (async () => {
+    try {
+      members = await api('GET', '/workspaces/' + encodeURIComponent(project.workspace_id) + '/members');
+      ownerFilter.append(...members.map(m => h('option', { value: m.member_id, selected: m.member_id === filters.owner }, m.name)));
+      ownerFilter.value = filters.owner;
+    } catch (err) {
+      // The owner filter stays at "All owners"; the list itself still loads.
+    }
+  })();
+  refresh();
+
+  return h('section', { class: 'tasks', 'aria-labelledby': 'tasks-title' },
+    h('h2', { id: 'tasks-title' }, h('span', {}, 'Tasks'),
+      can.create ? h('button', { class: 'btn primary', type: 'button', onclick: () => openForm(null) }, '+ New task') : null),
+    counts,
+    notice,
+    formArea,
+    h('div', { class: 'toolbar' },
+      h('div', { class: 'field' }, h('label', { for: 'task-status-filter' }, 'Status'), statusFilter),
+      h('div', { class: 'field' }, h('label', { for: 'task-owner-filter' }, 'Owner'), ownerFilter)),
+    h('div', { class: 'panel' }, results));
 }
 
 async function projectFormScreen(id) {
@@ -512,7 +896,7 @@ async function route() {
     if (parts[0] === 'sign-in') return signInScreen();
     if (parts[0] === 'projects' && parts.length === 1) return await projectsScreen(params);
     if (parts[0] === 'projects' && parts[1] === 'new') return await projectFormScreen(null);
-    if (parts[0] === 'projects' && parts.length === 2) return await projectDetailScreen(parts[1]);
+    if (parts[0] === 'projects' && parts.length === 2) return await projectDetailScreen(parts[1], params);
     if (parts[0] === 'projects' && parts[2] === 'edit') return await projectFormScreen(parts[1]);
     go('#/projects');
   } catch (err) {

@@ -105,7 +105,7 @@ These need a human decision, ideally the client's. While the client is unavailab
 | PD-01 | Whether Team Members can edit, change the status of, or assign tasks they don't own. (Task creation and deletion were decided on 2026-10-29; see the decision log.) | FR-09, FR-10, FR-12, US-10, US-11 |
 | PD-02 | Which roles a Project Manager can give when inviting, and whether Project Managers can deactivate members. | FR-03, FR-04, US-03 |
 | PD-03 | Whether a member can hold more than one role, or whether the Workspace Administrator role includes Project Manager permissions. | FR-04, user types |
-| PD-04 | Whether due date and description are required, and the maximum title length. | FR-09, FR-11, US-10, EC-06 |
+| PD-04 | Whether due date and description are required. (The title and description lengths were decided on 2026-11-12; see the decision log.) | FR-09, FR-11, US-10, EC-06 |
 | PD-05 | Which statuses a project can have (F11), and what archiving a project changes (F09). | FR-06, FR-08, US-07, US-09 |
 | PD-06 | Whether a Done task can move back to an earlier status, and whether Done tasks appear in "My tasks". | FR-12, FR-14, US-11, US-13 |
 | PD-07 | Whether progress shows a percentage as well as the count, and the rounding rule. | FR-18, US-17 |
@@ -114,14 +114,13 @@ These need a human decision, ideally the client's. While the client is unavailab
 | PD-10 | What happens to tasks owned by deactivated members or by people removed from a project. | FR-03, FR-07, EC-04, EC-09 |
 | PD-11 | Which change wins when two people edit the same task at the same time. | FR-12, EC-07 |
 | PD-12 | Whether members are notified of their own actions, for example assigning a task to themselves. | FR-17, US-16 |
-| PD-13 | The launch language. | NFR-09 |
+| PD-13 | The launch language for the whole interface. (Task status labels are shown in Portuguese, decided 2026-11-12; see the decision log.) | NFR-09 |
 | PD-15 | Numeric targets for data-request response time, availability, capacity, accessibility conformance and learnability. | NFR-02, NFR-04, NFR-05, NFR-06, NFR-07 |
 | PD-16 | Whether one account can be a member of more than one workspace, and whether the person who creates a workspace automatically becomes its Workspace Administrator. | FR-01, FR-02, FR-14, NFR-01 |
 | PD-17 | Whether a Viewer who owns a task can change its status or comment on it. FR-05 currently forbids both. | FR-05, FR-10, FR-12, FR-16, US-19 |
 | PD-18 | Whether the rule "a member can delete what they created, not what others created" also sets what a personal-data deletion request removes, and what happens when the only Workspace Administrator asks for their data to be deleted. | FR-09, FR-21, EC-03, SP-07 |
 | PD-19 | How the identity of someone making a personal-data request is verified, and which workspace data support staff may access when handling it. | FR-21, NFR-02, SP-05, TD-09 |
 | PD-20 | Whether a member must belong to a project to create a task in it. FR-07 and FR-09 do not say. | FR-07, FR-09, US-10 |
-| PD-21 | Whether a task title made only of spaces is rejected. FR-16 rejects space-only comments, but FR-09 only says the title is required. | FR-09, US-10, AC-10.2 |
 | PD-22 | Whether notifications can be marked as read, which would allow an unread count. FR-17 does not say. | FR-17, US-16 |
 | PD-23 | Whether feedback has a fixed list of categories. FR-20 gives "a problem report or a suggestion" only as examples. | FR-20, US-20 |
 | PD-24 | What a signed-in person who belongs to no workspace sees. | FR-01, FR-02, PD-16 |
@@ -154,3 +153,10 @@ Decisions made by a person, recorded under AGENTS.md D2. Approvers are recorded 
 | 2026-11-12 | A project's name is 3 to 100 characters long and its description at most 1000 characters. | Project decision-maker | — | FR-06, database.md (Project, BR-21), openapi.yaml |
 | 2026-11-12 | Any Project Manager of the workspace can edit or delete its projects, and the creator of a project becomes one of its project members. | Project decision-maker | — | FR-06, FR-07, database.md (BR-21), openapi.yaml |
 | 2026-11-12 | The demo data includes a Project Manager who belongs only to Northwind Lab (Dan Demo), to show that workspaces are kept apart. | Project decision-maker | — | README (demo users), DemoDataSeeder |
+| 2026-11-12 | A task title is trimmed and must be 3 to 150 characters long, so a title of only spaces is refused. A task description is at most 2000 characters. | Project decision-maker | PD-21; PD-04 (lengths only) | FR-09, US-10 (AC-10.5), US-25 (AC-25.2), database.md (Task, BR-10), openapi.yaml |
+| 2026-11-12 | Task priority (F17) stays outside the initial scope. | Project decision-maker | — | docs/implementation-plan.md (INC-04) |
+| 2026-11-12 | A status may be sent when a task is created; it is To do when not sent. The API values stay `To do`, `In progress`, `Done`. | Project decision-maker | — | openapi.yaml (createTask) |
+| 2026-11-12 | Task statuses are shown in Portuguese (Por fazer, Em curso, Concluída); the API keeps its values. The rest of the interface stays in English until PD-13 is decided. | Project decision-maker | PD-13 (in part) | static/js/app.js (one mapping) |
+| 2026-11-12 | The project task list can be filtered by status and owner, combined, and is paged like the project list. Earliest due date first, tasks without a due date last, then by title. Filtering by due date is left for later. | Project decision-maker | — | FR-13, FR-15, openapi.yaml (listTasks) |
+| 2026-11-12 | Provisional task permissions until PD-01, PD-03 and PD-17 are decided: Project Managers of the workspace and Team Members who own a task edit its title, description and due date; only Project Managers change the owner; only the owner changes the status; only the creator deletes; Viewers and Workspace Administrators only read tasks. | Project decision-maker | — | openapi.yaml (updateTask, deleteTask), AccessPolicy |
+| 2026-11-12 | Task operations on one task use the project in the path (`/projects/{project_id}/tasks/{task_id}`); a task used with another project's id is not found. The task form offers workspace members as owners, and the backend refuses those outside the project. | Project decision-maker | — | openapi.yaml, docs/implementation-plan.md (INC-04) |
