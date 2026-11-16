@@ -135,10 +135,12 @@ Attribute types are generic: `id` (a unique identifier), `string` (short text), 
 | workspace_id | id | FK → Workspace | Yes | The workspace the project belongs to (FR-02, NFR-01). |
 | name | string | | Yes | The project's name, 3 to 100 characters (FR-06, BR-21). |
 | description | text | | No (DA-03) | The project's description, at most 1000 characters (FR-06, BR-21). |
-| owner_member_id | id | FK → Member | No (DA-03) | The project's owner (FR-06, FR-08). |
-| start_date | date | | No (DA-03) | The project's start date (FR-06). |
-| due_date | date | | No (DA-03) | The project's due date (FR-06, FR-08). |
+| owner_member_id | id | FK → Member | Yes (decided 2026-11-12) | The project's owner: the creator unless another active member of the workspace is chosen (FR-06, FR-08, BR-23). |
+| start_date | date | | No (DA-03) | The project's start date, not after the due date when both are given (FR-06, BR-21). |
+| due_date | date | | No (DA-03) | The project's due date, not before the start date when both are given (FR-06, FR-08, BR-21). |
 | is_archived | boolean | | Yes | Whether the project has been archived (FR-06, US-07). What archiving changes: PD-05 (DA-11). |
+
+Migration V4 makes `owner_member_id` required (NOT NULL) and adds the check constraint `project_date_order_ck` (`start_date IS NULL OR due_date IS NULL OR start_date <= due_date`). That the owner is an active member of the project's workspace spans rows, so CMP-04 Projects checks it when the owner is chosen (BR-23, BR-18).
 
 ### ProjectMember
 
@@ -224,7 +226,7 @@ The primary key (task_id, member_id) makes a second assignment of the same membe
 | R-03 | receives | Workspace → Invitation | 1 to 0..* | A workspace has zero or more invitations; each invitation is for exactly one workspace (FR-03). |
 | R-04 | sends | Member → Invitation | 1 to 0..* | A member sends zero or more invitations; each invitation has exactly one sender (FR-03). |
 | R-05 | contains | Workspace → Project | 1 to 0..* | A workspace contains zero or more projects; each project belongs to exactly one workspace (FR-02, FR-08). |
-| R-06 | owns | Member → Project | 0..1 to 0..* | A member owns zero or more projects; a project has at most one owner (FR-06; optional per DA-03). |
+| R-06 | owns | Member → Project | 1 to 0..* | A member owns zero or more projects; each project has exactly one owner (FR-06, decided 2026-11-12). |
 | R-07 | includes | Project → ProjectMember | 1 to 0..* | A project has zero or more project members; each project member is for exactly one project (FR-07). Deleting the project deletes its project members (BR-21). |
 | R-08 | takes part as | Member → ProjectMember | 1 to 0..* | A member takes part in zero or more projects; each project member is exactly one member (FR-07). Together with R-07, this resolves the many-to-many between Project and Member. |
 | R-09 | contains | Project → Task | 1 to 0..* | A project contains zero or more tasks; each task belongs to exactly one project (FR-09). Deleting the project deletes its tasks, and through DA-05 their comments and notifications (BR-21). |
@@ -273,8 +275,9 @@ These are confirmed by the documentation.
 | BR-18 | Every record belongs to exactly one workspace, directly or through its parent, and never references records in another workspace. | NFR-01, SP-02 |
 | BR-19 | No payment data is stored. | NFR-10, SP-06 |
 | BR-20 | The customer organization owns the data stored in its workspace. | SP-05, decision log 2026-10-29 |
-| BR-21 | A Project Manager of the workspace can delete a project. Deleting it also deletes its project members and its tasks with their comments and notifications, and cannot be undone. A project's name is 3 to 100 characters long and its description at most 1000 characters. The creator of a project becomes one of its project members. | FR-06, US-27, decision log 2026-11-12 |
+| BR-21 | A Project Manager of the workspace can delete a project. Deleting it also deletes its project members and its tasks with their comments and notifications, and cannot be undone. A project's name is 3 to 100 characters long and its description at most 1000 characters. When both are given, a project's start date is not after its due date. The creator of a project becomes one of its project members. | FR-06, US-27, decision log 2026-11-12 |
 | BR-22 | A task can have any number of assignees besides its owner. Only active members of the task's project can be assigned, each at most once per task. Assignments do not change the owner. | FR-22, US-29, decision log 2026-11-12 |
+| BR-23 | Each project has exactly one owner: its creator unless another active member of the project's workspace is chosen. The owner must be an active member of that workspace when chosen; an empty owner is refused. | FR-06, decision log 2026-11-12 |
 
 ## Assumptions to confirm
 
@@ -284,7 +287,7 @@ These are not confirmed. Each one must be confirmed or replaced by the project d
 |---|---|---|---|
 | DA-01 | An account's email address is unique, and invitations are matched to people by email address. | EC-01 needs to recognise that an address "already belongs to a member"; FR-03 invites by email. | Matching invitations to accounts would need another identifier; Account.email would lose its UK. |
 | DA-02 | Account name and Workspace name are required. | Owners and authors must be shown by name (FR-13, FR-16); AQ23 (**assumption**) lists names among stored data. | The attributes become optional, and lists need a fallback display. |
-| DA-03 | *Rejected in part 2026-11-12:* a project always has an owner (see the [decision log](constraints.md#decision-log); not built yet, planned for INC-07 with migration V4). Still assumed: only a project's name is required; description, start date and due date are optional. | FR-06 lists the fields but not which are required (comparable to PD-04 for tasks). | Making a field required changes it from optional to required; R-06 becomes 1 to 0..* if the owner is required. |
+| DA-03 | *Rejected in part 2026-11-12:* a project always has an owner (see the [decision log](constraints.md#decision-log); enforced by migration V4 and CMP-04 Projects since INC-07, BR-23). Still assumed: only a project's name is required; description, start date and due date are optional. | FR-06 lists the fields but not which are required (comparable to PD-04 for tasks). | Making a field required changes it from optional to required, as happened for the owner (R-06 became 1 to 0..*, INC-07). |
 | DA-04 | A task's description and due date are optional until PD-04 is decided. | Optional fits both outcomes of PD-04; EC-06 already covers tasks without a due date. | If PD-04 makes them required, the attributes become required; no structural change. |
 | DA-05 | Deleting a task also deletes its comments and notifications. | FR-09 allows deletion and AC-17.3 removes the task from the count; nothing suggests keeping orphan comments. | If they must be kept, Comment and Notification need to survive without their task, and R-12 and R-15 become optional on the task side. |
 | DA-06 | A personal-data request is either received or completed. | FR-21 allows manual handling, which needs a minimal status to track. | Status values change (for example adding "rejected"); no structural change. |

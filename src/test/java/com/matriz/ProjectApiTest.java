@@ -27,6 +27,7 @@ import com.jayway.jsonpath.JsonPath;
 /**
  * Project operations through direct API requests (INC-03; FR-05, FR-06, FR-08, FR-18; US-06, US-24, US-27, US-28).
  * Project list for INC-06 screen 3a (AC-INC06.23, AC-INC06.24, AC-INC06.26, AC-INC06.28, AC-INC06.30; FR-08, NFR-01; US-19, US-28).
+ * Project owner required and date order for INC-07 (AC-INC07.1 to AC-INC07.7; FR-06, NFR-01; US-06, US-24).
  */
 class ProjectApiTest extends ApiTestSupport {
 
@@ -209,16 +210,348 @@ class ProjectApiTest extends ApiTestSupport {
     }
 
     @Test
+    @DisplayName("AC-INC07.2 · edit rules match create; a null owner is refused and null clears the description")
     void editRulesMatchCreate() throws Exception {
         MockHttpSession ana = signIn("ana@example.com");
         update(ana, WEBSITE, "{\"name\":null}").andExpect(status().isUnprocessableEntity());
         update(ana, WEBSITE, "{\"name\":\"ab\"}").andExpect(status().isUnprocessableEntity());
         update(ana, WEBSITE, "{\"workspace_id\":\"" + NORTHWIND + "\"}").andExpect(status().isUnprocessableEntity());
         update(ana, WEBSITE, "{\"owner_member_id\":\"" + NW_DAN + "\"}").andExpect(status().isUnprocessableEntity());
+        // A project always has an owner (decided 2026-11-12): null is refused, and the description is not cleared.
         update(ana, WEBSITE, "{\"description\":null,\"owner_member_id\":null}")
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.details[0].field").value("owner_member_id"));
+        assertThat(count("SELECT count(*) FROM project WHERE project_id = ?::uuid AND owner_member_id = ?::uuid "
+                + "AND description = 'New company homepage.'", WEBSITE, ACME_ANA)).isEqualTo(1);
+        // A real request starts with an empty persistence context; drop what the refused request left in memory.
+        entityManager.clear();
+        mvc.perform(get("/projects/" + WEBSITE).session(ana))
+                .andExpect(jsonPath("$.owner_member_id").value(ACME_ANA))
+                .andExpect(jsonPath("$.description").value("New company homepage."));
+        // null still clears an optional field.
+        update(ana, WEBSITE, "{\"description\":null}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.description").doesNotExist())
-                .andExpect(jsonPath("$.owner_member_id").doesNotExist());
+                .andExpect(jsonPath("$.owner_member_id").value(ACME_ANA));
+    }
+
+    // --- INC-07: project owner required and date order (FR-06; decisions of 2026-11-12) ------------------------
+
+    private static final String OWNER_REQUIRED = "An owner is required.";
+    private static final String DATES_OUT_OF_ORDER = "The due date cannot be before the start date.";
+
+    private static String inAcme(String fields) {
+        return "{\"workspace_id\":\"" + ACME + "\"," + fields + "}";
+    }
+
+    private long projectCount() {
+        return count("SELECT count(*) FROM project");
+    }
+
+    /** True when the stored Website redesign project still has its seed owner, name and dates. */
+    private boolean websiteUnchanged() {
+        return count("SELECT count(*) FROM project WHERE project_id = ?::uuid AND name = 'Website redesign' "
+                + "AND owner_member_id = ?::uuid AND start_date = DATE '2026-11-01' AND due_date = DATE '2026-12-15' "
+                + "AND is_archived = FALSE AND workspace_id = ?::uuid", WEBSITE, ACME_ANA, ACME) == 1;
+    }
+
+    /**
+     * The tests share one persistence context across requests, while a real request starts with an empty one and a
+     * refused request is rolled back. Drop what a refused request left in memory, without flushing it.
+     */
+    private void discardRefusedRequest() {
+        entityManager.clear();
+    }
+
+    @Test
+    @DisplayName("AC-INC07.1 · createProject with owner_member_id null is refused with 422 and saves nothing")
+    void createWithNullOwnerIsRefused() throws Exception {
+        MockHttpSession ana = signIn("ana@example.com");
+        long before = projectCount();
+
+        create(ana, inAcme("\"name\":\"Fictitious null owner\",\"owner_member_id\":null"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("validation_failed"))
+                .andExpect(jsonPath("$.message").value("The project could not be saved."))
+                .andExpect(jsonPath("$.details", hasSize(1)))
+                .andExpect(jsonPath("$.details[0].field").value("owner_member_id"))
+                .andExpect(jsonPath("$.details[0].issue").value(OWNER_REQUIRED));
+
+        entityManager.flush();
+        assertThat(projectCount()).isEqualTo(before);
+        assertThat(count("SELECT count(*) FROM project WHERE name = 'Fictitious null owner'")).isZero();
+        mvc.perform(get("/projects").param("q", "null owner").session(ana)).andExpect(jsonPath("$.total").value(0));
+    }
+
+    @Test
+    @DisplayName("AC-INC07.1 · createProject without owner_member_id makes the caller the owner, also in the database")
+    void createWithoutOwnerMakesTheCallerTheOwner() throws Exception {
+        String id = createdId(signIn("ana@example.com"), named("Fictitious default owner"));
+        entityManager.flush();
+        assertThat(count("SELECT count(*) FROM project WHERE project_id = ?::uuid AND owner_member_id = ?::uuid",
+                id, ACME_ANA)).isEqualTo(1);
+        mvc.perform(get("/projects/" + id).session(signIn("vera@example.com")))
+                .andExpect(jsonPath("$.owner_member_id").value(ACME_ANA))
+                .andExpect(jsonPath("$.owner_name").value("Ana Demo"));
+    }
+
+    @Test
+    @DisplayName("AC-INC07.2 · updateProject with owner_member_id null gives 422 and changes no field")
+    void updateWithNullOwnerChangesNothing() throws Exception {
+        MockHttpSession ana = signIn("ana@example.com");
+
+        update(ana, WEBSITE, "{\"name\":\"Fictitious rename\",\"owner_member_id\":null}")
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("validation_failed"))
+                .andExpect(jsonPath("$.message").value("The project could not be saved."))
+                .andExpect(jsonPath("$.details[0].field").value("owner_member_id"))
+                .andExpect(jsonPath("$.details[0].issue").value(OWNER_REQUIRED));
+
+        assertThat(websiteUnchanged()).isTrue();
+        discardRefusedRequest();
+        mvc.perform(get("/projects/" + WEBSITE).session(signIn("vera@example.com")))
+                .andExpect(jsonPath("$.name").value("Website redesign"))
+                .andExpect(jsonPath("$.owner_member_id").value(ACME_ANA))
+                .andExpect(jsonPath("$.owner_name").value("Ana Demo"));
+    }
+
+    @Test
+    @DisplayName("AC-INC07.3 · a Viewer of the same workspace is accepted as owner, on create and on edit")
+    void viewerCanBeChosenAsOwner() throws Exception {
+        MockHttpSession ana = signIn("ana@example.com");
+        String id = createdId(ana, inAcme("\"name\":\"Fictitious viewer owned\",\"owner_member_id\":\"" + ACME_VERA
+                + "\""));
+        update(ana, TRADE_FAIR, "{\"owner_member_id\":\"" + ACME_VERA + "\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.owner_member_id").value(ACME_VERA))
+                .andExpect(jsonPath("$.owner_name").value("Vera Demo"));
+        entityManager.flush();
+
+        assertThat(count("SELECT count(*) FROM project WHERE project_id IN (?::uuid, ?::uuid) "
+                + "AND owner_member_id = ?::uuid", id, TRADE_FAIR, ACME_VERA)).isEqualTo(2);
+        MockHttpSession vera = signIn("vera@example.com");
+        mvc.perform(get("/projects/" + id).session(vera)).andExpect(jsonPath("$.owner_member_id").value(ACME_VERA));
+        mvc.perform(get("/projects/" + TRADE_FAIR).session(vera))
+                .andExpect(jsonPath("$.owner_member_id").value(ACME_VERA));
+    }
+
+    @Test
+    @DisplayName("AC-INC07.3 · an owner who is not a valid id, unknown, or the caller's own member in another workspace is refused")
+    void ownerThatIsNotAnActiveMemberOfTheWorkspaceIsRefused() throws Exception {
+        MockHttpSession ana = signIn("ana@example.com");
+        long before = projectCount();
+        // NW_ANA is Ana's own membership in Northwind Lab; "c0000000-…-999" belongs to nobody.
+        String nwAna = "c0000000-0000-0000-0000-000000000006";
+        assertThat(count("SELECT count(*) FROM member WHERE member_id = ?::uuid AND workspace_id = ?::uuid",
+                nwAna, NORTHWIND)).isEqualTo(1);
+        for (String owner : new String[] {"not-an-id", "", "c0000000-0000-0000-0000-000000000999", nwAna}) {
+            create(ana, inAcme("\"name\":\"Fictitious bad owner\",\"owner_member_id\":\"" + owner + "\""))
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.details[0].field").value("owner_member_id"));
+            update(ana, WEBSITE, "{\"owner_member_id\":\"" + owner + "\"}")
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.details[0].field").value("owner_member_id"));
+        }
+        assertThat(projectCount()).isEqualTo(before);
+        assertThat(websiteUnchanged()).isTrue();
+    }
+
+    @Test
+    @DisplayName("AC-INC07.3 · a deactivated member of the workspace is refused as owner, on create and on edit")
+    void deactivatedMemberIsRefusedAsOwner() throws Exception {
+        MockHttpSession ana = signIn("ana@example.com");
+        long before = projectCount();
+        // Only inside this test's rolled-back transaction.
+        jdbc.update("UPDATE member SET status = 'DEACTIVATED' WHERE member_id = ?::uuid", ACME_BEN);
+        entityManager.clear();
+
+        create(ana, inAcme("\"name\":\"Fictitious deactivated owner\",\"owner_member_id\":\"" + ACME_BEN + "\""))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.details[0].field").value("owner_member_id"));
+        update(ana, WEBSITE, "{\"owner_member_id\":\"" + ACME_BEN + "\"}")
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.details[0].field").value("owner_member_id"));
+
+        assertThat(projectCount()).isEqualTo(before);
+        assertThat(websiteUnchanged()).isTrue();
+    }
+
+    @Test
+    @DisplayName("AC-INC07.4 · createProject accepts start = due, only one date, or neither, and the database keeps them")
+    void createAcceptsDatesInOrderOrMissing() throws Exception {
+        MockHttpSession ana = signIn("ana@example.com");
+        String same = createdId(ana, inAcme("\"name\":\"Fictitious same day\","
+                + "\"start_date\":\"2026-12-01\",\"due_date\":\"2026-12-01\""));
+        String onlyStart = createdId(ana, inAcme("\"name\":\"Fictitious only start\",\"start_date\":\"2027-05-01\""));
+        String onlyDue = createdId(ana, inAcme("\"name\":\"Fictitious only due\",\"due_date\":\"2025-01-01\""));
+        String neither = createdId(ana, named("Fictitious no dates"));
+        String nulls = createdId(ana, inAcme("\"name\":\"Fictitious null dates\",\"start_date\":null,"
+                + "\"due_date\":null"));
+        // Flushing runs the database CHECK (migration V4) on the new rows.
+        entityManager.flush();
+
+        assertThat(count("SELECT count(*) FROM project WHERE project_id = ?::uuid AND start_date = DATE '2026-12-01' "
+                + "AND due_date = DATE '2026-12-01'", same)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM project WHERE project_id = ?::uuid AND start_date = DATE '2027-05-01' "
+                + "AND due_date IS NULL", onlyStart)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM project WHERE project_id = ?::uuid AND start_date IS NULL "
+                + "AND due_date = DATE '2025-01-01'", onlyDue)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM project WHERE project_id IN (?::uuid, ?::uuid) AND start_date IS NULL "
+                + "AND due_date IS NULL", neither, nulls)).isEqualTo(2);
+        mvc.perform(get("/projects/" + same).session(signIn("vera@example.com")))
+                .andExpect(jsonPath("$.start_date").value("2026-12-01"))
+                .andExpect(jsonPath("$.due_date").value("2026-12-01"));
+    }
+
+    @Test
+    @DisplayName("AC-INC07.4 · createProject with the start date one day after the due date gives 422 on due_date")
+    void createWithStartAfterDueIsRefused() throws Exception {
+        MockHttpSession ana = signIn("ana@example.com");
+        long before = projectCount();
+
+        create(ana, inAcme("\"name\":\"Fictitious late start\",\"start_date\":\"2026-12-02\","
+                + "\"due_date\":\"2026-12-01\""))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("validation_failed"))
+                .andExpect(jsonPath("$.message").value("The project could not be saved."))
+                .andExpect(jsonPath("$.details", hasSize(1)))
+                .andExpect(jsonPath("$.details[0].field").value("due_date"))
+                .andExpect(jsonPath("$.details[0].issue").value(DATES_OUT_OF_ORDER));
+
+        entityManager.flush();
+        assertThat(projectCount()).isEqualTo(before);
+        assertThat(count("SELECT count(*) FROM project WHERE name = 'Fictitious late start'")).isZero();
+    }
+
+    @Test
+    @DisplayName("AC-INC07.5 · on edit, a single date that puts the start after the stored due date is refused and changes nothing")
+    void editRefusesASingleDateThatBreaksTheOrder() throws Exception {
+        MockHttpSession ana = signIn("ana@example.com");
+        MockHttpSession vera = signIn("vera@example.com");
+        // Website redesign is stored with start 2026-11-01 and due 2026-12-15.
+        assertThat(websiteUnchanged()).isTrue();
+
+        update(ana, WEBSITE, "{\"due_date\":\"2026-10-31\"}")
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.details[0].field").value("due_date"))
+                .andExpect(jsonPath("$.details[0].issue").value(DATES_OUT_OF_ORDER));
+        assertThat(websiteUnchanged()).isTrue();
+        discardRefusedRequest();
+
+        update(ana, WEBSITE, "{\"start_date\":\"2026-12-16\"}")
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.details[0].field").value("due_date"))
+                .andExpect(jsonPath("$.details[0].issue").value(DATES_OUT_OF_ORDER));
+        assertThat(websiteUnchanged()).isTrue();
+        discardRefusedRequest();
+
+        // A refused request changes none of the other fields sent with it.
+        update(ana, WEBSITE, "{\"name\":\"Fictitious rename\",\"description\":null,\"due_date\":\"2026-10-31\"}")
+                .andExpect(status().isUnprocessableEntity());
+        assertThat(websiteUnchanged()).isTrue();
+        assertThat(count("SELECT count(*) FROM project WHERE project_id = ?::uuid "
+                + "AND description = 'New company homepage.'", WEBSITE)).isEqualTo(1);
+        discardRefusedRequest();
+
+        mvc.perform(get("/projects/" + WEBSITE).session(vera))
+                .andExpect(jsonPath("$.name").value("Website redesign"))
+                .andExpect(jsonPath("$.description").value("New company homepage."))
+                .andExpect(jsonPath("$.start_date").value("2026-11-01"))
+                .andExpect(jsonPath("$.due_date").value("2026-12-15"));
+    }
+
+    @Test
+    @DisplayName("AC-INC07.5 · on edit, the rule applies to the resulting project: equal dates, both dates moved together, a cleared date")
+    void editChecksTheResultingProject() throws Exception {
+        MockHttpSession ana = signIn("ana@example.com");
+
+        // Due date moved to the stored start date: start = due is accepted.
+        update(ana, WEBSITE, "{\"due_date\":\"2026-11-01\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.start_date").value("2026-11-01"))
+                .andExpect(jsonPath("$.due_date").value("2026-11-01"));
+        // Both dates moved past the stored due date in one request: the result is in order.
+        update(ana, WEBSITE, "{\"start_date\":\"2027-01-10\",\"due_date\":\"2027-01-20\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.start_date").value("2027-01-10"))
+                .andExpect(jsonPath("$.due_date").value("2027-01-20"));
+        // Clearing the start date is accepted; afterwards any due date is.
+        update(ana, WEBSITE, "{\"start_date\":null}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.start_date").doesNotExist())
+                .andExpect(jsonPath("$.due_date").value("2027-01-20"));
+        update(ana, WEBSITE, "{\"due_date\":\"2026-01-01\"}").andExpect(status().isOk());
+        // Clearing the due date on another project, then a start date after its old due date, is accepted.
+        update(ana, TRADE_FAIR, "{\"due_date\":null}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.due_date").doesNotExist())
+                .andExpect(jsonPath("$.start_date").value("2026-11-10"));
+        update(ana, TRADE_FAIR, "{\"start_date\":\"2027-06-01\"}").andExpect(status().isOk());
+        // Flushing runs the database CHECK (migration V4) on the changed rows.
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(count("SELECT count(*) FROM project WHERE project_id = ?::uuid AND start_date IS NULL "
+                + "AND due_date = DATE '2026-01-01'", WEBSITE)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM project WHERE project_id = ?::uuid AND start_date = DATE '2027-06-01' "
+                + "AND due_date IS NULL", TRADE_FAIR)).isEqualTo(1);
+        mvc.perform(get("/projects/" + TRADE_FAIR).session(signIn("vera@example.com")))
+                .andExpect(jsonPath("$.start_date").value("2027-06-01"))
+                .andExpect(jsonPath("$.due_date").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("AC-INC07.6 · a Team Member, Viewer or Workspace Administrator sending a null owner or dates out of order gets 403")
+    void accessIsCheckedBeforeValidationInsideTheWorkspace() throws Exception {
+        long before = projectCount();
+        for (String email : new String[] {"ben@example.com", "vera@example.com", "carla@example.com"}) {
+            MockHttpSession s = signIn(email);
+            create(s, inAcme("\"name\":\"Fictitious refused\",\"owner_member_id\":null")).andExpect(status().isForbidden());
+            create(s, inAcme("\"name\":\"Fictitious refused\",\"start_date\":\"2026-12-02\",\"due_date\":\"2026-12-01\""))
+                    .andExpect(status().isForbidden());
+            update(s, WEBSITE, "{\"owner_member_id\":null}").andExpect(status().isForbidden());
+            update(s, WEBSITE, "{\"due_date\":\"2026-10-31\"}").andExpect(status().isForbidden());
+        }
+        assertThat(projectCount()).isEqualTo(before);
+        assertThat(websiteUnchanged()).isTrue();
+    }
+
+    @Test
+    @DisplayName("AC-INC07.6 · NFR-01 · a member of another workspace sending a null owner or dates out of order gets 404")
+    void accessIsCheckedBeforeValidationFromAnotherWorkspace() throws Exception {
+        MockHttpSession dan = signIn("dan@example.com");
+        long before = projectCount();
+
+        create(dan, inAcme("\"name\":\"Fictitious refused\",\"owner_member_id\":null")).andExpect(status().isNotFound());
+        create(dan, inAcme("\"name\":\"Fictitious refused\",\"start_date\":\"2026-12-02\",\"due_date\":\"2026-12-01\""))
+                .andExpect(status().isNotFound());
+        update(dan, WEBSITE, "{\"owner_member_id\":null}").andExpect(status().isNotFound());
+        update(dan, WEBSITE, "{\"due_date\":\"2026-10-31\"}").andExpect(status().isNotFound());
+
+        assertThat(projectCount()).isEqualTo(before);
+        assertThat(websiteUnchanged()).isTrue();
+    }
+
+    @Test
+    @DisplayName("AC-INC07.7 · updateProject refuses created_by_member_id, is_archived and workspace_id with 422")
+    void updateRefusesIdentityAndServerSetFields() throws Exception {
+        MockHttpSession ana = signIn("ana@example.com");
+        String[][] cases = {
+                {"created_by_member_id", "\"" + ACME_BEN + "\""},
+                {"is_archived", "true"},
+                {"workspace_id", "\"" + NORTHWIND + "\""}};
+        for (String[] c : cases) {
+            update(ana, WEBSITE, "{\"name\":\"Fictitious takeover\",\"" + c[0] + "\":" + c[1] + "}")
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.code").value("validation_failed"))
+                    .andExpect(jsonPath("$.details[0].field").value(c[0]));
+            assertThat(websiteUnchanged()).isTrue();
+            discardRefusedRequest();
+        }
+        mvc.perform(get("/projects/" + WEBSITE).session(ana))
+                .andExpect(jsonPath("$.name").value("Website redesign"))
+                .andExpect(jsonPath("$.workspace_id").value(ACME))
+                .andExpect(jsonPath("$.is_archived").value(false));
     }
 
     // --- Delete: dependent records are removed (no orphans) ------------------------------------------------------
