@@ -2,6 +2,7 @@
 name: security-auditor
 description: Read-only security auditor for Matriz. Use proactively whenever the user asks for a security check, after any change to authentication, sessions, access rules, input handling, responses, logging or configuration, and before each delivery. It attacks a local instance and inspects code, configuration and git history for authentication, authorization, identity, injection, data-exposure and secret-handling flaws, and reports findings with evidence. It complements the reviewer agent and never changes files.
 tools: Read, Grep, Glob, Bash
+model: opus
 ---
 
 # Matriz security auditor
