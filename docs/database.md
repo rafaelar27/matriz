@@ -284,7 +284,7 @@ These are not confirmed. Each one must be confirmed or replaced by the project d
 |---|---|---|---|
 | DA-01 | An account's email address is unique, and invitations are matched to people by email address. | EC-01 needs to recognise that an address "already belongs to a member"; FR-03 invites by email. | Matching invitations to accounts would need another identifier; Account.email would lose its UK. |
 | DA-02 | Account name and Workspace name are required. | Owners and authors must be shown by name (FR-13, FR-16); AQ23 (**assumption**) lists names among stored data. | The attributes become optional, and lists need a fallback display. |
-| DA-03 | Only a project's name is required; description, owner, start date and due date are optional. | FR-06 lists the fields but not which are required (comparable to PD-04 for tasks). | Making a field required changes it from optional to required; R-06 becomes 1 to 0..* if the owner is required. |
+| DA-03 | *Rejected in part 2026-11-12:* a project always has an owner (see the [decision log](constraints.md#decision-log); not built yet, planned for INC-07 with migration V4). Still assumed: only a project's name is required; description, start date and due date are optional. | FR-06 lists the fields but not which are required (comparable to PD-04 for tasks). | Making a field required changes it from optional to required; R-06 becomes 1 to 0..* if the owner is required. |
 | DA-04 | A task's description and due date are optional until PD-04 is decided. | Optional fits both outcomes of PD-04; EC-06 already covers tasks without a due date. | If PD-04 makes them required, the attributes become required; no structural change. |
 | DA-05 | Deleting a task also deletes its comments and notifications. | FR-09 allows deletion and AC-17.3 removes the task from the count; nothing suggests keeping orphan comments. | If they must be kept, Comment and Notification need to survive without their task, and R-12 and R-15 become optional on the task side. |
 | DA-06 | A personal-data request is either received or completed. | FR-21 allows manual handling, which needs a minimal status to track. | Status values change (for example adding "rejected"); no structural change. |
@@ -317,7 +317,7 @@ The ER diagram is kept in a separate file: [database-diagram.md](database-diagra
 
 ### Assumptions made in this model
 
-DA-01 to DA-11 above need confirmation. DA-03, DA-05, DA-06 and DA-08 were proposed during planning and not yet answered.
+DA-01 to DA-11 above need confirmation, except DA-08 (superseded on 2026-11-12) and the owner part of DA-03 (rejected on 2026-11-12). DA-03 (description and dates), DA-05 and DA-06 were proposed during planning and not yet answered.
 
 ### Pending product decisions that affect the model
 

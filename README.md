@@ -124,7 +124,7 @@ The seed command inserts the demo data and exits. It never deletes data, and run
 mvn verify
 ```
 
-Runs all automated tests. Expected result: `Tests run: 104, Failures: 0` and `BUILD SUCCESS`.
+Runs all automated tests. Expected result: `Tests run: 111, Failures: 0` and `BUILD SUCCESS`.
 
 - `DatabaseSetupTest` checks the database configured in `.env`: it answers queries, every migration succeeded and all 11 tables from [docs/database.md](docs/database.md) exist. It changes no data.
 - `AuthenticationTest`, `CsrfCookieTest`, `TaskAccessTest`, `ProjectApiTest`, `TaskApiTest`, `AssignmentApiTest`, `CommentApiTest` and `ClientConfigApiTest` check sign-in, sign-out, the project, task, assignee and comment operations, the open `GET /config.js` and every access rule through API requests. They use the separate `matriz_test` database (`MATRIZ_TEST_DB_URL`, default `jdbc:postgresql://localhost:5432/matriz_test`), load the demo data there and roll back every change. Create that database once, as the `matriz` role:
@@ -182,13 +182,22 @@ The interface finds the API through `GET /config.js`, which the application gene
 - A section that cannot be loaded shows "This section could not be loaded." and **Try again**; a project whose task counts cannot be loaded shows "—" in its row.
 - My tasks, notifications, members, feedback and personal-data requests are not on the dashboard yet, because they have no API operations.
 
+**Projects** (`#/projects`; FR-08, FR-13, FR-18, US-28) opens from **Projects** in the main menu and from **See all projects** on the dashboard:
+
+- It lists every project in your workspaces, 20 per page with **Previous** and **Next**; each project appears on exactly one page. The dashboard keeps showing 10.
+- Each row shows workspace, owner, due date, progress and the number of tasks per status (Por fazer, Em curso, Concluída); a project without tasks shows "0 of 0 tasks done". There is no total across projects (F41 is outside the initial scope).
+- Search by part of the project name, ignoring case; a search with no match shows a message that no projects match, and a search of only spaces lists every project. The search field takes at most 100 characters.
+- An address with a page past the last opens the last page that has projects, keeping the search; **Back** does not return to the empty page.
+- With no projects it shows "No projects yet."; Project Managers also see **+ New project** there, once. Workspace Administrators do not see it (provisional, PD-03).
+- While the list loads it shows "Loading projects…"; if it cannot be loaded, "This section could not be loaded." and **Try again**, which loads the list again. The dashboard's loading wording and single-load guard (UI-A4) are not applied on this screen.
+
 ### Projects in the browser
 
 With the application running (step 4) and the demo data loaded (step 5), open <http://localhost:8080> and sign in with a demo account.
 
 | Screen | What you can do | Who |
 |---|---|---|
-| Projects | See every project in your workspaces with workspace, owner, due date and progress ("2 of 8 tasks done"); search by part of the name; move between pages | Every member |
+| Projects | See every project in your workspaces with workspace, owner, due date, progress ("2 of 8 tasks done") and the number of tasks per status; search by part of the name; move between pages of 20 | Every member |
 | + New project | Choose the workspace, name (3 to 100 characters), description (up to 1000), owner (you, unless you choose another member) and dates | Project Manager |
 | Project detail | See all of the project's details | Every member |
 | Edit project | Change the name, description, owner and dates | Any Project Manager of the workspace |
@@ -265,6 +274,6 @@ Every member of a workspace can see all of its projects (FR-08), so access diffe
 
 - **Stage:** development. The specification documents remain drafts pending client validation.
 - **Done:** initial analysis, functional proposal and MVP specifications. Architectural style decided on 2026-11-05 (modular monolith, see the [decision log](docs/constraints.md#decision-log)). Draft data model, ER diagram, API specification (authentication, projects, progress, tasks, assignees and comments), and dashboard wireframe. Technology stack chosen on 2026-11-12: Java 21 and Spring Boot 3, a static HTML/CSS/JS front end and PostgreSQL (see [Technology stack](docs/architecture.md#technology-stack)).
-- **In progress:** development. The project setup (INC-01), authentication and access control (INC-02), projects (INC-03), tasks (INC-04) and task collaboration (INC-05) increments are done (see [docs/implementation-plan.md](docs/implementation-plan.md)): sign-in, profile, sign-out, creating, listing, searching, viewing, editing and deleting projects, creating, listing, filtering, viewing, editing and deleting tasks and changing their status, assigning members to tasks, and commenting on tasks. The user interface covers sign-in, the dashboard, projects, tasks, assignees and comments, and is being reworked one screen at a time (INC-06, in progress; the sign-in and dashboard screens are done). Hosting and other technical choices are still pending; see [pending technical decisions](docs/constraints.md#pending-technical-decisions).
-- **Blocking next step:** the five assumptions that shape the MVP most (AQ3, AQ6, AQ7, AQ11, AQ17) were confirmed on 2026-10-29 (see the [decision log](docs/constraints.md#decision-log)). The remaining [pending product decisions](docs/constraints.md#pending-product-decisions) (PD-01 to PD-13, PD-15 to PD-20 and PD-22 to PD-24; PD-04 and PD-13 in part) must be made before the features they affect are designed. While the client is unavailable, the project decision-maker makes them (KC-01).
-- **Last updated:** 2026-11-12.
+- **In progress:** development. The project setup (INC-01), authentication and access control (INC-02), projects (INC-03), tasks (INC-04) and task collaboration (INC-05) increments are done (see [docs/implementation-plan.md](docs/implementation-plan.md)): sign-in, profile, sign-out, creating, listing, searching, viewing, editing and deleting projects, creating, listing, filtering, viewing, editing and deleting tasks and changing their status, assigning members to tasks, and commenting on tasks. The user interface covers sign-in, the dashboard, projects, tasks, assignees and comments, and is being reworked one screen at a time (INC-06, in progress; the sign-in and dashboard screens and the project list are done; the project form waits for INC-07, which is planned: every project will have an owner, and a project's start date may not be after its due date). Hosting and other technical choices are still pending; see [pending technical decisions](docs/constraints.md#pending-technical-decisions).
+- **Blocking next step:** the five assumptions that shape the MVP most (AQ3, AQ6, AQ7, AQ11, AQ17) were confirmed on 2026-10-29 (see the [decision log](docs/constraints.md#decision-log)). The remaining [pending product decisions](docs/constraints.md#pending-product-decisions) (PD-01 to PD-13, PD-15 to PD-20 and PD-22 to PD-24; PD-04, PD-10 and PD-13 in part) must be made before the features they affect are designed. While the client is unavailable, the project decision-maker makes them (KC-01).
+- **Last updated:** 2026-11-16.

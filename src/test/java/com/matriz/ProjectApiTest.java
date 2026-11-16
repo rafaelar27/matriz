@@ -11,9 +11,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.List;
+
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
@@ -21,7 +24,10 @@ import org.springframework.test.web.servlet.ResultActions;
 
 import com.jayway.jsonpath.JsonPath;
 
-/** Project operations through direct API requests (INC-03; FR-05, FR-06, FR-08, FR-18; US-06, US-24, US-27, US-28). */
+/**
+ * Project operations through direct API requests (INC-03; FR-05, FR-06, FR-08, FR-18; US-06, US-24, US-27, US-28).
+ * Project list for INC-06 screen 3a (AC-INC06.23, AC-INC06.24, AC-INC06.26, AC-INC06.28, AC-INC06.30; FR-08, NFR-01; US-19, US-28).
+ */
 class ProjectApiTest extends ApiTestSupport {
 
     static final String ACME = "b0000000-0000-0000-0000-000000000001";
@@ -278,6 +284,98 @@ class ProjectApiTest extends ApiTestSupport {
             mvc.perform(get("/projects").param(bad[0], bad[1]).session(ana))
                     .andExpect(status().isUnprocessableEntity());
         }
+    }
+
+    // --- Project list for INC-06 screen 3a -----------------------------------------------------------------------
+
+    private String listBody(MockHttpSession s, String... params) throws Exception {
+        var request = get("/projects").session(s);
+        for (int i = 0; i < params.length; i += 2) {
+            request = request.param(params[i], params[i + 1]);
+        }
+        return mvc.perform(request).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+    }
+
+    @Test
+    @DisplayName("AC-INC06.23 · a Viewer lists both Acme projects, the same items as a Project Manager")
+    void viewerListsTheSameAcmeProjectsAsAProjectManager() throws Exception {
+        String vera = listBody(signIn("vera@example.com"));
+        String ana = listBody(signIn("ana@example.com"), "workspace_id", ACME);
+
+        assertThat((Integer) JsonPath.read(vera, "$.total")).isEqualTo(2);
+        List<String> veraIds = JsonPath.read(vera, "$.items[*].project_id");
+        List<String> anaIds = JsonPath.read(ana, "$.items[*].project_id");
+        assertThat(veraIds).containsExactly(TRADE_FAIR, WEBSITE);
+        assertThat(veraIds).isEqualTo(anaIds);
+        assertThat((Object) JsonPath.read(vera, "$.items")).isEqualTo(JsonPath.read(ana, "$.items"));
+    }
+
+    @Test
+    @DisplayName("AC-INC06.24 · FR-08 · a Team Member lists an Acme project they are not a member of")
+    void teamMemberListsAProjectTheyAreNotAMemberOf() throws Exception {
+        String id = createdId(signIn("ana@example.com"), named("Fictitious supplier review"));
+        assertThat(count("SELECT count(*) FROM project_member WHERE project_id = ?::uuid AND member_id = ?::uuid",
+                id, ACME_BEN)).isZero();
+
+        String ben = listBody(signIn("ben@example.com"), "workspace_id", ACME);
+
+        List<String> benIds = JsonPath.read(ben, "$.items[*].project_id");
+        assertThat(benIds).contains(id);
+        assertThat((Integer) JsonPath.read(ben, "$.total")).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("AC-INC06.26 · q of 100 characters is accepted, 101 characters is refused with 422")
+    void searchTextLengthBoundaries() throws Exception {
+        MockHttpSession ana = signIn("ana@example.com");
+        mvc.perform(get("/projects").param("q", "q".repeat(100)).session(ana))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(0));
+        mvc.perform(get("/projects").param("q", "q".repeat(101)).session(ana))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.details[0].field").value("q"));
+    }
+
+    @Test
+    @DisplayName("AC-INC06.26 · q of whitespace only lists every project, the same as no q")
+    void whitespaceOnlySearchListsEverything() throws Exception {
+        MockHttpSession ana = signIn("ana@example.com");
+        String all = listBody(ana);
+        String blank = listBody(ana, "q", "   ");
+        assertThat((Integer) JsonPath.read(blank, "$.total")).isEqualTo(3);
+        assertThat((Object) JsonPath.read(blank, "$.items")).isEqualTo(JsonPath.read(all, "$.items"));
+        assertThat((Integer) JsonPath.read(blank, "$.total")).isEqualTo(JsonPath.read(all, "$.total"));
+    }
+
+    @Test
+    @DisplayName("AC-INC06.26 · q \"WEB\" matches \"Website redesign\" only")
+    void upperCaseSearchMatchesWebsiteOnly() throws Exception {
+        mvc.perform(get("/projects").param("q", "WEB").session(signIn("ana@example.com")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.items", hasSize(1)))
+                .andExpect(jsonPath("$.items[0].project_id").value(WEBSITE))
+                .andExpect(jsonPath("$.items[0].name").value("Website redesign"));
+    }
+
+    @Test
+    @DisplayName("AC-INC06.28 · a page past the last returns 200, no items and the real total")
+    void pagePastTheLastIsEmptyWithTheRealTotal() throws Exception {
+        mvc.perform(get("/projects").param("page", "99").param("size", "20").session(signIn("ana@example.com")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(99))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.total").value(3))
+                .andExpect(jsonPath("$.items", hasSize(0)));
+    }
+
+    @Test
+    @DisplayName("AC-INC06.30 · NFR-01 · a member filtering by another workspace's id gets total 0 and no items")
+    void filteringByAWorkspaceTheCallerIsNotInIsEmpty() throws Exception {
+        mvc.perform(get("/projects").param("workspace_id", NORTHWIND).session(signIn("ben@example.com")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(0))
+                .andExpect(jsonPath("$.items", hasSize(0)));
     }
 
     // --- Progress and members (supporting the UI) ---------------------------------------------------------------

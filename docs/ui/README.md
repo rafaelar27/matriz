@@ -105,7 +105,7 @@ These are not confirmed requirements.
 | UI-A1 | **Confirmed 2026-11-12.** The dashboard is the first screen after sign-in; it is also shown to a signed-in member who opens sign-in and for unknown addresses. | The task asks for it; no document says which screen follows sign-in (FR-01, US-01). Confirmed by the project decision-maker on 2026-11-12 (see the [decision log](../constraints.md#decision-log)). |
 | UI-A2 | Each section shows only the first few items, with a "See all" link. The Projects section shows the first 10 projects with the total from the API (decided 2026-11-12); the number for the other sections is not set. | Keeps the screen simple (OBJ-04); no requirement sets a limit. |
 | UI-A3 | Clicking a task or a notification opens the task detail. Status is not changed on the dashboard itself. | Keeps the status change in the task detail, where AC-11.1 to AC-11.3 apply. |
-| UI-A4 | Loading, error and "No notifications." states and their wording. Confirmed 2026-11-12 for E-19 and E-20. | No edge case covers them. |
+| UI-A4 | Loading, error and "No notifications." states and their wording. Confirmed 2026-11-12 for E-19 and E-20. Not applied on the Projects screen, which keeps "Loading projects…" and its current error state with Try again (decided 2026-11-12). | No edge case covers them. |
 | UI-A5 | Notifications show no unread count or "new" marker. | Read state is not defined (PD-22). |
 | UI-A6 | The dashboard combines existing MVP views only and is not a new feature. | F41 Manager overview is out of scope; approved by the project decision-maker on 2026-11-05 (see the [decision log](../constraints.md#decision-log)). |
 | UI-A7 | After an ended session (401), the screen the member was on is reopened only right after signing in, and only if the same account signs in; another account goes to the first screen, the dashboard (UI-A1). After a full page reload the earlier account is not known, so the screen is kept and the API still decides access. A member who opens the sign-in screen while already signed in always goes to the first screen. Signing out forgets the earlier screen. | No document says where sign-in leads after a session ends (FR-01, US-01). Approved by the project decision-maker on 2026-11-12 (see the [decision log](../constraints.md#decision-log)). |
@@ -119,9 +119,18 @@ These are not confirmed requirements.
 | PD-06 | Whether Done tasks appear in My tasks (E-09). |
 | PD-07 | Whether progress also shows a percentage. |
 | PD-08 | Where tasks without a due date are placed in My tasks, and which time zone decides "today" for the overdue label. |
-| PD-10 | How the owner of a task or project is shown when that member has been deactivated. |
+| PD-10 | How the owner of a task or project is shown when that member has been deactivated. Decided in part on 2026-11-12 (see the [decision log](../constraints.md#decision-log)): in the project form, an owner who is no longer an active member is shown as "Former member", without a name, and is kept unless someone else is chosen. The project list, project detail and dashboard keep showing a deactivated owner's name until the rest of PD-10 is decided. Not built yet. |
 | PD-13 | The launch language for all labels. Labels are in English here as placeholders. |
 | PD-16 | Whether a workspace switcher is needed in the top bar (E-01). |
 | PD-17 | Whether a Viewer who owns a task can change its status from the task detail. |
 | PD-22 | Whether notifications can be marked as read, which would allow an unread count (UI-A5). |
 | PD-24 | What a signed-in person who belongs to no workspace sees instead of the dashboard (FR-02, PD-16). |
+
+## Projects screen
+
+The full project list, opened by E-03 and E-13 (FR-08, US-09). It has no wireframe. Decided on 2026-11-12 (see the [decision log](../constraints.md#decision-log)):
+
+- The Projects screen keeps "Loading projects…" and its current error state with Try again. UI-A4's dashboard wording and single-load guard are not applied there.
+- Each project row also shows that project's task counts by status, from the project task list (`listTasks` `status_counts`), as the dashboard does. No total across projects is shown (UI-A6; F41 stays outside the initial scope).
+
+Not decided yet: whether Try again may send a second request on this screen.

@@ -9,6 +9,9 @@ const NAME_MIN = 3;
 const NAME_MAX = 100;
 const DESCRIPTION_MAX = 1000;
 const PAGE_SIZE = 10;
+// The Projects screen shows the listProjects default of 20 per page; the dashboard keeps PAGE_SIZE (D-Q5, 2026-11-12).
+const PROJECT_LIST_PAGE_SIZE = 20;
+const SEARCH_MAX = 100; // listProjects `q` limit (openapi.yaml)
 const TASK_TITLE_MIN = 3;
 const TASK_TITLE_MAX = 150;
 const TASK_DESCRIPTION_MAX = 2000;
@@ -522,20 +525,35 @@ async function dashboardScreen() {
   render(takeFlash(), h('h1', {}, 'Dashboard'), projects);
 }
 
+/** The Projects screen address for a search and a page (page 0 and an empty search are left out). */
+function projectsHash(q, page) {
+  const query = new URLSearchParams();
+  if (q) query.set('q', q);
+  if (page > 0) query.set('page', String(page));
+  const qs = query.toString();
+  return '#/projects' + (qs ? '?' + qs : '');
+}
+
+// Projects screen (INC-06 screen 3, part 3a; E-08, E-13, E-14, E-15). Every project of the member's workspaces
+// (FR-08) with progress (FR-18) and task counts by status (FR-13, D-Q3), 20 per page (D-Q5), search by name (US-28).
+// Keeps "Loading projects…" and its own error state with Try again (D-Q2).
 async function projectsScreen(params) {
-  const q = params.get('q') || '';
+  const seq = screenSeq;
+  const q = (params.get('q') || '').trim();
   const page = Math.max(0, parseInt(params.get('page') || '0', 10) || 0);
   await loadProfile();
+  if (seq !== screenSeq) return; // the member moved on while the profile loaded
   showBar(true);
 
-  const search = h('input', { id: 'search', type: 'search', value: q, maxlength: NAME_MAX,
-    placeholder: 'Part of a project name' });
-  const searchForm = h('form', { class: 'toolbar', role: 'search', onsubmit: e => {
+  const kit = formKit('projects');
+  const search = h('input', { type: 'search', value: q, maxlength: SEARCH_MAX, placeholder: 'Part of a project name' });
+  const searchForm = h('form', { class: 'toolbar', role: 'search', novalidate: true, onsubmit: e => {
     e.preventDefault();
-    const text = search.value.trim();
-    go('#/projects' + (text ? '?q=' + encodeURIComponent(text) : ''));
+    // Whitespace only clears the search (openapi.yaml listProjects `q`: spaces ignored, empty means no filter); the
+    // trimmed text goes into the address, so a reload keeps it.
+    go(projectsHash(search.value.trim(), 0));
   } },
-  h('div', { class: 'field' }, h('label', { for: 'search' }, 'Search projects by name'), search),
+  kit.field('search', 'Search projects by name', search),
   h('button', { class: 'btn', type: 'submit' }, 'Search'),
   q ? h('a', { class: 'btn secondary', href: '#/projects' }, 'Clear') : null);
 
@@ -546,18 +564,28 @@ async function projectsScreen(params) {
   const load = async () => {
     results.replaceChildren(loading('Loading projects…'));
     try {
-      const { data, progress } = await loadProjectsWithProgress({ q, page, size: PAGE_SIZE });
+      const { data, progress, counts } = await loadProjectsWithProgress({ q, page, size: PROJECT_LIST_PAGE_SIZE,
+        withCounts: true });
+      if (seq !== screenSeq) return; // the member has moved on to another screen
+      // A page past the end opens the last page that has projects, keeping the search (D-Q4, AC-28.3).
+      if (!data.items.length && data.total > 0 && page > 0) {
+        const last = Math.max(0, Math.ceil(data.total / data.size) - 1);
+        if (last < page) {
+          location.replace(projectsHash(q, last));
+          return;
+        }
+      }
       const emptyStateHasButton = !data.items.length && !q;
       headAction.replaceChildren(...(emptyStateHasButton ? [] : [newProjectLink()].filter(Boolean)));
-      results.replaceChildren(projectTable(data, progress, q));
+      results.replaceChildren(projectTable(data, progress, counts, q));
     } catch (err) {
-      if (err.status !== 401) results.replaceChildren(failure(err, load));
+      if (err.status !== 401 && seq === screenSeq) results.replaceChildren(failure(err, load));
     }
   };
   load();
 }
 
-function projectTable(data, progress, q) {
+function projectTable(data, progress, counts, q) {
   if (!data.items.length) {
     if (q) {
       return h('div', { class: 'empty' }, h('strong', {}, 'No projects match “' + q + '”.'), 'Try another part of the name.');
@@ -565,15 +593,9 @@ function projectTable(data, progress, q) {
     return h('div', { class: 'empty' }, h('strong', {}, 'No projects yet.'), newProjectLink());
   }
   const pages = Math.max(1, Math.ceil(data.total / data.size));
-  const link = (target, label) => {
-    const query = new URLSearchParams();
-    if (q) query.set('q', q);
-    if (target > 0) query.set('page', String(target));
-    const qs = query.toString();
-    return h('a', { class: 'btn secondary', href: '#/projects' + (qs ? '?' + qs : '') }, label);
-  };
+  const link = (target, label) => h('a', { class: 'btn secondary', href: projectsHash(q, target) }, label);
   return h('div', { class: 'panel' },
-    projectGrid(data.items, progress, null),
+    projectGrid(data.items, progress, counts),
     h('nav', { class: 'pager', 'aria-label': 'Pages' },
       data.page > 0 ? link(data.page - 1, '← Previous') : null,
       h('span', {}, 'Page ' + (data.page + 1) + ' of ' + pages + ' · ' + projectCount(data.total)),
