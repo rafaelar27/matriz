@@ -1095,6 +1095,7 @@ function taskSection(project, progress, progressText, params) {
       onsubmit: async e => {
         e.preventDefault();
         banner.replaceChildren();
+        notice.replaceChildren(); // B-01: an earlier success notice must not stay next to this save's result
         Object.keys(fields).forEach(k => setError(k, ''));
         if (!validate()) {
           banner.append(message('Check the highlighted fields.'));

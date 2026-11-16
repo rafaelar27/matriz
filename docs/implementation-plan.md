@@ -256,6 +256,28 @@
 
 **Open findings:** review finding R-01 (no automated test of the V4 constraints), accepted as Minor on 2026-11-16. INC-07 audit S-01 (low): a body that cannot be read gets 422 before the permission check; this existed before INC-07. INC-07 audit S-02 (low, optional): no dedicated error response when the database refuses a row. INC-07 audit S-03 (low): no test with a deactivated Project Manager; skipped by the project decision-maker on 2026-11-16.
 
+### Verification campaign (2026-11-16)
+
+**Goal:** a QA check of the built MVP behaviour in nine scenarios, approved by the project decision-maker on 2026-11-16. Commands, evidence, findings and open questions are in [verification.md](verification.md). The increments' statuses are unchanged.
+
+| Case | Scenario | Type | Status |
+|---|---|---|---|
+| 01 | Access | Both | Pass |
+| 02 | Projects | Both | Pass |
+| 03 | Task creation and persistence | Both | Pass |
+| 04 | Validation | Both | Pass |
+| 05 | Status change | Both | Pass; priority Not executed (F17, outside the initial scope) |
+| 06 | Assignees | Both | Pass |
+| 07 | Comments | Both | Pass |
+| 08 | Authorization | Both | Pass |
+| 09 | Deletion and error display | Both | Pass after the B-01 fix (failed before it) |
+
+**Tests:** `VerificationApiTest`, 12 tests added (140 in total); `mvn verify -Dspring-boot.repackage.skip=true` on `matriz_test`: 0 failures, BUILD SUCCESS. The repackage step was skipped because a process the campaign did not start locks the jar.
+
+**Bug B-01, fixed:** a success notice from an earlier action stayed visible above the task form when a later save failed. Fixed with Option A (the task form clears the notice when it is submitted; Option B not chosen). The regression check is a scripted manual browser check, because the stack has no JavaScript test tool.
+
+**Reported, not fixed:** FR-19 overdue marking is not built (O-1 in [verification.md](verification.md#other-findings-not-fixed)), and O-2 to O-5.
+
 ## Status log
 
 | Date | Increment | Change | Approved by |
@@ -273,3 +295,4 @@
 | 2026-11-16 | INC-07 | Built: `openapi.yaml` 0.7.0-draft; `ProjectService` checks (an owner sent as `null` and a start date after the due date refused with 422); migration `V4__project_owner_required_and_date_order.sql` (owner NOT NULL, check `project_date_order_ck`); `editRulesMatchCreate` changed and 13 tests added (124 in total, `mvn test` on the test database, 0 failures). The database agent's check of V4 on scratch databases accepted as the evidence for AC-INC07.8. Review: approve with minor changes after R-01 was accepted; security audit: pass, 3 low findings. `mvn test` accepted as the evidence for AC-INC07.10. Status set to Done. | Project decision-maker |
 | 2026-11-16 | INC-07 | Open checks done: `mvn verify` with the application stopped (124 tests, 0 failures, BUILD SUCCESS); the running build applied V4 to the development database and started; refused `PATCH` requests (a `null` owner; a due date before the start date) gave 422 and changed nothing; after a restart the schema was up to date and the projects and tasks were unchanged. The same `mvn verify` run covers the `mvn verify` check open under INC-06. Status stays Done. | Project decision-maker |
 | 2026-11-16 | INC-06 | Part 3b plan approved (QC1: an edit with no change sends nothing and opens the project with "Changes saved."; QC2: an incomplete or impossible date is refused with "Enter a valid date."; QC3: the Owner hint on create only; AC-INC06.40 withdrawn). Part 3b, the project form on `formKit` and `guarded`, implemented. Review: approve with minor changes; R-02 and R-04 fixed; R-01 (a save that finishes after leaving the form still opens the project), R-03 (a create 404 keeps "This project was not found.") and R-04 (a year that is not 4 digits is refused) decided. 4 tests added, including the one for the PD-10 decision of 2026-11-12 (QG4 in the plan: the list, detail and dashboard keep a deactivated owner's name); 128 in total, `mvn verify` BUILD SUCCESS. Manual browser checks pass; API tests accepted as evidence for the role-specific checks of AC-INC06.42 and the API side of AC-INC06.43; the two fictitious projects were deleted afterwards (read-only check: 3 projects, no orphan rows). Security audit: pass, 1 low finding. Open checks listed under INC-06. Status stays In progress. | Project decision-maker |
+| 2026-11-16 | Verification campaign | QA verification plan approved. `VerificationApiTest` added with 12 tests (140 in total; `mvn verify` with the repackage step skipped, BUILD SUCCESS). All nine scenarios executed; the priority part of case 05 not executed (F17, outside the initial scope). B-01 found and fixed with Option A (Option B not chosen), with a manual regression check in the browser. FR-19 overdue marking reported as not built. Increment statuses unchanged. Details in [verification.md](verification.md). | Project decision-maker |
