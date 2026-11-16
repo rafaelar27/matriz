@@ -9,7 +9,7 @@ erDiagram
     Workspace ||--o{ Invitation : "R-03 receives"
     Member ||--o{ Invitation : "R-04 sends"
     Workspace ||--o{ Project : "R-05 contains"
-    Member |o--o{ Project : "R-06 owns"
+    Member ||--o{ Project : "R-06 owns"
     Project ||--o{ ProjectMember : "R-07 includes"
     Member ||--o{ ProjectMember : "R-08 takes part as"
     Project ||--o{ Task : "R-09 contains"
@@ -52,8 +52,8 @@ erDiagram
         id workspace_id FK
         string name
         text description "optional"
-        id owner_member_id FK "optional"
-        date start_date "optional"
+        id owner_member_id FK
+        date start_date "optional, not after due_date"
         date due_date "optional"
         boolean is_archived
     }

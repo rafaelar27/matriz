@@ -35,8 +35,9 @@ import com.matriz.shared.ApiError;
 
 /**
  * Authentication for every request (FR-01, SP-01; TD-03 decided 2026-11-12): a server-side session identified by an
- * HttpOnly, SameSite=Lax cookie, with CSRF protection for every state-changing request. Only the sign-in and CSRF
- * endpoints are open; everything else requires a valid session. Sign-in and sign-out are handled by
+ * HttpOnly, SameSite=Lax cookie, with CSRF protection for every state-changing request. Only sign-in, the CSRF
+ * endpoint, the static user interface files and its configuration (/config.js) are open; everything else requires a
+ * valid session. Sign-in and sign-out are handled by
  * {@code com.matriz.accounts.AuthController}.
  */
 @Configuration
@@ -56,6 +57,8 @@ public class SecurityConfig {
                 .requestMatchers("/error").permitAll()
                 // The static user interface (CMP-11) holds no data; every data request still needs a session.
                 .requestMatchers(HttpMethod.GET, "/", "/index.html", "/css/**", "/js/**").permitAll()
+                // The interface's configuration (backend base URL, no secrets), needed before sign-in (approved 2026-11-12).
+                .requestMatchers(HttpMethod.GET, "/config.js").permitAll()
                 .anyRequest().authenticated())
             .csrf(csrf -> csrf
                 .csrfTokenRepository(csrfTokens)

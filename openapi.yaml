@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: Matriz API
-  version: 0.6.0-draft
+  version: 0.7.0-draft
   summary: Draft API for the Matriz MVP (authentication, projects, progress, tasks, task assignees and comments).
   description: |
     Draft specification of the Matriz MVP API, a project and task management
@@ -12,7 +12,9 @@ info:
     **Status:** draft, written on 2026-11-05; authentication added on 2026-11-12
     (INC-02, docs/implementation-plan.md); projects on 2026-11-12 (INC-03); task
     listing, viewing, editing and deletion on 2026-11-12 (INC-04); task assignees
-    and comments on 2026-11-12 (INC-05). The technology stack is chosen in
+    and comments on 2026-11-12 (INC-05). Version 0.7.0-draft (INC-07): a
+    project always has an owner, and its start date is not after its due date
+    (decided 2026-11-12). The technology stack is chosen in
     docs/architecture.md (Technology stack). Authentication uses a server-side
     session cookie (TD-03, decided 2026-11-12); see `components.securitySchemes`.
 
@@ -51,6 +53,14 @@ info:
     can be edited by Project Managers of the workspace and by the task's owner
     when the owner is a Team Member; only Project Managers change the owner
     (AC-10.4); Workspace Administrators can only read tasks (PD-03).
+
+    **Outside this contract:** the user interface files (`/`, `/index.html`,
+    `/css/**`, `/js/**`) and `GET /config.js`, a script generated from the
+    `MATRIZ_API_BASE_URL` setting that gives the interface the API's base URL
+    (approved 2026-11-12). They are served by the same application and are
+    open without a session because they hold no workspace content and no
+    secret (SP-01). They are not API operations and are not listed under
+    `paths`.
 
     **Sources of truth:** docs/requirements.md (FR, NFR), docs/user-stories.md
     (US, AC, EC), docs/constraints.md (AQ, SP, TD, PD), docs/architecture.md
@@ -323,12 +333,15 @@ paths:
         **Set by the server:** `is_archived` is false, and the caller becomes
         a member of the new project (FR-07, decided 2026-11-12). The owner is
         the caller unless `owner_member_id` names another active member of
-        the same workspace (FR-06, US-06).
+        the same workspace (FR-06, US-06). The owner is the caller when
+        `owner_member_id` is not sent; it cannot be `null` (decided 2026-11-12).
 
         **Rules checked (422):** `name` is required and 3 to 100 characters
         after trimming spaces; `description` is at most 1000 characters
         (decided 2026-11-12); `owner_member_id` is an active member of the
-        workspace; dates are valid calendar dates; no other fields are sent.
+        workspace; `owner_member_id`, when sent, is not `null`; dates are
+        valid calendar dates; `start_date` is not after `due_date` when both
+        are given (decided 2026-11-12); no other fields are sent.
       parameters:
         - $ref: '#/components/parameters/CsrfHeader'
       requestBody:
@@ -400,6 +413,10 @@ paths:
         Changes the sent fields (US-24, AC-24.1, FR-06). Fields not sent stay
         unchanged; `null` clears an optional field. The same rules as
         `createProject` apply; `workspace_id` and `is_archived` cannot be sent.
+        `owner_member_id` cannot be `null`: a project always has an owner.
+        `start_date` must not be after `due_date`; the rule is checked on the
+        project as it would be after the change, so sending only one date can
+        be refused.
 
         **Who can perform it:** any active Project Manager of the project's
         workspace (decided 2026-11-12). Team Members, Viewers and, until PD-03,
@@ -1390,7 +1407,8 @@ components:
         The body is well formed but breaks a validation rule: `name` missing,
         shorter than 3 or longer than 100 characters after trimming;
         `description` longer than 1000 characters; `owner_member_id` not an
-        active member of the project's workspace; an invalid date; or a field
+        active member of the project's workspace; `owner_member_id` sent as
+        `null`; an invalid date; `start_date` after `due_date`; or a field
         that cannot be sent.
       content:
         application/json:
@@ -1404,6 +1422,20 @@ components:
                 details:
                   - field: name
                     issue: The name must be 3 to 100 characters long.
+            ownerMissing:
+              value:
+                code: validation_failed
+                message: The project could not be saved.
+                details:
+                  - field: owner_member_id
+                    issue: An owner is required.
+            datesOutOfOrder:
+              value:
+                code: validation_failed
+                message: The project could not be saved.
+                details:
+                  - field: due_date
+                    issue: The due date cannot be before the start date.
     TaskNotFound:
       description: |
         No task with this identifier exists in the signed-in member's workspace,
@@ -1509,8 +1541,8 @@ components:
           type: [string, 'null']
           maxLength: 1000
         owner_member_id:
-          description: Optional; the caller when absent. Must be an active member of the workspace.
-          type: [string, 'null']
+          description: Optional; the caller when absent. Must be an active member of the workspace. Cannot be null.
+          type: string
         start_date:
           type: [string, 'null']
           format: date
@@ -1521,7 +1553,7 @@ components:
     ProjectUpdateRequest:
       type: object
       additionalProperties: false
-      description: Only the fields sent are changed; `null` clears an optional field. `name` cannot be null.
+      description: Only the fields sent are changed; `null` clears an optional field. `name` and `owner_member_id` cannot be null.
       properties:
         name:
           type: string
@@ -1531,7 +1563,7 @@ components:
           type: [string, 'null']
           maxLength: 1000
         owner_member_id:
-          type: [string, 'null']
+          type: string
         start_date:
           type: [string, 'null']
           format: date
@@ -1541,7 +1573,7 @@ components:
 
     ProjectSummary:
       type: object
-      required: [project_id, workspace_id, workspace_name, name, is_archived]
+      required: [project_id, workspace_id, workspace_name, name, owner_member_id, is_archived]
       properties:
         project_id:
           $ref: '#/components/schemas/Id'
@@ -1553,7 +1585,7 @@ components:
           type: string
         owner_member_id:
           type: string
-          description: Absent when the project has no owner (DA-03).
+          description: Every project has an owner (decided 2026-11-12; migration V4).
         owner_name:
           type: string
         start_date:

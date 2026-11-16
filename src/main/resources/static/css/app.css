@@ -12,7 +12,8 @@ a { color: var(--ink); }
 .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 10px 16px;
        background: var(--paper); border-bottom: 2px solid var(--ink); }
 .brand { font-weight: bold; border: 1px solid var(--line); padding: 4px 8px; }
-.bar nav { display: flex; gap: 6px; flex: 1; }
+.bar nav { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
+.workspace { color: var(--mid); font-size: 14px; }
 .bar nav a { border: 1px solid var(--line); padding: 4px 8px; text-decoration: none; }
 .bar nav a.on { background: var(--soft); border-color: var(--ink); font-weight: bold; }
 .acct { position: relative; margin-left: auto; }
@@ -81,6 +82,13 @@ dl.facts dd { margin: 0; }
 .tasks h3 { font-size: 16px; margin: 0 0 10px; }
 .tasks .toolbar .field { flex: 0 1 220px; min-width: 160px; }
 .counts { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 12px; }
+.status-counts { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+
+/* Dashboard sections (E-12 to E-20) */
+.dash-section { margin-bottom: 24px; }
+.dash-section h2 { font-size: 18px; margin: 0 0 8px; display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.actions-inline { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 14px; font-weight: normal; }
+.section-foot { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-top: 10px; font-size: 14px; }
 .task-panel { margin-bottom: 14px; border-width: 2px; }
 .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .row-actions .btn { padding: 2px 8px; font-size: 13px; }

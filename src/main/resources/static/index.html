@@ -15,7 +15,12 @@
 <a class="skip" href="#main">Skip to content</a>
 <header id="bar" class="bar" hidden>
   <span class="brand">Matriz</span>
-  <nav aria-label="Main menu"><a id="nav-projects" href="#/projects">Projects</a></nav>
+  <!-- E-01: the member's workspace names, text only (PD-16 pending: no switcher). -->
+  <span id="workspace-names" class="workspace"></span>
+  <nav aria-label="Main menu">
+    <a id="nav-dashboard" href="#/dashboard">Dashboard</a>
+    <a id="nav-projects" href="#/projects">Projects</a>
+  </nav>
   <div class="acct">
     <button id="acct-button" type="button" aria-haspopup="true" aria-expanded="false"></button>
     <div id="acct-menu" class="menu" hidden>
@@ -34,6 +39,8 @@
     </div>
   </form>
 </dialog>
+<!-- Backend URL, from the MATRIZ_API_BASE_URL environment setting (empty: this server). Read only in app.js. -->
+<script src="/config.js"></script>
 <script src="/js/app.js"></script>
 </body>
 </html>

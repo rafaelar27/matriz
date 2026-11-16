@@ -30,7 +30,7 @@ The IDs E-01 to E-20 are the labels shown on the wireframe. Data names follow [d
 
 | ID | Element | Purpose | Related FR/US | Data shown (entity.attribute) | Visible to (user type) |
 |---|---|---|---|---|---|
-| E-01 | Workspace name (top bar) | Shows which workspace the member is in. Text only: no workspace switcher, because PD-16 is pending. | FR-02, NFR-01; US-02 | Workspace.name | All |
+| E-01 | Workspace name (top bar) | Shows the names of every workspace the member belongs to. Text only: no workspace switcher, because PD-16 is pending. | FR-02, NFR-01; US-02 | Workspace.name | All |
 | E-02 | Main menu: Dashboard | Returns to this screen; marked as current. | FR-01; US-01 | — | All |
 | E-03 | Main menu: Projects | Opens the full project list. | FR-08; US-09, US-19 | — | All |
 | E-04 | Main menu: My tasks | Opens the full "My tasks" list. | FR-14; US-13 | — | All |
@@ -41,15 +41,17 @@ The IDs E-01 to E-20 are the labels shown on the wireframe. Data names follow [d
 | E-09 | My tasks section | The signed-in member's tasks across projects, earliest due date first, with an "Overdue" text label. A row opens the task (UI-A3). | FR-14, FR-19, NFR-06; US-13, US-18; AC-13.1, AC-13.2, AC-18.1–18.4; EC-06 | Task.title, Project.name, Task.status, Task.due_date; overdue (derived, BR-16) | All (a Viewer who is a project member can own tasks, FR-10) |
 | E-10 | "See all my tasks" link | Opens the full "My tasks" list when the section shows only the first items (UI-A2). | FR-14; US-13 | — | All |
 | E-11 | My tasks empty state | Message "No tasks are assigned to you." | FR-14; AC-13.3 | — | All |
-| E-12 | Projects section | Every project in the workspace with owner, due date and progress "N of M tasks done". A row opens the project task list. | FR-08, FR-18, FR-13; US-09, US-17, US-19; AC-17.1, AC-19.1, AC-19.3; EC-05 | Project.name, Account.name (through Project.owner_member_id → Member.account_id), Project.due_date; progress (derived, BR-15) | All |
-| E-13 | "See all projects" link | Opens the full project list (UI-A2). | FR-08; US-09 | — | All |
-| E-14 | "+ New project" button | Starts project creation. | FR-06; US-06 | — | Project Manager only. Hidden for Team Member and Viewer (FR-05, AC-19.2). Hidden for Workspace Administrator until PD-03 is decided |
+| E-12 | Projects section | The first projects of the member's workspaces (UI-A2) with workspace, owner, due date, progress "N of M tasks done" and the project's task counts by status, from the project task list. No total across projects (UI-A6). A row opens the project task list. | FR-08, FR-18, FR-13; US-09, US-17, US-19; AC-17.1, AC-19.1, AC-19.3; EC-05 | Project.name, Workspace.name, Account.name (through Project.owner_member_id → Member.account_id), Project.due_date; progress (derived, BR-15); task counts per Task.status (derived, FR-13) | All |
+| E-13 | "See all projects" link | Opens the full project list (UI-A2). Shown under the table with "Showing N of total" (decided 2026-11-12; the wireframe shows it in the heading). | FR-08; US-09 | — | All |
+| E-14 | "+ New project" button | Starts project creation. | FR-06; US-06 | — | Project Manager only. Hidden for Team Member and Viewer (FR-05, AC-19.2). Hidden for Workspace Administrator until PD-03 is decided. On an empty list it appears once, in the empty state (E-15). |
 | E-15 | Projects empty state | Message "No projects yet."; Project Managers also see E-14. | FR-08 | — | All |
 | E-16 | Recent notifications section | The member's latest notifications, newest first. An item opens the task concerned. | FR-17; US-16 | Notification.type, Task.title (through Notification.task_id), Account.name of the comment author (through Notification.comment_id → Comment.author_member_id, only for "comment added"), Notification.created_at | All (every member can receive notifications) |
 | E-17 | "See all" notifications link | Opens all notifications (UI-A2). | FR-17; US-16 | — | All |
 | E-18 | Notifications empty state | Message "No notifications." (UI-A4). | FR-17 | — | All |
 | E-19 | Section loading state | Placeholder rows and the text "Loading…" while a section loads (UI-A4). | NFR-06, NFR-07 | — | All |
 | E-20 | Section error state | Message "This section could not be loaded." and a "Try again" button (UI-A4). | NFR-03, NFR-07 | — | All |
+
+**Not built yet** (decided 2026-11-12, because these have no API operations yet): E-04 to E-06, E-09 to E-11, E-16 to E-18, and Send feedback and Request my personal data in E-07 (FR-03, FR-04, FR-14, FR-17, FR-20, FR-21).
 
 **Differences by user type**
 
@@ -100,12 +102,13 @@ These are not confirmed requirements.
 
 | ID | Assumption | Why |
 |---|---|---|
-| UI-A1 | The dashboard is the first screen after sign-in. | The task asks for it; no document says which screen follows sign-in (FR-01, US-01). |
-| UI-A2 | Each section shows only the first few items, with a "See all" link. The number of items is not set. | Keeps the screen simple (OBJ-04); no requirement sets a limit. |
+| UI-A1 | **Confirmed 2026-11-12.** The dashboard is the first screen after sign-in; it is also shown to a signed-in member who opens sign-in and for unknown addresses. | The task asks for it; no document says which screen follows sign-in (FR-01, US-01). Confirmed by the project decision-maker on 2026-11-12 (see the [decision log](../constraints.md#decision-log)). |
+| UI-A2 | Each section shows only the first few items, with a "See all" link. The Projects section shows the first 10 projects with the total from the API (decided 2026-11-12); the number for the other sections is not set. | Keeps the screen simple (OBJ-04); no requirement sets a limit. |
 | UI-A3 | Clicking a task or a notification opens the task detail. Status is not changed on the dashboard itself. | Keeps the status change in the task detail, where AC-11.1 to AC-11.3 apply. |
-| UI-A4 | Loading, error and "No notifications." states and their wording. | No edge case covers them. |
+| UI-A4 | Loading, error and "No notifications." states and their wording. Confirmed 2026-11-12 for E-19 and E-20. Not applied on the Projects screen, which keeps "Loading projects…" and its current error state with Try again (decided 2026-11-12). | No edge case covers them. |
 | UI-A5 | Notifications show no unread count or "new" marker. | Read state is not defined (PD-22). |
 | UI-A6 | The dashboard combines existing MVP views only and is not a new feature. | F41 Manager overview is out of scope; approved by the project decision-maker on 2026-11-05 (see the [decision log](../constraints.md#decision-log)). |
+| UI-A7 | After an ended session (401), the screen the member was on is reopened only right after signing in, and only if the same account signs in; another account goes to the first screen, the dashboard (UI-A1). After a full page reload the earlier account is not known, so the screen is kept and the API still decides access. A member who opens the sign-in screen while already signed in always goes to the first screen. Signing out forgets the earlier screen. | No document says where sign-in leads after a session ends (FR-01, US-01). Approved by the project decision-maker on 2026-11-12 (see the [decision log](../constraints.md#decision-log)). |
 
 ### Open questions and pending decisions
 
@@ -116,9 +119,18 @@ These are not confirmed requirements.
 | PD-06 | Whether Done tasks appear in My tasks (E-09). |
 | PD-07 | Whether progress also shows a percentage. |
 | PD-08 | Where tasks without a due date are placed in My tasks, and which time zone decides "today" for the overdue label. |
-| PD-10 | How the owner of a task or project is shown when that member has been deactivated. |
+| PD-10 | How the owner of a task or project is shown when that member has been deactivated. Decided in part on 2026-11-12 (see the [decision log](../constraints.md#decision-log)): in the project form, an owner who is no longer an active member is shown as "Former member", without a name, and is kept unless someone else is chosen. The project list, project detail and dashboard keep showing a deactivated owner's name until the rest of PD-10 is decided. Built on 2026-11-16 (INC-06 part 3b). |
 | PD-13 | The launch language for all labels. Labels are in English here as placeholders. |
 | PD-16 | Whether a workspace switcher is needed in the top bar (E-01). |
 | PD-17 | Whether a Viewer who owns a task can change its status from the task detail. |
 | PD-22 | Whether notifications can be marked as read, which would allow an unread count (UI-A5). |
 | PD-24 | What a signed-in person who belongs to no workspace sees instead of the dashboard (FR-02, PD-16). |
+
+## Projects screen
+
+The full project list, opened by E-03 and E-13 (FR-08, US-09). It has no wireframe. Decided on 2026-11-12 (see the [decision log](../constraints.md#decision-log)):
+
+- The Projects screen keeps "Loading projects…" and its current error state with Try again. UI-A4's dashboard wording and single-load guard are not applied there.
+- Each project row also shows that project's task counts by status, from the project task list (`listTasks` `status_counts`), as the dashboard does. No total across projects is shown (UI-A6; F41 stays outside the initial scope).
+
+Not decided yet: whether Try again may send a second request on this screen.

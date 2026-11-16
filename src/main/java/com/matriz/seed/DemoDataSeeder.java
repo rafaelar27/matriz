@@ -38,10 +38,15 @@ public class DemoDataSeeder implements CommandLineRunner {
     static final UUID CARLA = id("a0000000-0000-0000-0000-000000000004");
     /** Member of Northwind Lab only: cannot see any Acme Studio project (NFR-01). Added 2026-11-12 (INC-03). */
     static final UUID DAN = id("a0000000-0000-0000-0000-000000000005");
+    /** Project Manager of Orchard Office only, which has no projects on purpose (E-15, INC-06). Added 2026-11-12. */
+    static final UUID EVA = id("a0000000-0000-0000-0000-000000000006");
+    /** Workspace Administrator of Orchard Office only, so the workspace keeps an administrator (BR-04, SP-07) and the Dashboard empty state can be checked without "+ New project" (E-15, PD-03). Added 2026-11-12. */
+    static final UUID FINN = id("a0000000-0000-0000-0000-000000000007");
 
     // Workspaces
     static final UUID ACME = id("b0000000-0000-0000-0000-000000000001");
     static final UUID NORTHWIND = id("b0000000-0000-0000-0000-000000000002");
+    static final UUID ORCHARD = id("b0000000-0000-0000-0000-000000000003");
 
     // Members (one per account per workspace)
     static final UUID ACME_CARLA = id("c0000000-0000-0000-0000-000000000001");
@@ -51,6 +56,8 @@ public class DemoDataSeeder implements CommandLineRunner {
     static final UUID NW_CARLA = id("c0000000-0000-0000-0000-000000000005");
     static final UUID NW_ANA = id("c0000000-0000-0000-0000-000000000006");
     static final UUID NW_DAN = id("c0000000-0000-0000-0000-000000000007");
+    static final UUID ORCHARD_FINN = id("c0000000-0000-0000-0000-000000000008");
+    static final UUID ORCHARD_EVA = id("c0000000-0000-0000-0000-000000000009");
 
     // Projects
     static final UUID WEBSITE = id("d0000000-0000-0000-0000-000000000001");
@@ -93,9 +100,12 @@ public class DemoDataSeeder implements CommandLineRunner {
         n += account(VERA, "Vera Demo", "vera@example.com", hash);
         n += account(CARLA, "Carla Demo", "carla@example.com", hash);
         n += account(DAN, "Dan Demo", "dan@example.com", hash);
+        n += account(EVA, "Eva Demo", "eva@example.com", hash);
+        n += account(FINN, "Finn Demo", "finn@example.com", hash);
 
         n += workspace(ACME, "Acme Studio");
         n += workspace(NORTHWIND, "Northwind Lab");
+        n += workspace(ORCHARD, "Orchard Office");
 
         n += member(ACME_CARLA, ACME, CARLA, "WORKSPACE_ADMINISTRATOR");
         n += member(ACME_ANA, ACME, ANA, "PROJECT_MANAGER");
@@ -104,6 +114,8 @@ public class DemoDataSeeder implements CommandLineRunner {
         n += member(NW_CARLA, NORTHWIND, CARLA, "WORKSPACE_ADMINISTRATOR");
         n += member(NW_ANA, NORTHWIND, ANA, "TEAM_MEMBER");
         n += member(NW_DAN, NORTHWIND, DAN, "PROJECT_MANAGER");
+        n += member(ORCHARD_FINN, ORCHARD, FINN, "WORKSPACE_ADMINISTRATOR");
+        n += member(ORCHARD_EVA, ORCHARD, EVA, "PROJECT_MANAGER");
 
         n += project(WEBSITE, ACME, "Website redesign", "New company homepage.", ACME_ANA,
                 LocalDate.parse("2026-11-01"), LocalDate.parse("2026-12-15"));

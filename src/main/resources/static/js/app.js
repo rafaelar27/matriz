@@ -9,6 +9,9 @@ const NAME_MIN = 3;
 const NAME_MAX = 100;
 const DESCRIPTION_MAX = 1000;
 const PAGE_SIZE = 10;
+// The Projects screen shows the listProjects default of 20 per page; the dashboard keeps PAGE_SIZE (D-Q5, 2026-11-12).
+const PROJECT_LIST_PAGE_SIZE = 20;
+const SEARCH_MAX = 100; // listProjects `q` limit (openapi.yaml)
 const TASK_TITLE_MIN = 3;
 const TASK_TITLE_MAX = 150;
 const TASK_DESCRIPTION_MAX = 2000;
@@ -24,11 +27,26 @@ function statusLabel(value) {
 }
 
 const main = document.getElementById('main');
-const state = { profile: null, flash: null };
+// returnTo: the screen to reopen after signing in again (assumption UI-A7, approved 2026-11-12).
+const state = { profile: null, flash: null, returnTo: null };
+
+// The first screen after sign-in (UI-A1, confirmed for the dashboard plan on 2026-11-12).
+const HOME = '#/dashboard';
 
 // ---------------------------------------------------------------------------------------------------------------
 // API access: session cookie, CSRF header, and sign-in redirect on 401.
 // ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * The only place that knows where the backend is. The value comes from the MATRIZ_API_BASE_URL environment setting,
+ * served by the backend as /config.js; empty means the server that serves this page. It must stay on the same site,
+ * because the session cookie and the CSRF token are same-site only (TD-03).
+ */
+const API_BASE_URL = String((window.MATRIZ_CONFIG && window.MATRIZ_CONFIG.apiBaseUrl) || '').replace(/\/+$/, '');
+
+function apiUrl(path) {
+  return API_BASE_URL + path;
+}
 
 class ApiError extends Error {
   constructor(status, body) {
@@ -43,46 +61,88 @@ function csrfToken() {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+function fetchCsrfToken() {
+  return fetch(apiUrl('/auth/csrf'), { credentials: 'same-origin' });
+}
+
 async function ensureCsrfToken() {
   if (!csrfToken()) {
-    await fetch('/auth/csrf', { credentials: 'same-origin' });
+    await fetchCsrfToken();
   }
 }
 
-async function api(method, path, body, retried) {
-  const options = { method, credentials: 'same-origin', headers: { Accept: 'application/json' } };
+/**
+ * Calls the API. On 401 it sends the user to sign-in with a clear message and remembers the current screen, unless
+ * options.quiet is set (used to check for an existing session without redirecting).
+ */
+async function api(method, path, body, options) {
+  const opts = options || {};
+  const request = { method, credentials: 'same-origin', headers: { Accept: 'application/json' } };
   if (method !== 'GET') {
     await ensureCsrfToken();
-    options.headers['X-XSRF-TOKEN'] = csrfToken();
+    request.headers['X-XSRF-TOKEN'] = csrfToken();
   }
   if (body !== undefined) {
-    options.headers['Content-Type'] = 'application/json';
-    options.body = JSON.stringify(body);
+    request.headers['Content-Type'] = 'application/json';
+    request.body = JSON.stringify(body);
   }
   let response;
   try {
-    response = await fetch(path, options);
+    response = await fetch(apiUrl(path), request);
   } catch (e) {
-    throw new ApiError(0, { message: 'Matriz could not be reached. Check that it is running and try again.' });
+    throw new ApiError(0, { message: 'Matriz could not be reached. Check your connection and try again.' });
   }
   const text = await response.text();
-  const data = text ? JSON.parse(text) : null;
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch (e) {
+    data = null; // not a JSON body, for example a proxy error page
+  }
   if (response.ok) {
     return data;
   }
-  if (response.status === 403 && data && data.code === 'csrf_invalid' && !retried) {
-    await fetch('/auth/csrf', { credentials: 'same-origin' });
-    return api(method, path, body, true);
+  if (response.status === 403 && data && data.code === 'csrf_invalid' && !opts.retried) {
+    await fetchCsrfToken();
+    return api(method, path, body, Object.assign({}, opts, { retried: true }));
   }
-  if (response.status === 401 && path !== '/auth/sign-in') {
+  if (response.status === 401 && path !== '/auth/sign-in' && !opts.quiet) {
+    const previousAccount = state.profile ? state.profile.account_id : null;
     state.profile = null;
-    state.flash = data && data.code === 'session_expired'
-      ? 'Your session has ended. Sign in again.'
-      : 'Sign in to continue.';
-    go('#/sign-in');
+    // Only the first of several parallel 401s redirects; the others would re-render sign-in and lose the notice.
+    if (!location.hash.startsWith('#/sign-in')) {
+      state.flash = data && data.code === 'session_expired'
+        ? 'Your session has ended. Sign in again.'
+        : 'Sign in to continue.';
+      if (location.hash) state.returnTo = { hash: location.hash, accountId: previousAccount };
+      go('#/sign-in');
+    }
     throw new ApiError(401, data);
   }
   throw new ApiError(response.status, data);
+}
+
+/**
+ * Where to go right after signing in (UI-A7): the remembered screen, but only for the account that was on it. If
+ * another account signs in, HOME (sign-in review finding 7, security audit finding 2; approved 2026-11-12). After a
+ * full page reload the earlier account is not known yet, and the screen is kept: the API still decides what the new
+ * account may see (404/403).
+ */
+function takeReturnTo(profile) {
+  const remembered = state.returnTo;
+  state.returnTo = null;
+  if (!remembered) return HOME;
+  if (remembered.accountId && profile && remembered.accountId !== profile.account_id) return HOME;
+  return remembered.hash;
+}
+
+// The same codes are used by every screen, so that refusals read the same everywhere (403/404 never show data).
+function errorText(err, notFound) {
+  if (err.status === 404) {
+    return notFound || 'This item was not found. It may have been deleted, or you no longer have access.';
+  }
+  if (err.status === 403) return err.message || 'You do not have permission to do this.';
+  return err.message;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -126,8 +186,166 @@ function loading(label) {
 
 function failure(error, retry) {
   return h('div', { class: 'panel', role: 'alert' },
-    h('p', {}, h('strong', {}, 'This section could not be loaded. '), error.message),
+    h('p', {}, h('strong', {}, 'This section could not be loaded. '), errorText(error)),
     h('button', { class: 'btn', type: 'button', onclick: retry }, 'Try again'));
+}
+
+// Increases on every screen change, so that a section's late answer never lands on another screen.
+let screenSeq = 0;
+
+/**
+ * One screen section with its own states (E-19 loading, E-20 error with Try again, UI-A4). load() resolves to the
+ * content to show (success or empty state). Try again is replaced by the loading state at once, so repeated clicks
+ * send one request; a 401 is left to api(), which goes to sign-in.
+ */
+function section(title, aside, load) {
+  const seq = screenSeq;
+  const id = 'section-' + title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const body = h('div', {});
+  // The section is named by its title only, not by the total or actions beside it (NFR-06).
+  const box = h('section', { class: 'dash-section', 'aria-labelledby': id },
+    h('h2', {}, h('span', { id }, title), aside || null), body);
+  let running = false;
+  const run = async () => {
+    if (running) return; // one load at a time, whatever is clicked
+    running = true;
+    body.replaceChildren(loading('Loading…'));
+    try {
+      const content = await load();
+      if (seq === screenSeq) body.replaceChildren(content);
+    } catch (err) {
+      if (err.status !== 401 && seq === screenSeq) body.replaceChildren(failure(err, run));
+    } finally {
+      running = false;
+    }
+  };
+  run();
+  return box;
+}
+
+/** Counts per status as text tags (never colour alone, NFR-06), in the API's order, with Portuguese labels. */
+function statusCountTags(statusCounts) {
+  const by = {};
+  (statusCounts || []).forEach(c => { by[c.status] = c.count; });
+  return h('span', { class: 'status-counts' }, TASK_STATUSES.map(s => h('span', { class: 'tag' }, statusLabel(s) + ': ' + (by[s] || 0))));
+}
+
+/**
+ * One page of the member's projects with their progress (FR-08, FR-18), and optionally each project's task counts by
+ * status from listTasks, which always counts all of the project's tasks whatever the page (decided 2026-11-12, Q1 B).
+ */
+async function loadProjectsWithProgress({ q, page, size, withCounts }) {
+  const query = new URLSearchParams({ page: String(page || 0), size: String(size) });
+  if (q) query.set('q', q);
+  const data = await api('GET', '/projects?' + query);
+  const progress = {};
+  const counts = {};
+  if (data.items.length) {
+    const ids = new URLSearchParams();
+    data.items.forEach(p => ids.append('project_id', p.project_id));
+    const calls = [api('GET', '/progress?' + ids).then(list => list.forEach(r => { progress[r.project_id] = r; }))];
+    if (withCounts) {
+      // One project's counts failing (for example, deleted meanwhile) leaves "—" in its row, not a section error.
+      data.items.forEach(p => calls.push(api('GET', '/projects/' + encodeURIComponent(p.project_id) + '/tasks?size=1')
+        .then(t => { counts[p.project_id] = t.status_counts; })
+        .catch(err => { if (err.status === 401) throw err; })));
+    }
+    await Promise.all(calls);
+  }
+  return { data, progress, counts: withCounts ? counts : null };
+}
+
+/** E-14 "+ New project": Project Managers only (FR-06); hidden for Workspace Administrators until PD-03 (Q7). */
+function newProjectLink() {
+  return managedWorkspaces().length ? h('a', { class: 'btn primary', href: '#/projects/new' }, '+ New project') : null;
+}
+
+function projectCount(n) {
+  return n + ' project' + (n === 1 ? '' : 's');
+}
+
+/** The project table used by the Projects screen and the Dashboard (one variant). */
+function projectGrid(items, progress, counts) {
+  const headings = ['Project', 'Workspace', 'Owner', 'Due date', 'Progress'].concat(counts ? ['Tasks by status'] : []);
+  const rows = items.map(p => {
+    const pr = progress[p.project_id];
+    return h('tr', {},
+      h('td', {}, h('a', { href: '#/projects/' + p.project_id }, p.name),
+        p.is_archived ? h('span', {}, ' ', h('span', { class: 'tag' }, 'Archived')) : null),
+      h('td', {}, p.workspace_name),
+      h('td', {}, p.owner_name || '—'),
+      h('td', {}, formatDate(p.due_date)),
+      h('td', {}, pr ? progressLabel(pr) : '—'),
+      counts ? h('td', {}, counts[p.project_id] ? statusCountTags(counts[p.project_id]) : '—') : null);
+  });
+  return h('div', { class: 'wrap' }, h('table', {},
+    h('caption', { class: 'skip' }, 'Projects'),
+    h('thead', {}, h('tr', {}, headings.map(t => h('th', { scope: 'col' }, t)))),
+    h('tbody', {}, rows)));
+}
+
+/**
+ * Shared form parts, meant to be the one variant for every form: sign-in uses them now, and the project and task forms
+ * move to them when their screens are reworked, which removes their own copies (sign-in review finding 5).
+ * field() builds a labelled control with an optional hint and an error line tied to it by aria-describedby;
+ * setError() marks a field; showServerErrors() maps the `details` of a 422 response to the fields. Values are never cleared here, so a failed submission keeps what the user typed.
+ */
+function formKit(prefix) {
+  const fields = {};
+  const field = (name, label, control, hint) => {
+    const id = prefix + '-' + name;
+    const error = h('div', { class: 'error', id: id + '-error', hidden: true });
+    control.id = id;
+    control.setAttribute('aria-describedby', error.id + (hint ? ' ' + id + '-hint' : ''));
+    const wrapper = h('div', { class: 'field' }, h('label', { for: id }, label), control,
+      hint ? h('div', { class: 'hint', id: id + '-hint' }, hint) : null, error);
+    fields[name] = { control, error, wrapper };
+    return wrapper;
+  };
+  const setError = (name, text) => {
+    const f = fields[name];
+    if (!f) return false;
+    f.error.textContent = text || '';
+    f.error.hidden = !text;
+    f.wrapper.classList.toggle('invalid', Boolean(text));
+    f.control.setAttribute('aria-invalid', text ? 'true' : 'false');
+    return true;
+  };
+  const clear = () => Object.keys(fields).forEach(k => setError(k, ''));
+  const focusFirstError = () => {
+    const first = Object.values(fields).find(f => !f.error.hidden);
+    if (first) first.control.focus();
+    return Boolean(first);
+  };
+  // apiToField maps API field names to form field names where they differ.
+  const showServerErrors = (err, apiToField) => {
+    let shown = false;
+    ((err.body && err.body.details) || []).forEach(d => {
+      shown = setError((apiToField && apiToField[d.field]) || d.field, d.issue) || shown;
+    });
+    if (shown) focusFirstError();
+    return shown;
+  };
+  return { field, setError, clear, focusFirstError, showServerErrors };
+}
+
+/**
+ * Runs one submission at a time. The button is disabled and the form marked busy until the API answers, so repeated
+ * clicks or Enter presses send a single request; the screen is then updated from the API's response only.
+ */
+const busyForms = new WeakSet();
+async function guarded(form, button, run) {
+  if (busyForms.has(form)) return undefined;
+  busyForms.add(form);
+  button.disabled = true;
+  form.setAttribute('aria-busy', 'true');
+  try {
+    return await run();
+  } finally {
+    busyForms.delete(form);
+    button.disabled = false;
+    form.removeAttribute('aria-busy');
+  }
 }
 
 function go(hash) {
@@ -170,13 +388,24 @@ function canManage(workspaceId) {
   return managedWorkspaces().some(m => m.workspace_id === workspaceId);
 }
 
+// Top bar on every signed-in screen: E-01 workspace names (text only, PD-16), E-02/E-03 menu with the current item
+// marked for screen readers too, E-07 account menu with the member's name and Sign out.
 function showBar(visible) {
   const bar = document.getElementById('bar');
   bar.hidden = !visible;
   if (visible && state.profile) {
     document.getElementById('acct-button').textContent = state.profile.name + ' ▾';
+    const names = [...new Set((state.profile.memberships || []).map(m => m.workspace_name))];
+    document.getElementById('workspace-names').textContent = names.join(' · ');
   }
-  document.getElementById('nav-projects').classList.toggle('on', location.hash.startsWith('#/projects'));
+  const current = location.hash.startsWith('#/projects') ? 'nav-projects'
+    : (location.hash.startsWith('#/dashboard') ? 'nav-dashboard' : null);
+  ['nav-dashboard', 'nav-projects'].forEach(id => {
+    const link = document.getElementById(id);
+    link.classList.toggle('on', id === current);
+    if (id === current) link.setAttribute('aria-current', 'page');
+    else link.removeAttribute('aria-current');
+  });
 }
 
 const acctButton = document.getElementById('acct-button');
@@ -199,6 +428,7 @@ document.getElementById('sign-out').addEventListener('click', async () => {
     // Signed out already: nothing else to do.
   }
   state.profile = null;
+  state.returnTo = null; // a deliberate sign-out starts the next session at HOME
   state.flash = 'You have signed out.';
   go('#/sign-in');
 });
@@ -207,116 +437,168 @@ document.getElementById('sign-out').addEventListener('click', async () => {
 // Screens.
 // ---------------------------------------------------------------------------------------------------------------
 
+// Sign in (US-01, FR-01, SP-01). Field messages for missing or malformed input; one generic message for wrong
+// credentials, because the API gives the same 401 for every cause. After a failure the email stays and the password is
+// cleared (approved 2026-11-12). After success: back to the screen the user was on, or HOME (UI-A1, UI-A7).
 function signInScreen() {
   showBar(false);
-  const error = h('div', { 'aria-live': 'assertive' });
-  const email = h('input', { id: 'email', type: 'email', autocomplete: 'username', required: true });
-  const password = h('input', { id: 'password', type: 'password', autocomplete: 'current-password', required: true });
+  const kit = formKit('signin');
+  const banner = h('div', { 'aria-live': 'assertive' });
+  const email = h('input', { type: 'email', autocomplete: 'username', required: true, spellcheck: 'false' });
+  const password = h('input', { type: 'password', autocomplete: 'current-password', required: true });
   const submit = h('button', { class: 'btn primary', type: 'submit' }, 'Sign in');
-  const form = h('form', { class: 'panel', novalidate: true, onsubmit: async e => {
+
+  const validate = () => {
+    const value = email.value.trim();
+    const emailError = !value ? 'Enter your email.' : (!value.includes('@') ? 'Enter a valid email address.' : '');
+    kit.setError('email', emailError);
+    kit.setError('password', password.value ? '' : 'Enter your password.');
+    return !emailError && Boolean(password.value);
+  };
+
+  const notice = takeFlash(); // for example "Your session has ended."; replaced by the result of the next attempt
+  const form = h('form', { class: 'panel', novalidate: true, onsubmit: e => {
     e.preventDefault();
-    error.replaceChildren();
-    if (!email.value.trim() || !password.value) {
-      error.append(message('Enter your email and password.'));
+    if (notice) notice.remove();
+    banner.replaceChildren();
+    kit.clear();
+    if (!validate()) {
+      kit.focusFirstError();
       return;
     }
-    submit.disabled = true;
-    try {
-      await ensureCsrfToken();
-      state.profile = await api('POST', '/auth/sign-in', { email: email.value.trim(), password: password.value });
-      go('#/projects');
-    } catch (err) {
-      error.append(message(err.status === 401 ? 'The email or password is incorrect.' : err.message));
-      password.value = '';
-      password.focus();
-    } finally {
-      submit.disabled = false;
-    }
+    guarded(form, submit, async () => {
+      try {
+        await ensureCsrfToken();
+        state.profile = await api('POST', '/auth/sign-in', { email: email.value.trim(), password: password.value });
+        go(takeReturnTo(state.profile));
+      } catch (err) {
+        banner.append(message(err.status === 401 ? 'The email or password is incorrect.' : errorText(err)));
+        password.value = '';
+        password.focus();
+      }
+    });
   } },
   h('h1', {}, 'Sign in to Matriz'),
-  error,
-  h('div', { class: 'field' }, h('label', { for: 'email' }, 'Email'), email),
-  h('div', { class: 'field' }, h('label', { for: 'password' }, 'Password'), password),
+  banner,
+  kit.field('email', 'Email', email),
+  kit.field('password', 'Password', password),
   submit);
-  render(h('div', { class: 'narrow' }, takeFlash(), form));
+  render(h('div', { class: 'narrow' }, notice, form));
   email.focus();
+
+  // Someone who is still signed in does not need this screen: always HOME, never the remembered screen, which is only
+  // used right after signing in (UI-A7, doc-keeper question D-11, approved 2026-11-12). Quiet: a 401 keeps the form.
+  api('GET', '/auth/me', undefined, { quiet: true }).then(profile => {
+    if (location.hash.startsWith('#/sign-in') && !busyForms.has(form)) {
+      state.profile = profile;
+      state.returnTo = null;
+      go(HOME);
+    }
+  }).catch(() => { /* not signed in */ });
 }
 
-async function projectsScreen(params) {
-  const q = params.get('q') || '';
-  const page = Math.max(0, parseInt(params.get('page') || '0', 10) || 0);
+// Dashboard (INC-06 screen 2; docs/ui/README.md E-01 to E-20). Built only from existing views (UI-A6): the Projects
+// section E-12 to E-15 with progress and, per project, task counts by status (Q1 B). My tasks, notifications,
+// members, feedback and personal-data requests have no API yet and are left out (Q2). Every visit reloads the data.
+async function dashboardScreen() {
   await loadProfile();
   showBar(true);
+  const total = h('span', { class: 'hint' });
+  const headAction = h('span', {}); // E-14 beside the heading, once the list is known to be non-empty
 
-  const search = h('input', { id: 'search', type: 'search', value: q, maxlength: NAME_MAX,
-    placeholder: 'Part of a project name' });
-  const searchForm = h('form', { class: 'toolbar', role: 'search', onsubmit: e => {
+  const projects = section('Projects', h('span', { class: 'actions-inline' }, total, headAction), async () => {
+    const { data, progress, counts } = await loadProjectsWithProgress({ page: 0, size: PAGE_SIZE, withCounts: true });
+    // The total always comes from the API, not from the rows on screen.
+    total.textContent = projectCount(data.total);
+    if (!data.items.length) {
+      headAction.replaceChildren(); // the empty state carries the one "+ New project" (wireframe Variant B)
+      return h('div', { class: 'empty' }, h('strong', {}, 'No projects yet.'), newProjectLink()); // E-15
+    }
+    headAction.replaceChildren(...[newProjectLink()].filter(Boolean));
+    return h('div', { class: 'panel' },
+      projectGrid(data.items, progress, counts),
+      h('div', { class: 'section-foot' },
+        h('span', {}, 'Showing ' + data.items.length + ' of ' + data.total),
+        h('a', { href: '#/projects' }, 'See all projects'))); // E-13
+  });
+
+  render(takeFlash(), h('h1', {}, 'Dashboard'), projects);
+}
+
+/** The Projects screen address for a search and a page (page 0 and an empty search are left out). */
+function projectsHash(q, page) {
+  const query = new URLSearchParams();
+  if (q) query.set('q', q);
+  if (page > 0) query.set('page', String(page));
+  const qs = query.toString();
+  return '#/projects' + (qs ? '?' + qs : '');
+}
+
+// Projects screen (INC-06 screen 3, part 3a; E-08, E-13, E-14, E-15). Every project of the member's workspaces
+// (FR-08) with progress (FR-18) and task counts by status (FR-13, D-Q3), 20 per page (D-Q5), search by name (US-28).
+// Keeps "Loading projects…" and its own error state with Try again (D-Q2).
+async function projectsScreen(params) {
+  const seq = screenSeq;
+  const q = (params.get('q') || '').trim();
+  const page = Math.max(0, parseInt(params.get('page') || '0', 10) || 0);
+  await loadProfile();
+  if (seq !== screenSeq) return; // the member moved on while the profile loaded
+  showBar(true);
+
+  const kit = formKit('projects');
+  const search = h('input', { type: 'search', value: q, maxlength: SEARCH_MAX, placeholder: 'Part of a project name' });
+  const searchForm = h('form', { class: 'toolbar', role: 'search', novalidate: true, onsubmit: e => {
     e.preventDefault();
-    const text = search.value.trim();
-    go('#/projects' + (text ? '?q=' + encodeURIComponent(text) : ''));
+    // Whitespace only clears the search (openapi.yaml listProjects `q`: spaces ignored, empty means no filter); the
+    // trimmed text goes into the address, so a reload keeps it.
+    go(projectsHash(search.value.trim(), 0));
   } },
-  h('div', { class: 'field' }, h('label', { for: 'search' }, 'Search projects by name'), search),
+  kit.field('search', 'Search projects by name', search),
   h('button', { class: 'btn', type: 'submit' }, 'Search'),
   q ? h('a', { class: 'btn secondary', href: '#/projects' }, 'Clear') : null);
 
-  const newButton = managedWorkspaces().length ? h('a', { class: 'btn primary', href: '#/projects/new' }, '+ New project') : null;
+  const headAction = h('span', {}); // "+ New project", unless the empty state already shows it
   const results = h('div', {}, loading('Loading projects…'));
-  render(takeFlash(), h('h1', {}, 'Projects', newButton), searchForm, results);
+  render(takeFlash(), h('h1', {}, 'Projects', headAction), searchForm, results);
 
   const load = async () => {
     results.replaceChildren(loading('Loading projects…'));
     try {
-      const query = new URLSearchParams({ page: String(page), size: String(PAGE_SIZE) });
-      if (q) query.set('q', q);
-      const data = await api('GET', '/projects?' + query);
-      let progress = {};
-      if (data.items.length) {
-        const ids = new URLSearchParams();
-        data.items.forEach(p => ids.append('project_id', p.project_id));
-        (await api('GET', '/progress?' + ids)).forEach(r => { progress[r.project_id] = r; });
+      const { data, progress, counts } = await loadProjectsWithProgress({ q, page, size: PROJECT_LIST_PAGE_SIZE,
+        withCounts: true });
+      if (seq !== screenSeq) return; // the member has moved on to another screen
+      // A page past the end opens the last page that has projects, keeping the search (D-Q4, AC-28.3).
+      if (!data.items.length && data.total > 0 && page > 0) {
+        const last = Math.max(0, Math.ceil(data.total / data.size) - 1);
+        if (last < page) {
+          location.replace(projectsHash(q, last));
+          return;
+        }
       }
-      results.replaceChildren(projectTable(data, progress, q));
+      const emptyStateHasButton = !data.items.length && !q;
+      headAction.replaceChildren(...(emptyStateHasButton ? [] : [newProjectLink()].filter(Boolean)));
+      results.replaceChildren(projectTable(data, progress, counts, q));
     } catch (err) {
-      if (err.status !== 401) results.replaceChildren(failure(err, load));
+      if (err.status !== 401 && seq === screenSeq) results.replaceChildren(failure(err, load));
     }
   };
   load();
 }
 
-function projectTable(data, progress, q) {
+function projectTable(data, progress, counts, q) {
   if (!data.items.length) {
     if (q) {
       return h('div', { class: 'empty' }, h('strong', {}, 'No projects match “' + q + '”.'), 'Try another part of the name.');
     }
-    return h('div', { class: 'empty' }, h('strong', {}, 'No projects yet.'),
-      managedWorkspaces().length ? h('a', { class: 'btn primary', href: '#/projects/new' }, '+ New project') : null);
+    return h('div', { class: 'empty' }, h('strong', {}, 'No projects yet.'), newProjectLink());
   }
-  const rows = data.items.map(p => {
-    const pr = progress[p.project_id];
-    return h('tr', {},
-      h('td', {}, h('a', { href: '#/projects/' + p.project_id }, p.name),
-        p.is_archived ? h('span', {}, ' ', h('span', { class: 'tag' }, 'Archived')) : null),
-      h('td', {}, p.workspace_name),
-      h('td', {}, p.owner_name || '—'),
-      h('td', {}, formatDate(p.due_date)),
-      h('td', {}, pr ? pr.done + ' of ' + pr.total + ' tasks done' : '—'));
-  });
   const pages = Math.max(1, Math.ceil(data.total / data.size));
-  const link = (target, label) => {
-    const query = new URLSearchParams();
-    if (q) query.set('q', q);
-    if (target > 0) query.set('page', String(target));
-    const qs = query.toString();
-    return h('a', { class: 'btn secondary', href: '#/projects' + (qs ? '?' + qs : '') }, label);
-  };
+  const link = (target, label) => h('a', { class: 'btn secondary', href: projectsHash(q, target) }, label);
   return h('div', { class: 'panel' },
-    h('div', { class: 'wrap' }, h('table', {},
-      h('caption', { class: 'skip' }, 'Projects'),
-      h('thead', {}, h('tr', {}, ['Project', 'Workspace', 'Owner', 'Due date', 'Progress'].map(t => h('th', { scope: 'col' }, t)))),
-      h('tbody', {}, rows))),
+    projectGrid(data.items, progress, counts),
     h('nav', { class: 'pager', 'aria-label': 'Pages' },
       data.page > 0 ? link(data.page - 1, '← Previous') : null,
-      h('span', {}, 'Page ' + (data.page + 1) + ' of ' + pages + ' · ' + data.total + ' project' + (data.total === 1 ? '' : 's')),
+      h('span', {}, 'Page ' + (data.page + 1) + ' of ' + pages + ' · ' + projectCount(data.total)),
       data.page + 1 < pages ? link(data.page + 1, 'Next →') : null));
 }
 
@@ -460,8 +742,7 @@ function taskSection(project, progress, progressText, params) {
   const showCounts = list => {
     const by = {};
     list.forEach(c => { by[c.status] = c.count; });
-    counts.replaceChildren(...TASK_STATUSES.flatMap((s, i) =>
-      [i ? ' ' : '', h('span', { class: 'tag' }, statusLabel(s) + ': ' + (by[s] || 0))]));
+    counts.replaceChildren(statusCountTags(list));
     progress.done = by['Done'] || 0;
     progress.total = list.reduce((n, c) => n + c.count, 0);
     progressText.textContent = progressLabel(progress);
@@ -899,8 +1180,17 @@ function taskSection(project, progress, progressText, params) {
     h('div', { class: 'panel' }, results));
 }
 
+/**
+ * Create and edit project form (INC-06 screen 3, part 3b; FR-06, US-06, US-24, AC-24.1), on the shared form parts.
+ * Owner: active members only, no "No owner" choice (decided 2026-11-12, D-QF2); the creator by default; on edit an owner
+ * who is no longer an active member shows as "Former member", without a name, and is kept unless someone else is
+ * chosen (D-QF3, PD-10 in part). A placeholder or a member list that failed never sends an owner. Edit sends only the
+ * changed fields; with no change it opens the project with "Changes saved." and sends nothing (decided 2026-11-16, QC1).
+ */
 async function projectFormScreen(id) {
+  const seq = screenSeq;
   await loadProfile();
+  if (seq !== screenSeq) return; // the member moved on while the profile loaded
   showBar(true);
   const editing = Boolean(id);
   let project = null;
@@ -909,9 +1199,10 @@ async function projectFormScreen(id) {
     try {
       project = await api('GET', '/projects/' + encodeURIComponent(id));
     } catch (err) {
-      if (err.status !== 401) render(message(err.status === 404 ? 'This project was not found.' : err.message));
+      if (err.status !== 401 && seq === screenSeq) render(message(errorText(err, 'This project was not found.')));
       return;
     }
+    if (seq !== screenSeq) return;
     if (!canManage(project.workspace_id)) {
       render(message('Only Project Managers can edit projects.'), h('a', { class: 'btn', href: '#/projects/' + id }, '← Back'));
       return;
@@ -921,25 +1212,8 @@ async function projectFormScreen(id) {
     return;
   }
 
-  const fields = {};
-  const field = (name, label, control, hint) => {
-    const error = h('div', { class: 'error', id: name + '-error', hidden: true });
-    control.id = name;
-    control.setAttribute('aria-describedby', name + '-error' + (hint ? ' ' + name + '-hint' : ''));
-    const wrapper = h('div', { class: 'field' }, h('label', { for: name }, label), control,
-      hint ? h('div', { class: 'hint', id: name + '-hint' }, hint) : null, error);
-    fields[name] = { control, error, wrapper };
-    return wrapper;
-  };
-  const setError = (name, text) => {
-    const f = fields[name];
-    if (!f) return false;
-    f.error.textContent = text || '';
-    f.error.hidden = !text;
-    f.wrapper.classList.toggle('invalid', Boolean(text));
-    f.control.setAttribute('aria-invalid', text ? 'true' : 'false');
-    return true;
-  };
+  // Field names follow the API, so a 422's details map to the fields without translation.
+  const kit = formKit('project');
 
   const workspace = h('select', { required: true },
     (editing ? [{ workspace_id: project.workspace_id, workspace_name: project.workspace_name }] : managedWorkspaces())
@@ -963,72 +1237,114 @@ async function projectFormScreen(id) {
   name.addEventListener('input', counts);
   description.addEventListener('input', counts);
 
+  // Member ids from the last member list that loaded; only these are ever sent as the owner. A placeholder, the
+  // "Former member" choice or a list that failed never sends an owner, so the server keeps it (or, on create, makes
+  // the caller the owner).
+  let loadedMemberIds = new Set();
+  let ownersRequest = 0;
+  const FORMER = 'former-member';
   const loadOwners = async () => {
+    const request = ++ownersRequest;
+    loadedMemberIds = new Set();
     owner.replaceChildren(h('option', { value: '' }, 'Loading members…'));
     try {
       const list = await api('GET', '/workspaces/' + encodeURIComponent(workspace.value) + '/members');
+      if (request !== ownersRequest || seq !== screenSeq) return; // an answer for an earlier workspace or screen
+      loadedMemberIds = new Set(list.map(m => m.member_id));
       const me = state.profile.memberships.find(m => m.workspace_id === workspace.value);
-      const selected = editing ? (project.owner_member_id || '') : (me ? me.member_id : '');
-      owner.replaceChildren(h('option', { value: '' }, 'No owner'),
-        ...list.map(m => h('option', { value: m.member_id, selected: m.member_id === selected }, m.name + ' (' + m.role + ')')));
+      const options = list.map(m => h('option', { value: m.member_id }, m.name + ' (' + m.role + ')'));
+      let selected = me ? me.member_id : '';
+      if (editing) {
+        selected = project.owner_member_id;
+        if (!loadedMemberIds.has(selected)) {
+          options.unshift(h('option', { value: FORMER }, 'Former member')); // never shows the name (D-QF3)
+          selected = FORMER;
+        }
+      }
+      owner.replaceChildren(...options);
       owner.value = selected;
     } catch (err) {
-      if (err.status !== 401) owner.replaceChildren(h('option', { value: '' }, 'Members could not be loaded'));
+      if (err.status !== 401 && request === ownersRequest && seq === screenSeq) {
+        owner.replaceChildren(h('option', { value: '' }, 'Members could not be loaded'));
+      }
     }
   };
   workspace.addEventListener('change', loadOwners);
 
+  // A date field holding an incomplete or impossible date reads as empty, so it is refused rather than sent as empty,
+  // which would clear a stored date (decided 2026-11-16, QC2).
+  // A year that is not 4 digits (some browsers accept 10000) is refused too, so the date order is always checked here
+  // and the API never gets a value it cannot read (decided 2026-11-16, review finding R-04).
+  const dateError = input => ((input.validity && input.validity.badInput) || (input.value && !/^\d{4}-\d{2}-\d{2}$/.test(input.value))
+    ? 'Enter a valid date.' : '');
   const validate = () => {
     const n = chars(name.value.trim());
-    const nameError = n < NAME_MIN || n > NAME_MAX ? 'The name must be 3 to 100 characters long.' : '';
-    const descriptionError = chars(description.value) > DESCRIPTION_MAX
-      ? 'The description can be at most 1000 characters long.' : '';
-    setError('name', nameError);
-    setError('description', descriptionError);
-    return !nameError && !descriptionError;
+    kit.setError('name', n < NAME_MIN || n > NAME_MAX ? 'The name must be 3 to 100 characters long.' : '');
+    kit.setError('description', chars(description.value) > DESCRIPTION_MAX
+      ? 'The description can be at most 1000 characters long.' : '');
+    kit.setError('start_date', dateError(startDate));
+    let dueError = dateError(dueDate);
+    if (!dueError && startDate.value && dueDate.value && startDate.value > dueDate.value) {
+      dueError = 'The due date cannot be before the start date.'; // D-QF1, the API's wording
+    }
+    kit.setError('due_date', dueError);
+    return ![name, description, startDate, dueDate].some(c => c.getAttribute('aria-invalid') === 'true');
   };
 
-  const form = h('form', { class: 'panel', novalidate: true, onsubmit: async e => {
+  const createBody = () => {
+    const body = { workspace_id: workspace.value, name: name.value.trim() };
+    if (description.value !== '') body.description = description.value;
+    if (startDate.value) body.start_date = startDate.value;
+    if (dueDate.value) body.due_date = dueDate.value;
+    if (loadedMemberIds.has(owner.value)) body.owner_member_id = owner.value;
+    return body;
+  };
+  const changedFields = () => {
+    const body = {};
+    if (name.value.trim() !== project.name) body.name = name.value.trim();
+    if (description.value !== (project.description || '')) body.description = description.value === '' ? null : description.value;
+    if (startDate.value !== (project.start_date || '')) body.start_date = startDate.value || null;
+    if (dueDate.value !== (project.due_date || '')) body.due_date = dueDate.value || null;
+    if (loadedMemberIds.has(owner.value) && owner.value !== project.owner_member_id) body.owner_member_id = owner.value;
+    return body;
+  };
+
+  const form = h('form', { class: 'panel', novalidate: true, onsubmit: e => {
     e.preventDefault();
-    banner.replaceChildren();
-    Object.keys(fields).forEach(k => setError(k, ''));
-    if (!validate()) {
-      banner.append(message('Check the highlighted fields.'));
-      const first = Object.values(fields).find(f => !f.error.hidden);
-      if (first) first.control.focus();
-      return;
-    }
-    const body = {
-      name: name.value.trim(),
-      description: description.value === '' ? null : description.value,
-      owner_member_id: owner.value || null,
-      start_date: startDate.value || null,
-      due_date: dueDate.value || null,
-    };
-    if (!editing) body.workspace_id = workspace.value;
-    submit.disabled = true;
-    try {
-      const saved = editing
-        ? await api('PATCH', '/projects/' + encodeURIComponent(id), body)
-        : await api('POST', '/projects', body);
-      state.flash = editing ? 'Changes saved.' : 'Project created.';
-      go('#/projects/' + saved.project_id);
-    } catch (err) {
-      if (err.status === 401) return;
-      const details = (err.body && err.body.details) || [];
-      let shown = false;
-      details.forEach(d => { shown = setError(d.field, d.issue) || shown; });
-      banner.append(message(shown ? 'Check the highlighted fields.' : err.message));
-    } finally {
-      submit.disabled = false;
-    }
+    guarded(form, submit, async () => {
+      banner.replaceChildren();
+      kit.clear();
+      if (!validate()) {
+        banner.append(message('Check the highlighted fields.'));
+        kit.focusFirstError();
+        return;
+      }
+      const body = editing ? changedFields() : createBody();
+      if (editing && !Object.keys(body).length) {
+        state.flash = 'Changes saved.'; // nothing changed, so no request (QC1)
+        go('#/projects/' + id);
+        return;
+      }
+      try {
+        const saved = editing
+          ? await api('PATCH', '/projects/' + encodeURIComponent(id), body)
+          : await api('POST', '/projects', body);
+        state.flash = editing ? 'Changes saved.' : 'Project created.';
+        go('#/projects/' + saved.project_id);
+      } catch (err) {
+        if (err.status === 401) return;
+        const shown = err.status === 422 && kit.showServerErrors(err);
+        banner.append(message(shown ? 'Check the highlighted fields.' : errorText(err, 'This project was not found.')));
+      }
+    });
   } },
   banner,
-  field('workspace_id', 'Workspace', workspace, editing ? 'A project stays in its workspace.' : null),
-  field('name', 'Name (required)', name, h('span', {}, '3 to 100 characters. ', nameCount)),
-  field('description', 'Description', description, h('span', {}, 'Up to 1000 characters. ', descriptionCount)),
-  field('owner_member_id', 'Owner', owner, 'You are the owner unless you choose someone else.'),
-  h('div', { class: 'row' }, field('start_date', 'Start date', startDate), field('due_date', 'Due date', dueDate)),
+  kit.field('workspace_id', 'Workspace', workspace, editing ? 'A project stays in its workspace.' : null),
+  kit.field('name', 'Name (required)', name, h('span', {}, '3 to 100 characters. ', nameCount)),
+  kit.field('description', 'Description', description, h('span', {}, 'Up to 1000 characters. ', descriptionCount)),
+  // The hint is true only on create, where the caller is the default owner (decided 2026-11-16, QC3).
+  kit.field('owner_member_id', 'Owner', owner, editing ? null : 'You are the owner unless you choose someone else.'),
+  h('div', { class: 'row' }, kit.field('start_date', 'Start date', startDate), kit.field('due_date', 'Due date', dueDate)),
   h('div', { class: 'actions' }, submit,
     h('a', { class: 'btn secondary', href: editing ? '#/projects/' + id : '#/projects' }, 'Cancel')));
 
@@ -1044,16 +1360,18 @@ async function projectFormScreen(id) {
 // ---------------------------------------------------------------------------------------------------------------
 
 async function route() {
-  const [path, query] = (location.hash.slice(1) || '/projects').split('?');
+  screenSeq += 1;
+  const [path, query] = (location.hash.slice(1) || HOME.slice(1)).split('?');
   const params = new URLSearchParams(query || '');
   const parts = path.split('/').filter(Boolean);
   try {
     if (parts[0] === 'sign-in') return signInScreen();
+    if (parts[0] === 'dashboard' && parts.length === 1) return await dashboardScreen();
     if (parts[0] === 'projects' && parts.length === 1) return await projectsScreen(params);
     if (parts[0] === 'projects' && parts[1] === 'new') return await projectFormScreen(null);
     if (parts[0] === 'projects' && parts.length === 2) return await projectDetailScreen(parts[1], params);
     if (parts[0] === 'projects' && parts[2] === 'edit') return await projectFormScreen(parts[1]);
-    go('#/projects');
+    go(HOME);
   } catch (err) {
     if (err.status !== 401) render(failure(err, route));
   }

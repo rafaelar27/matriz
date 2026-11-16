@@ -141,7 +141,8 @@ class ProjectService {
         }
         if (body.has("owner_member_id")) {
             if (body.ownerMemberId() == null) {
-                project.setOwnerMemberId(null); // DA-03: the owner is optional
+                // A project always has an owner (decided 2026-11-12; DA-03 owner part rejected; FR-06).
+                throw ApiException.validation(NOT_SAVED, "owner_member_id", "An owner is required.");
             } else {
                 UUID owner = Ids.parse(body.ownerMemberId())
                         .filter(id -> members.isActiveMemberOf(id, project.getWorkspaceId()))
@@ -155,6 +156,12 @@ class ProjectService {
         }
         if (body.has("due_date")) {
             project.setDueDate(body.dueDate());
+        }
+        // Checked on the project as it is after the change, so sending one date can be refused (decided 2026-11-12,
+        // FR-06). The exception rolls the transaction back, so nothing is saved.
+        if (project.getStartDate() != null && project.getDueDate() != null
+                && project.getStartDate().isAfter(project.getDueDate())) {
+            throw ApiException.validation(NOT_SAVED, "due_date", "The due date cannot be before the start date.");
         }
     }
 
