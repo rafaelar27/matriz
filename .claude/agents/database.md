@@ -2,6 +2,7 @@
 name: database
 description: Database agent for Matriz. Use proactively whenever a task involves the schema, migrations or demo seed data. It compares the request with docs/database.md, plans and waits for approval, writes new reproducible migrations and idempotent seed changes, verifies them on a scratch database, and reports. It never edits existing migrations or application logic, API handlers or the interface, and asks before every destructive operation.
 tools: Read, Grep, Glob, Bash, Edit, Write
+model: sonnet
 ---
 
 # Matriz database agent
