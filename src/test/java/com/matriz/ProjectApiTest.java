@@ -27,6 +27,7 @@ import com.jayway.jsonpath.JsonPath;
 /**
  * Project operations through direct API requests (INC-03; FR-05, FR-06, FR-08, FR-18; US-06, US-24, US-27, US-28).
  * Project list for INC-06 screen 3a (AC-INC06.23, AC-INC06.24, AC-INC06.26, AC-INC06.28, AC-INC06.30; FR-08, NFR-01; US-19, US-28).
+ * Project form for INC-06 screen 3b, an owner who was deactivated (AC-INC06.39, AC-INC06.46; FR-06; US-06, US-24; PD-10 in part).
  * Project owner required and date order for INC-07 (AC-INC07.1 to AC-INC07.7; FR-06, NFR-01; US-06, US-24).
  */
 class ProjectApiTest extends ApiTestSupport {
@@ -709,6 +710,100 @@ class ProjectApiTest extends ApiTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.total").value(0))
                 .andExpect(jsonPath("$.items", hasSize(0)));
+    }
+
+    // --- Project form for INC-06 screen 3b: an owner who was deactivated (decision of 2026-11-12, PD-10 in part) --
+
+    /**
+     * Ana creates a fictitious Acme project owned by Ben, then Ben's Acme membership is deactivated, only inside this
+     * test's rolled-back transaction. Returns the project id.
+     */
+    private String projectOwnedByADeactivatedBen(MockHttpSession ana, String name) throws Exception {
+        String id = createdId(ana, inAcme("\"name\":\"" + name + "\",\"owner_member_id\":\"" + ACME_BEN + "\""));
+        entityManager.flush();
+        jdbc.update("UPDATE member SET status = 'DEACTIVATED' WHERE member_id = ?::uuid", ACME_BEN);
+        entityManager.clear();
+        assertThat(count("SELECT count(*) FROM project WHERE project_id = ?::uuid AND owner_member_id = ?::uuid",
+                id, ACME_BEN)).isEqualTo(1);
+        return id;
+    }
+
+    @Test
+    @DisplayName("AC-INC06.46 · listWorkspaceMembers leaves out a deactivated member")
+    void workspaceMembersLeaveOutADeactivatedMember() throws Exception {
+        MockHttpSession ana = signIn("ana@example.com");
+        String before = mvc.perform(get("/workspaces/" + ACME + "/members").session(ana))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(JsonPath.<List<String>>read(before, "$[*].member_id")).contains(ACME_BEN);
+
+        projectOwnedByADeactivatedBen(ana, "Fictitious former owner list");
+
+        String after = mvc.perform(get("/workspaces/" + ACME + "/members").session(ana))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        List<String> ids = JsonPath.read(after, "$[*].member_id");
+        assertThat(ids).doesNotContain(ACME_BEN);
+        assertThat(ids).hasSize(JsonPath.<List<String>>read(before, "$[*].member_id").size() - 1);
+        assertThat(ids).contains(ACME_ANA, ACME_VERA);
+    }
+
+    @Test
+    @DisplayName("AC-INC06.46 · a PATCH without owner_member_id on a project whose owner is deactivated keeps that owner")
+    void patchWithoutOwnerKeepsADeactivatedOwner() throws Exception {
+        MockHttpSession ana = signIn("ana@example.com");
+        String id = projectOwnedByADeactivatedBen(ana, "Fictitious former owner keep");
+
+        update(ana, id, "{\"name\":\"Fictitious former owner renamed\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Fictitious former owner renamed"))
+                .andExpect(jsonPath("$.owner_member_id").value(ACME_BEN));
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(count("SELECT count(*) FROM project WHERE project_id = ?::uuid AND owner_member_id = ?::uuid "
+                + "AND name = 'Fictitious former owner renamed'", id, ACME_BEN)).isEqualTo(1);
+        mvc.perform(get("/projects/" + id).session(signIn("vera@example.com")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Fictitious former owner renamed"))
+                .andExpect(jsonPath("$.owner_member_id").value(ACME_BEN));
+    }
+
+    @Test
+    @DisplayName("AC-INC06.46 · re-sending a deactivated owner's id gives 422 on owner_member_id and changes nothing")
+    void resendingADeactivatedOwnerIsRefused() throws Exception {
+        MockHttpSession ana = signIn("ana@example.com");
+        String id = projectOwnedByADeactivatedBen(ana, "Fictitious former owner resend");
+
+        update(ana, id, "{\"name\":\"Fictitious former owner changed\",\"owner_member_id\":\"" + ACME_BEN + "\"}")
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("validation_failed"))
+                .andExpect(jsonPath("$.details[0].field").value("owner_member_id"));
+
+        assertThat(count("SELECT count(*) FROM project WHERE project_id = ?::uuid AND owner_member_id = ?::uuid "
+                + "AND name = 'Fictitious former owner resend'", id, ACME_BEN)).isEqualTo(1);
+        discardRefusedRequest();
+        mvc.perform(get("/projects/" + id).session(signIn("vera@example.com")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Fictitious former owner resend"))
+                .andExpect(jsonPath("$.owner_member_id").value(ACME_BEN));
+    }
+
+    @Test
+    @DisplayName("AC-INC06.39 · QG4 · the project detail and list still show a deactivated owner's name")
+    void detailAndListStillShowADeactivatedOwnersName() throws Exception {
+        MockHttpSession ana = signIn("ana@example.com");
+        String id = projectOwnedByADeactivatedBen(ana, "Fictitious former owner name");
+        MockHttpSession vera = signIn("vera@example.com");
+
+        mvc.perform(get("/projects/" + id).session(vera))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.owner_member_id").value(ACME_BEN))
+                .andExpect(jsonPath("$.owner_name").value("Ben Demo"));
+        mvc.perform(get("/projects").param("q", "former owner name").session(vera))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.items[0].project_id").value(id))
+                .andExpect(jsonPath("$.items[0].owner_member_id").value(ACME_BEN))
+                .andExpect(jsonPath("$.items[0].owner_name").value("Ben Demo"));
     }
 
     // --- Progress and members (supporting the UI) ---------------------------------------------------------------

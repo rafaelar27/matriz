@@ -119,7 +119,7 @@ These are not confirmed requirements.
 | PD-06 | Whether Done tasks appear in My tasks (E-09). |
 | PD-07 | Whether progress also shows a percentage. |
 | PD-08 | Where tasks without a due date are placed in My tasks, and which time zone decides "today" for the overdue label. |
-| PD-10 | How the owner of a task or project is shown when that member has been deactivated. Decided in part on 2026-11-12 (see the [decision log](../constraints.md#decision-log)): in the project form, an owner who is no longer an active member is shown as "Former member", without a name, and is kept unless someone else is chosen. The project list, project detail and dashboard keep showing a deactivated owner's name until the rest of PD-10 is decided. Not built yet. |
+| PD-10 | How the owner of a task or project is shown when that member has been deactivated. Decided in part on 2026-11-12 (see the [decision log](../constraints.md#decision-log)): in the project form, an owner who is no longer an active member is shown as "Former member", without a name, and is kept unless someone else is chosen. The project list, project detail and dashboard keep showing a deactivated owner's name until the rest of PD-10 is decided. Built on 2026-11-16 (INC-06 part 3b). |
 | PD-13 | The launch language for all labels. Labels are in English here as placeholders. |
 | PD-16 | Whether a workspace switcher is needed in the top bar (E-01). |
 | PD-17 | Whether a Viewer who owns a task can change its status from the task detail. |

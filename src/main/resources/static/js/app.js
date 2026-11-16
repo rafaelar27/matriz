@@ -1180,8 +1180,17 @@ function taskSection(project, progress, progressText, params) {
     h('div', { class: 'panel' }, results));
 }
 
+/**
+ * Create and edit project form (INC-06 screen 3, part 3b; FR-06, US-06, US-24, AC-24.1), on the shared form parts.
+ * Owner: active members only, no "No owner" choice (decided 2026-11-12, D-QF2); the creator by default; on edit an owner
+ * who is no longer an active member shows as "Former member", without a name, and is kept unless someone else is
+ * chosen (D-QF3, PD-10 in part). A placeholder or a member list that failed never sends an owner. Edit sends only the
+ * changed fields; with no change it opens the project with "Changes saved." and sends nothing (decided 2026-11-16, QC1).
+ */
 async function projectFormScreen(id) {
+  const seq = screenSeq;
   await loadProfile();
+  if (seq !== screenSeq) return; // the member moved on while the profile loaded
   showBar(true);
   const editing = Boolean(id);
   let project = null;
@@ -1190,9 +1199,10 @@ async function projectFormScreen(id) {
     try {
       project = await api('GET', '/projects/' + encodeURIComponent(id));
     } catch (err) {
-      if (err.status !== 401) render(message(err.status === 404 ? 'This project was not found.' : err.message));
+      if (err.status !== 401 && seq === screenSeq) render(message(errorText(err, 'This project was not found.')));
       return;
     }
+    if (seq !== screenSeq) return;
     if (!canManage(project.workspace_id)) {
       render(message('Only Project Managers can edit projects.'), h('a', { class: 'btn', href: '#/projects/' + id }, '← Back'));
       return;
@@ -1202,25 +1212,8 @@ async function projectFormScreen(id) {
     return;
   }
 
-  const fields = {};
-  const field = (name, label, control, hint) => {
-    const error = h('div', { class: 'error', id: name + '-error', hidden: true });
-    control.id = name;
-    control.setAttribute('aria-describedby', name + '-error' + (hint ? ' ' + name + '-hint' : ''));
-    const wrapper = h('div', { class: 'field' }, h('label', { for: name }, label), control,
-      hint ? h('div', { class: 'hint', id: name + '-hint' }, hint) : null, error);
-    fields[name] = { control, error, wrapper };
-    return wrapper;
-  };
-  const setError = (name, text) => {
-    const f = fields[name];
-    if (!f) return false;
-    f.error.textContent = text || '';
-    f.error.hidden = !text;
-    f.wrapper.classList.toggle('invalid', Boolean(text));
-    f.control.setAttribute('aria-invalid', text ? 'true' : 'false');
-    return true;
-  };
+  // Field names follow the API, so a 422's details map to the fields without translation.
+  const kit = formKit('project');
 
   const workspace = h('select', { required: true },
     (editing ? [{ workspace_id: project.workspace_id, workspace_name: project.workspace_name }] : managedWorkspaces())
@@ -1244,72 +1237,114 @@ async function projectFormScreen(id) {
   name.addEventListener('input', counts);
   description.addEventListener('input', counts);
 
+  // Member ids from the last member list that loaded; only these are ever sent as the owner. A placeholder, the
+  // "Former member" choice or a list that failed never sends an owner, so the server keeps it (or, on create, makes
+  // the caller the owner).
+  let loadedMemberIds = new Set();
+  let ownersRequest = 0;
+  const FORMER = 'former-member';
   const loadOwners = async () => {
+    const request = ++ownersRequest;
+    loadedMemberIds = new Set();
     owner.replaceChildren(h('option', { value: '' }, 'Loading members…'));
     try {
       const list = await api('GET', '/workspaces/' + encodeURIComponent(workspace.value) + '/members');
+      if (request !== ownersRequest || seq !== screenSeq) return; // an answer for an earlier workspace or screen
+      loadedMemberIds = new Set(list.map(m => m.member_id));
       const me = state.profile.memberships.find(m => m.workspace_id === workspace.value);
-      const selected = editing ? (project.owner_member_id || '') : (me ? me.member_id : '');
-      owner.replaceChildren(h('option', { value: '' }, 'No owner'),
-        ...list.map(m => h('option', { value: m.member_id, selected: m.member_id === selected }, m.name + ' (' + m.role + ')')));
+      const options = list.map(m => h('option', { value: m.member_id }, m.name + ' (' + m.role + ')'));
+      let selected = me ? me.member_id : '';
+      if (editing) {
+        selected = project.owner_member_id;
+        if (!loadedMemberIds.has(selected)) {
+          options.unshift(h('option', { value: FORMER }, 'Former member')); // never shows the name (D-QF3)
+          selected = FORMER;
+        }
+      }
+      owner.replaceChildren(...options);
       owner.value = selected;
     } catch (err) {
-      if (err.status !== 401) owner.replaceChildren(h('option', { value: '' }, 'Members could not be loaded'));
+      if (err.status !== 401 && request === ownersRequest && seq === screenSeq) {
+        owner.replaceChildren(h('option', { value: '' }, 'Members could not be loaded'));
+      }
     }
   };
   workspace.addEventListener('change', loadOwners);
 
+  // A date field holding an incomplete or impossible date reads as empty, so it is refused rather than sent as empty,
+  // which would clear a stored date (decided 2026-11-16, QC2).
+  // A year that is not 4 digits (some browsers accept 10000) is refused too, so the date order is always checked here
+  // and the API never gets a value it cannot read (decided 2026-11-16, review finding R-04).
+  const dateError = input => ((input.validity && input.validity.badInput) || (input.value && !/^\d{4}-\d{2}-\d{2}$/.test(input.value))
+    ? 'Enter a valid date.' : '');
   const validate = () => {
     const n = chars(name.value.trim());
-    const nameError = n < NAME_MIN || n > NAME_MAX ? 'The name must be 3 to 100 characters long.' : '';
-    const descriptionError = chars(description.value) > DESCRIPTION_MAX
-      ? 'The description can be at most 1000 characters long.' : '';
-    setError('name', nameError);
-    setError('description', descriptionError);
-    return !nameError && !descriptionError;
+    kit.setError('name', n < NAME_MIN || n > NAME_MAX ? 'The name must be 3 to 100 characters long.' : '');
+    kit.setError('description', chars(description.value) > DESCRIPTION_MAX
+      ? 'The description can be at most 1000 characters long.' : '');
+    kit.setError('start_date', dateError(startDate));
+    let dueError = dateError(dueDate);
+    if (!dueError && startDate.value && dueDate.value && startDate.value > dueDate.value) {
+      dueError = 'The due date cannot be before the start date.'; // D-QF1, the API's wording
+    }
+    kit.setError('due_date', dueError);
+    return ![name, description, startDate, dueDate].some(c => c.getAttribute('aria-invalid') === 'true');
   };
 
-  const form = h('form', { class: 'panel', novalidate: true, onsubmit: async e => {
+  const createBody = () => {
+    const body = { workspace_id: workspace.value, name: name.value.trim() };
+    if (description.value !== '') body.description = description.value;
+    if (startDate.value) body.start_date = startDate.value;
+    if (dueDate.value) body.due_date = dueDate.value;
+    if (loadedMemberIds.has(owner.value)) body.owner_member_id = owner.value;
+    return body;
+  };
+  const changedFields = () => {
+    const body = {};
+    if (name.value.trim() !== project.name) body.name = name.value.trim();
+    if (description.value !== (project.description || '')) body.description = description.value === '' ? null : description.value;
+    if (startDate.value !== (project.start_date || '')) body.start_date = startDate.value || null;
+    if (dueDate.value !== (project.due_date || '')) body.due_date = dueDate.value || null;
+    if (loadedMemberIds.has(owner.value) && owner.value !== project.owner_member_id) body.owner_member_id = owner.value;
+    return body;
+  };
+
+  const form = h('form', { class: 'panel', novalidate: true, onsubmit: e => {
     e.preventDefault();
-    banner.replaceChildren();
-    Object.keys(fields).forEach(k => setError(k, ''));
-    if (!validate()) {
-      banner.append(message('Check the highlighted fields.'));
-      const first = Object.values(fields).find(f => !f.error.hidden);
-      if (first) first.control.focus();
-      return;
-    }
-    const body = {
-      name: name.value.trim(),
-      description: description.value === '' ? null : description.value,
-      owner_member_id: owner.value || null,
-      start_date: startDate.value || null,
-      due_date: dueDate.value || null,
-    };
-    if (!editing) body.workspace_id = workspace.value;
-    submit.disabled = true;
-    try {
-      const saved = editing
-        ? await api('PATCH', '/projects/' + encodeURIComponent(id), body)
-        : await api('POST', '/projects', body);
-      state.flash = editing ? 'Changes saved.' : 'Project created.';
-      go('#/projects/' + saved.project_id);
-    } catch (err) {
-      if (err.status === 401) return;
-      const details = (err.body && err.body.details) || [];
-      let shown = false;
-      details.forEach(d => { shown = setError(d.field, d.issue) || shown; });
-      banner.append(message(shown ? 'Check the highlighted fields.' : err.message));
-    } finally {
-      submit.disabled = false;
-    }
+    guarded(form, submit, async () => {
+      banner.replaceChildren();
+      kit.clear();
+      if (!validate()) {
+        banner.append(message('Check the highlighted fields.'));
+        kit.focusFirstError();
+        return;
+      }
+      const body = editing ? changedFields() : createBody();
+      if (editing && !Object.keys(body).length) {
+        state.flash = 'Changes saved.'; // nothing changed, so no request (QC1)
+        go('#/projects/' + id);
+        return;
+      }
+      try {
+        const saved = editing
+          ? await api('PATCH', '/projects/' + encodeURIComponent(id), body)
+          : await api('POST', '/projects', body);
+        state.flash = editing ? 'Changes saved.' : 'Project created.';
+        go('#/projects/' + saved.project_id);
+      } catch (err) {
+        if (err.status === 401) return;
+        const shown = err.status === 422 && kit.showServerErrors(err);
+        banner.append(message(shown ? 'Check the highlighted fields.' : errorText(err, 'This project was not found.')));
+      }
+    });
   } },
   banner,
-  field('workspace_id', 'Workspace', workspace, editing ? 'A project stays in its workspace.' : null),
-  field('name', 'Name (required)', name, h('span', {}, '3 to 100 characters. ', nameCount)),
-  field('description', 'Description', description, h('span', {}, 'Up to 1000 characters. ', descriptionCount)),
-  field('owner_member_id', 'Owner', owner, 'You are the owner unless you choose someone else.'),
-  h('div', { class: 'row' }, field('start_date', 'Start date', startDate), field('due_date', 'Due date', dueDate)),
+  kit.field('workspace_id', 'Workspace', workspace, editing ? 'A project stays in its workspace.' : null),
+  kit.field('name', 'Name (required)', name, h('span', {}, '3 to 100 characters. ', nameCount)),
+  kit.field('description', 'Description', description, h('span', {}, 'Up to 1000 characters. ', descriptionCount)),
+  // The hint is true only on create, where the caller is the default owner (decided 2026-11-16, QC3).
+  kit.field('owner_member_id', 'Owner', owner, editing ? null : 'You are the owner unless you choose someone else.'),
+  h('div', { class: 'row' }, kit.field('start_date', 'Start date', startDate), kit.field('due_date', 'Due date', dueDate)),
   h('div', { class: 'actions' }, submit,
     h('a', { class: 'btn secondary', href: editing ? '#/projects/' + id : '#/projects' }, 'Cancel')));
 
