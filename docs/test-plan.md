@@ -1,6 +1,6 @@
 # Matriz — Test Plan: Tasks and Permissions
 
-> **Status:** reviewed plan, written on 2026-11-17. Expected results come only from the documentation ([requirements.md](requirements.md), [user-stories.md](user-stories.md), [constraints.md](constraints.md), [database.md](database.md) and [openapi.yaml](../openapi.yaml)), never from the behavior of the implementation. No code was read to write this plan, and no test was written or run. Rules marked **prov.** are provisional until their pending decisions (PD-01, PD-03, PD-17, PD-20) are made, and the matching scenarios must change with them.
+> **Status:** reviewed plan, written on 2026-11-17. Expected results come only from the documentation ([requirements.md](requirements.md), [user-stories.md](user-stories.md), [constraints.md](constraints.md), [database.md](database.md) and [openapi.yaml](../openapi.yaml)), never from the behavior of the implementation. No code was read to write this plan. Part of the plan was later automated and run on 2026-11-17 (see [Integration test results](#integration-test-results)). Rules marked **prov.** are provisional until their pending decisions (PD-01, PD-03, PD-17, PD-20) are made, and the matching scenarios must change with them.
 
 ## Purpose and scope
 
@@ -47,6 +47,8 @@ Deactivating Eli and demoting a task creator need direct database setup, because
 ## Scenario matrix
 
 ★ marks an essential scenario. "Unchanged" means the test re-reads the task and checks that nothing changed.
+
+**Automated by `TaskIntegrationTest` (2026-11-17):** TC-01, TC-02 (without the `/progress` check), TV-01 (title cases `"   "`, 151 characters, `""` and missing only), TG-01, TA-03 (Dan reading; the reverse case is not covered), the create case of TA-04, and TA-01 (create and get only). Details in [Integration test results](#integration-test-results). For the other scenarios this plan does not state whether the older test classes cover them.
 
 | ID | Scenario | Preconditions | Input | Expected result | Level | Source |
 |---|---|---|---|---|---|---|
@@ -140,7 +142,7 @@ These stay open until the project decision-maker answers them (KC-01). No scenar
 | Q-09 | What does a malformed id in the path return, 404 or 422? | API-A4 | Untested |
 | Q-10 | Is the title rule an isolated unit? | FR-09 | Decides whether TV-09 exists at Unit level |
 | Q-11 | What is the `Location` header value? The `openapi.yaml` example was corrected on 2026-11-17 to a project-scoped path, but the format is not stated as a rule. | createTask | TC-01 checks presence only |
-| Q-12 | Are baseline fixtures built per test or taken from the demo seed? Deactivating Eli and demoting a creator need direct setup. | — | Test-tooling choice for the programmer |
+| Q-12 | Baseline fixtures: for the integration test class (`TaskIntegrationTest`) they come from the demo seeder, with cleanup by created task id (decided in the approved plan, 2026-11-17). Deactivating Eli and demoting a creator need direct setup. | — | Test-tooling choice for the programmer |
 
 Resolved: Q-01 (no positive priority scenarios) and Q-06 (provisional rules are tested now and marked prov.), approved by the programmer on 2026-11-17. Q-02 (404 for outsiders), Q-04 (AC-10.3 reworded: the backend refuses a non-project owner) and Q-05 (`updateTaskStatus` removed from the contract; TU-09 and TA-06 dropped) were decided by the project decision-maker on 2026-11-17 and are in the [decision log](constraints.md#decision-log).
 
@@ -168,3 +170,58 @@ Resolved: Q-01 (no positive priority scenarios) and Q-06 (provisional rules are 
 | Empty-body `PATCH` and same-status `PATCH` | Contract-only behavior, low risk |
 | Owner-picker UI | A UI detail; the backend refusal is covered by TV-05 |
 | Wrong-type values, past due dates, malformed path ids, whitespace other than spaces | Documentation silent (Q-07 to Q-09) |
+
+## Integration test results
+
+Run on 2026-11-17 (UTC) for the class `src/test/java/com/matriz/TaskIntegrationTest.java`. Expected results come from `openapi.yaml` (`createTask`, `getTask`, `listTasks`), [user-stories.md](user-stories.md) and this plan. Assertions use status, `code` and `details[].field`, never message text (A7). The fictitious demo users of the seeder are used (Ana, Ben, Vera, Dan in the demo workspaces), not the fictitious users of the baseline table above.
+
+### Environment setup
+
+| Item | Value |
+|---|---|
+| Database server | Local PostgreSQL 16 cluster in the container |
+| Role and database | Role `matriz`; database `matriz_test`, owned by that role. No development database exists in this environment |
+| Schema | Created by Flyway migrations V1 to V4 at the first application-context start |
+| Environment variables | `MATRIZ_DB_URL` and `MATRIZ_TEST_DB_URL`, both `jdbc:postgresql://localhost:5432/matriz_test`; `MATRIZ_DB_USER=matriz`; `MATRIZ_DB_PASSWORD` set in the shell environment only (not written anywhere). No `.env` file; the application was not running |
+| HTTP client | Real HTTP on a random port with `java.net.http.HttpClient`, one cookie jar per user. Nothing mocked; no new dependency |
+| Authentication | Real sign-in (`GET /auth/csrf`, then `POST /auth/sign-in` with `X-XSRF-TOKEN`) and the real CSRF header on every request that changes data |
+| Test password | A fictitious test password, passed to the demo seeder; no password in the code |
+| Isolation | Data is committed (no test-level rollback), in the isolated `matriz_test` database only |
+| Baseline | `@BeforeEach` runs the demo seeder and asserts by JDBC the baseline: 5 tasks, 3 of them in "Website redesign" |
+| Cleanup | Every created task id is recorded; `@AfterEach` deletes only those rows and asserts the baseline again |
+| Persistence proof | A direct JDBC query on a fresh autocommit connection, plus a new session for another user |
+
+### Results
+
+| Test | Scenario | Expected result (status, fields, persistence) | Observed result | Status (Pass/Fail) | Source |
+|---|---|---|---|---|---|
+| `createTaskWithEveryFieldAndReadItBack` | TC-01, TC-02: Ana creates "Draft homepage text" in Website redesign with description, owner Ben, a future fictitious due date and no status; then reads it back | 201; `Location` header present (presence only, Q-11); body has project_id, title, description, owner_member_id=Ben, owner_name "Ben Demo", due_date, status `To do`, created_by_member_id=Ana. Exactly one committed row with those values on a fresh connection. A new session for Vera (Viewer) reads the same fields. List `total` 3 to 4 and `To do` +1 | As expected | Pass | AC-10.1; FR-09 to FR-13; NFR-03; BR-11; createTask |
+| `invalidTitleIsRefusedAndNothingIsCreated` | TV-01: titles `"   "`, 151 characters, `""` and missing | Each: 422 `validation_failed` with `details[].field` `title`. JDBC counts (5 total, 3 in Website redesign) and the `listTasks` total (3) unchanged | As expected | Pass | AC-10.2; AC-10.5; BR-10 |
+| `unknownTaskInAccessibleProjectIsNotFound` | TG-01: well-formed, nonexistent task id in an accessible project | 404 `not_found` | As expected | Pass | getTask |
+| `memberOfAnotherWorkspaceCannotReadOrCreate` | TA-03 and the create case of TA-04: Dan (Northwind Lab only) lists tasks, gets a task and creates a task on an Acme project | Each: 404 `not_found`, same status and code as TG-01, no task data in the body; JDBC count unchanged | As expected | Pass | NFR-01; SP-02; API-A3 (confirmed 2026-11-17) |
+| `withoutSessionRequestsAreRefused` | TA-01 (subset): `createTask` and `getTask` without a session | 401 `not_authenticated`; JDBC count unchanged | As expected | Pass | FR-01; SP-01 |
+
+### Runs
+
+| Run | Command | Date (UTC) | Output summary | Database state after the run |
+|---|---|---|---|---|
+| 1 | `mvn verify` | 2026-11-17 12:17 | 145 tests, 0 failures, 0 errors, 0 skipped, BUILD SUCCESS | Read-only `psql`: 5 tasks; 0 task ids not starting with `e0000000-` |
+| 2 | `mvn verify` | 2026-11-17 12:19 | Same counts, BUILD SUCCESS | Same as run 1 |
+| 3 | `mvn test -Dtest=TaskIntegrationTest` | 2026-11-17 12:19 | 5 tests, 0 failures, BUILD SUCCESS | Same as run 1 |
+
+Tests per class in `mvn verify` (identical in runs 1 and 2): `ClientConfigControllerTest` 16, `AssignmentApiTest` 8, `TaskAccessTest` 21, `CsrfCookieTest` 1, `TaskIntegrationTest` 5, `TaskApiTest` 16, `VerificationApiTest` 12, `AuthenticationTest` 10, `DatabaseSetupTest` 3, `ClientConfigApiTest` 4, `ProjectApiTest` 42, `CommentApiTest` 7. Total 145. No repackage workaround was needed.
+
+### Bugs found
+
+None. Nothing was changed in production code, migrations or the contract.
+
+### Not verified / not covered
+
+- Persistence across an application restart (A10). Manual steps: start the application, sign in as Ana, create a task, stop and restart the application, sign in, `GET` the task. Expected: 200 with the same fields.
+- TV-01 cases `"ab"`, `"  ab  "` and `null`, and the valid boundaries of 3 and 150 characters (TV-02): not in `TaskIntegrationTest`.
+- The `/progress` check of TC-02.
+- `PATCH` and `DELETE` scenarios.
+- Sign-out and idle expiry.
+- The reverse case of TA-03 (Ana on a Northwind project).
+- TA-01 for list, `PATCH` and `DELETE`.
+- The earlier total of 140 tests in README.md was not independently re-checked before this change; the observed total is now 145 (observed, not computed).
