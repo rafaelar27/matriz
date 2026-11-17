@@ -77,7 +77,6 @@ info:
     - `getProjectProgress` supports US-17 (FR-18). Owning component: CMP-09 Progress Tracking.
     - `listWorkspaceMembers` lets the project form offer an owner (FR-06). Owning component: CMP-02.
     - `createTask` supports US-10 (FR-09, FR-10, FR-11, FR-12). Owning component: CMP-05 Tasks.
-    - `updateTaskStatus` supports US-11 (FR-12). Owning component: CMP-05 Tasks.
     - `listTasks`, `getTask`, `updateTask` and `deleteTask` support US-10,
       US-11, US-12, US-14, US-25 and US-26 (FR-09 to FR-13, FR-15). Owning
       component: CMP-05 Tasks. Added 2026-11-12 (INC-04).
@@ -92,7 +91,7 @@ info:
       (TD-03).
     - **API-A2.** A body that cannot be parsed returns 400. A well-formed body
       that breaks a business or validation rule returns 422.
-    - **API-A3.** A project or task in another workspace returns 404, exactly as
+    - **API-A3.** *Confirmed 2026-11-17.* A project or task in another workspace returns 404, exactly as
       if it did not exist, so that its existence is not revealed (NFR-01, SP-02).
     - **API-A4.** Identifiers are opaque strings; their format is not decided.
     - **API-A5.** A task's description and due date are optional (DA-04, pending PD-04).
@@ -713,7 +712,7 @@ paths:
               description: Path of the new task.
               schema:
                 type: string
-              example: /tasks/tsk_001
+              example: /projects/prj_website/tasks/tsk_001
           content:
             application/json:
               schema:
@@ -817,7 +816,7 @@ paths:
           project's workspace, or the task's owner when the owner is a Team Member.
         - `owner_member_id`: Project Managers only (AC-10.4). The new owner
           must be a member of the project (BR-09, AC-10.3).
-        - `status`: the task's owner only, as in `updateTaskStatus` (AC-11.1).
+        - `status`: the task's owner only (AC-11.1).
         - Viewers and Workspace Administrators cannot change tasks.
 
         Permissions are checked before values. If any sent field may not be
@@ -1175,102 +1174,6 @@ paths:
                       - field: body
                         issue: A comment cannot be empty.
 
-  /tasks/{task_id}:
-    parameters:
-      - $ref: '#/components/parameters/TaskId'
-    patch:
-      tags: [Tasks]
-      operationId: updateTaskStatus
-      summary: Change a task's status
-      description: |
-        Changes the status of a task to `To do`, `In progress` or `Done`
-        (US-11; FR-12). The new status is shown in the project task list and in
-        the owner's "My tasks" (AC-11.1), and counts towards the project's
-        progress (FR-18, AC-17.2).
-
-        Only `status` can be changed through this operation in this draft. Rules
-        for editing other fields, including changing the owner (AC-10.4), depend
-        on PD-01 and are not specified here.
-
-        **Who can perform it:** the task's owner, when the owner is an active
-        Team Member or Project Manager (AC-11.1). Viewers are refused
-        (FR-05, AC-11.3, AC-19.2), including a Viewer who owns the task, until
-        PD-17 is decided. Deactivated members are refused (SP-04).
-
-        **Provisional rule until decided (403):** members who do not own the task,
-        including Project Managers, cannot change its status (PD-01).
-
-        **Pending:** whether a Done task may move back to an earlier status
-        (PD-06); which change wins when two people change the status at the same
-        time (PD-11, TD-07). Whatever is decided, the task always ends up in
-        exactly one of the three statuses (EC-07, BR-11).
-
-        Sending the task's current status succeeds and leaves the task unchanged.
-      parameters:
-        - $ref: '#/components/parameters/CsrfHeader'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/TaskStatusUpdateRequest'
-            examples:
-              startWork:
-                summary: Move a task to In progress (AC-11.1)
-                value:
-                  status: In progress
-              finishWork:
-                summary: Mark a task as Done (AC-17.2)
-                value:
-                  status: Done
-      responses:
-        '200':
-          description: The status was changed. The full task is returned (AC-11.1).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Task'
-              examples:
-                inProgressTask:
-                  summary: Task after the change (AC-11.1)
-                  value:
-                    task_id: tsk_001
-                    project_id: prj_website
-                    title: Draft homepage text
-                    description: First draft of the homepage copy for review.
-                    owner_member_id: mem_ana
-                    due_date: '2026-11-06'
-                    status: In progress
-                    created_by_member_id: mem_carla
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/TaskNotFound'
-        '422':
-          description: |
-            The body is well formed but breaks a validation rule. Triggers:
-            - `status` is missing.
-            - `status` is not exactly one of `To do`, `In progress`, `Done`
-              (AC-11.2, BR-11).
-            - A field other than `status` is sent.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              examples:
-                invalidStatus:
-                  summary: Status outside the three allowed values (AC-11.2)
-                  value:
-                    code: validation_failed
-                    message: The status could not be changed.
-                    details:
-                      - field: status
-                        issue: The status must be one of To do, In progress, Done.
-
 components:
   securitySchemes:
     sessionCookie:
@@ -1367,8 +1270,6 @@ components:
         valid `X-XSRF-TOKEN` header (`csrf_invalid`). Triggers:
         - the member's role is Viewer (FR-05, AC-11.3, AC-19.2);
         - the member is deactivated (FR-03, SP-04);
-        - for `updateTaskStatus`, the member is not the task's owner
-          (AC-11.1; provisional for Project Managers, PD-01);
         - provisional rules for `createTask`: the member is a Workspace
           Administrator (PD-03), a Team Member setting another owner (PD-01),
           or not a member of the project (PD-20);
@@ -1827,15 +1728,6 @@ components:
           type: string
           format: date-time
           description: When the comment was posted, set by the server.
-
-    TaskStatusUpdateRequest:
-      type: object
-      description: The only field this operation changes (FR-12).
-      required: [status]
-      additionalProperties: false
-      properties:
-        status:
-          $ref: '#/components/schemas/TaskStatus'
 
     Task:
       type: object

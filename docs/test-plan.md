@@ -82,17 +82,15 @@ Deactivating Eli and demoting a task creator need direct database setup, because
 | TU-06 | Invalid values on edit | Ana | title `""`, spaces, `"ab"`, 151 chars, `null`; description 2001; status `"done"`; owner `null`; owner Tom; due `"abc"`; field `priority` | 422; task unchanged | API | AC-25.1; AC-25.2; AC-10.3; TaskValidationFailed |
 | TU-07 | Permissions are checked before values, all or nothing | (a) Ana on T1; (b) Ben (owner) on T1 | (a) `{title: "New title", status: "Done"}`; (b) `{owner_member_id: Ana, title: ""}` | 403 in both cases (not 422). Title also unchanged | API | updateTask |
 | TU-08 | Clear optional fields | Ana; T1 has a description and due date | `{description: null, due_date: null}` | 200; both null | API | updateTask; EC-06 |
-| TU-09 | Status-only operation `PATCH /tasks/{id}` | Ben (owner), Ana (non-owner) on T1 | Valid status; invalid status; extra field; Ana valid | 200; 422; 422; 403 | API | updateTaskStatus; AC-11.1. **Blocked on Q-05** |
 | TD-01 | Creator deletes their own task | Ben created T2 | `DELETE /projects/P1/tasks/T2` | 204. Then `GET` gives 404 and the task is absent from the list. List `total`, `status_counts` and progress total each drop by 1 | API | AC-26.1; AC-17.3; FR-09; BR-12 |
 | TD-02 | Deletion removes dependants | A task with at least 2 comments and 1 assignee (seeded) | Delete as creator | 204; no comment or assignee rows remain. Notifications: see A11 | API (with DB check) | AC-26.3; DA-05; database.md TaskAssignee |
 | TD-03 | Deletion refused | (a) Ana deletes T2; (b) Vera; (c) Carla; (d) creator whose role is now Viewer | `DELETE` | 403; task still exists | API | AC-26.2; BR-12; deleteTask |
 | TD-04 | Unknown or already deleted | Ben | `DELETE T2` twice | 204, then 404 | API | deleteTask; TaskNotFound |
 | TA-01 | No session | None | List, create, get, patch, delete without a cookie | 401 `not_authenticated`; no data | API | FR-01; SP-01 |
 | TA-02 | Missing CSRF header | Ana signed in | POST, PATCH, DELETE without `X-XSRF-TOKEN` | 403 `csrf_invalid` (different code from `forbidden`); nothing changed | API | openapi CsrfHeader |
-| TA-03 ★ | Outsider cannot read | Dan (W2 only). Reverse: Ana on P3 | `GET /projects/P1/tasks`; `GET …/P1/tasks/T1`. Reverse: `GET /projects/P3/tasks` | 404 `not_found`, same status and code as for a random id; no task data | API | NFR-01; SP-02; BR-18; API-A3; A1 |
-| TA-04 ★ | Outsider cannot modify | Dan | `POST /projects/P1/tasks`; `PATCH …/T1` `{title, status}`; `DELETE …/T1` | 404; T1 unchanged; no task created | API | NFR-01; SP-02; API-A3; A1 |
+| TA-03 ★ | Outsider cannot read | Dan (W2 only). Reverse: Ana on P3 | `GET /projects/P1/tasks`; `GET …/P1/tasks/T1`. Reverse: `GET /projects/P3/tasks` | 404 `not_found`, same status and code as for a random id; no task data | API | NFR-01; SP-02; BR-18; API-A3 (confirmed 2026-11-17) |
+| TA-04 ★ | Outsider cannot modify | Dan | `POST /projects/P1/tasks`; `PATCH …/T1` `{title, status}`; `DELETE …/T1` | 404; T1 unchanged; no task created | API | NFR-01; SP-02; API-A3 (confirmed 2026-11-17) |
 | TA-05 ★ | ID tampering: own project in the path, foreign task id | Dan (member of P3) | `GET`, `PATCH`, `DELETE /projects/P3/tasks/T1` | 404; T1 unchanged | API | NFR-01; getTask; updateTask; deleteTask ("must belong to project_id") |
-| TA-06 ★ | ID tampering via the unscoped status operation | Dan | `PATCH /tasks/T1` `{status: Done}` | 404; T1's status unchanged | API | NFR-01; updateTaskStatus. **Blocked on Q-05** |
 | TA-07 | Deactivated member reads | Eli | `GET` P1 tasks | Refused, no data. Status 403 vs 404 is open (Q-03) | API | SP-04; FR-03 |
 | TE-01 | No controls for denied roles | Vera on a task page; Ben on T1 (created by Ana) | Open the project and task | Vera sees no create, edit, delete or status control. Ben sees no Delete on T1 | E2E | AC-19.2; AC-11.3; AC-26.2 |
 | TE-02 | Delete confirmation | Ben, T2 with 2 comments | Delete, cancel; delete, confirm | A prompt says it cannot be undone. Cancel keeps the task; confirm removes it | E2E | AC-26.3 |
@@ -108,8 +106,8 @@ Deactivating Eli and demoting a task creator need direct database setup, because
 - **Risk and importance:** it proves the core loop of FR-09 to FR-13: fields, the `To do` default, the server-set creator, visibility in the list and counts, and persistence (NFR-03).
 - **Level:** API with the database, and the read must be a separate request. Unit tests cannot show persistence. E2E would be slower and less precise on fields and defaults.
 
-**3. Unauthorized user (TA-03, TA-04, TA-05, TA-06)**
-- **Risk and importance:** NFR-01 and SP-02 are pass/fail requirements, and a leak across workspaces is the highest-severity defect. The scenarios cover read, modify, a foreign task id under the user's own project, and the unscoped status route. Each also checks that the target is unchanged.
+**3. Unauthorized user (TA-03, TA-04, TA-05)**
+- **Risk and importance:** NFR-01 and SP-02 are pass/fail requirements, and a leak across workspaces is the highest-severity defect. The scenarios cover read, modify, and a foreign task id under the user's own project. Each also checks that the target is unchanged.
 - **Level:** API, because the attacker edits ids directly in requests, which an E2E interface cannot do. It needs authentication, two workspaces and the database. Unit tests cannot see the cross-record joins.
 
 ## Assumptions
@@ -118,7 +116,7 @@ Decided on 2026-11-17 by the programmer, who approved the proposed assumptions a
 
 | # | Assumption | Basis | Used in | Decision |
 |---|---|---|---|---|
-| A1 | A project or task in another workspace returns 404, identical to "not found". | API-A3 (unconfirmed spec assumption); NFR-01 does not fix the code | TA-03 to TA-06 | Accepted. Still depends on Q-02 |
+| A1 | A project or task in another workspace returns 404, identical to "not found". | API-A3, confirmed 2026-11-17; NFR-01 alone does not fix the code | TA-03 to TA-05 | Accepted, then **confirmed 2026-11-17** (decision log) |
 | A2 | The provisional permission rules are asserted as written. | Decision log 2026-11-12 (PD-01, PD-03, PD-17, PD-20) | TC-07, TU-03, TU-05, TD-03 | Accepted (Q-06 resolved: test now, marked prov.) |
 | A3 | Description and due date are optional; omitted means null or absent. | DA-04, API-A5; PD-04 pending | TC-03 | Accepted |
 | A4 | The stored and returned title is trimmed, not only validated. | FR-09 | TV-02 | Accepted |
@@ -136,25 +134,22 @@ These stay open until the project decision-maker answers them (KC-01). No scenar
 
 | ID | Question or gap | Related IDs | Effect on the plan |
 |---|---|---|---|
-| Q-02 | Do outsiders get 404 or 403? API-A3 is an unconfirmed assumption. | NFR-01, API-A3 | TA-03 to TA-06 expect 404 (A1) |
 | Q-03 | What does a deactivated member get, 403 or 404? `Forbidden` lists "deactivated"; `ProjectNotFound` implies "not in the workspace". | SP-04, FR-03 | TC-08 and TA-07 assert only "refused, no data" |
-| Q-04 | AC-10.3 says a non-project member "is not offered as an owner". The decision log of 2026-11-12 says the form offers workspace members and the backend refuses those outside the project. Which is authoritative? | AC-10.3, decision log, S2 | The owner-picker UI scenario is excluded |
-| Q-05 | `PATCH /tasks/{task_id}` (`updateTaskStatus`) has no project in its path, but the 2026-11-12 decision scopes task operations to a project. Does it stay? | updateTaskStatus | TU-09 and TA-06 are blocked |
 | Q-07 | Does a title of tabs, newlines or non-breaking spaces count as "only spaces"? How are characters counted for non-ASCII text? | FR-09, BR-10 | Untested |
 | Q-08 | What happens with a wrong JSON type (for example `title: 123`) and with a due date in the past on creation? | API-A2, FR-11 | Untested |
 | Q-09 | What does a malformed id in the path return, 404 or 422? | API-A4 | Untested |
 | Q-10 | Is the title rule an isolated unit? | FR-09 | Decides whether TV-09 exists at Unit level |
-| Q-11 | What is the `Location` header value? The example `/tasks/tsk_001` does not match project-scoped paths. | createTask | TC-01 checks presence only |
+| Q-11 | What is the `Location` header value? The `openapi.yaml` example was corrected on 2026-11-17 to a project-scoped path, but the format is not stated as a rule. | createTask | TC-01 checks presence only |
 | Q-12 | Are baseline fixtures built per test or taken from the demo seed? Deactivating Eli and demoting a creator need direct setup. | — | Test-tooling choice for the programmer |
 
-Resolved with the programmer's approval: Q-01 (no positive priority scenarios) and Q-06 (provisional rules are tested now and marked prov.).
+Resolved: Q-01 (no positive priority scenarios) and Q-06 (provisional rules are tested now and marked prov.), approved by the programmer on 2026-11-17. Q-02 (404 for outsiders), Q-04 (AC-10.3 reworded: the backend refuses a non-project owner) and Q-05 (`updateTaskStatus` removed from the contract; TU-09 and TA-06 dropped) were decided by the project decision-maker on 2026-11-17 and are in the [decision log](constraints.md#decision-log).
 
-### Proposed changes to other documents (not applied; each needs approval under AGENTS C1 and D1)
+### Changes to other documents (applied 2026-11-17 on the programmer's request)
 
-1. **`docs/constraints.md`, decision log:** if Q-02 is confirmed, add a decision "access to a project or task of another workspace returns 404", so API-A3 stops being only a spec assumption.
-2. **`docs/user-stories.md`, AC-10.3, or the 2026-11-12 decision (Q-04):** reword AC-10.3 to "…a request naming Ben as owner is refused", or change the decision. The text depends on the answer.
-3. **`openapi.yaml`, `createTask` 201 `Location` example:** change `/tasks/tsk_001` to `/projects/prj_website/tasks/tsk_001`.
-4. **`openapi.yaml`, `updateTaskStatus` (Q-05):** remove it, or document why it is not project-scoped.
+1. `docs/constraints.md`, decision log: added the decision that access to a project or task of another workspace returns 404 (API-A3 confirmed).
+2. `docs/user-stories.md`, AC-10.3: reworded to say a request naming a non-project member as owner is refused; decision-log row added.
+3. `openapi.yaml`, `createTask` 201 `Location` example: now `/projects/prj_website/tasks/tsk_001`.
+4. `openapi.yaml`: `updateTaskStatus` (`PATCH /tasks/{task_id}`), its schema `TaskStatusUpdateRequest` and its references were removed; decision-log row added. `API-A3` is marked confirmed.
 
 ## Scenarios intentionally excluded
 
@@ -171,5 +166,5 @@ Resolved with the programmer's approval: Q-01 (no positive priority scenarios) a
 | Accounts in several workspaces | PD-16 pending |
 | Sign-in and session expiry | Covered by US-01, not by this plan |
 | Empty-body `PATCH` and same-status `PATCH` | Contract-only behavior, low risk |
-| Owner-picker UI | Blocked on Q-04 |
+| Owner-picker UI | A UI detail; the backend refusal is covered by TV-05 |
 | Wrong-type values, past due dates, malformed path ids, whitespace other than spaces | Documentation silent (Q-07 to Q-09) |
