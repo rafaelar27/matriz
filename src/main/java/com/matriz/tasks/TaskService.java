@@ -141,21 +141,6 @@ class TaskService {
         tasks.flush();
     }
 
-    /** updateTaskStatus (US-11; FR-12), reached by task id alone. */
-    @Transactional
-    TaskView changeStatus(UUID callerAccountId, UUID taskId, String status) {
-        Task task = tasks.findById(taskId).orElseThrow(() -> ApiException.notFound(TASK_NOT_FOUND));
-        Actor caller = accessToProject(callerAccountId, task.getProjectId(), TASK_NOT_FOUND);
-        policy.checkChangeStatus(caller, task.getOwnerMemberId());
-
-        if (status == null) {
-            throw ApiException.validation("The status could not be changed.", "status", "A status is required.");
-        }
-        task.changeStatus(TaskStatus.fromLabel(status).orElseThrow(() -> ApiException.validation(
-                "The status could not be changed.", "status", BAD_STATUS)));
-        return view(task);
-    }
-
     // --- Access -----------------------------------------------------------------------------------------------------
 
     /** The caller as an active member of the project's workspace; 404 if the project is unknown or elsewhere. */
