@@ -231,7 +231,7 @@ None. Nothing was changed in production code, migrations or the contract.
 - TA-01 for list, `PATCH` and `DELETE`.
 - The earlier total of 140 tests in README.md was not independently re-checked before this change; the observed total is now 145 (observed, not computed).
 
-The results above are kept as first recorded on 2026-11-17. Where the list above says a case is not covered, the Coverage increment below supersedes it.
+The results above are kept as first recorded on 2026-11-17. Where the list above says a case is not covered, the Coverage increment below supersedes it (the restart check was later done manually; see the Coverage increment).
 
 ### Coverage increment (2026-11-17)
 
@@ -307,7 +307,7 @@ Four of the TU-06 title values were already partly asserted by `VerificationApiT
 - Sign-out and idle expiry for tasks.
 - TE-01 to TE-03: browser-only; not automatable with the project's tools (a browser-test dependency would need approval).
 - TA-07 and TC-08 assert "refused, no data" only (Q-03).
-- INC-08 steps not yet done: review, security audit, `docs/verification.md` Cases 05 and 08, and the manual restart check.
+- INC-08 steps are done: reviewer review, security audit, `docs/verification.md` Cases 05 and 08 re-verified, and the manual restart check; see INC-08 in [implementation-plan.md](implementation-plan.md) and [verification.md](verification.md). The restart check was a headless-browser script on a scratch database, not a human browser session and not an automated test. The INC-08 open follow-ups (Q-03, Q-11, audit S-01 to S-04, INC-08 R-01 and R-03 optional minors) are not done and remain open.
 
 ## Unit tests and coverage (2026-11-17)
 
