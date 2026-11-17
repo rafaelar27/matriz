@@ -28,7 +28,7 @@ info:
        `MATRIZ_SESSION` cookie (HttpOnly, SameSite=Lax). A new session id is
        issued on every sign-in, and a new CSRF token with it.
     3. Every other request needs that cookie. Every request that changes data
-       (POST, PATCH, PUT, DELETE) also needs the header `X-XSRF-TOKEN` with the
+       (POST, PATCH, DELETE) also needs the header `X-XSRF-TOKEN` with the
        value of the `XSRF-TOKEN` cookie; without it the response is 403
        `csrf_invalid`.
     4. The session expires after 8 hours without requests (configurable). It

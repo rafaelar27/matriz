@@ -165,16 +165,18 @@ Matriz uses a **server-side session cookie** (TD-03, decided 2026-11-12). The AP
 
 **Who may do what:** the backend reads the caller's identity only from the session, and their role and status from the database on every request. A project or task in another workspace returns 404, as if it did not exist; a refused action inside the caller's own workspace returns 403. Some rules are **provisional** until their pending decisions are made: Workspace Administrators cannot create, edit or delete projects, and can only read tasks and comments (PD-03), Team Members can only create tasks they own and only owners change a task's status (PD-01), Viewers are refused even on tasks they own (PD-17), and only project members can create tasks in a project (PD-20).
 
-**Try it with curl** (Git Bash or any shell with `curl`; replace `your-demo-password` with your `MATRIZ_DEMO_PASSWORD`):
+**Try it with curl** (Git Bash or any shell with `curl`). The cookie jar is a temporary file outside the repository, because it holds a live session; type your `MATRIZ_DEMO_PASSWORD` when asked, so that it does not end up in the shell history:
 
 ```bash
-curl -s -c jar.txt http://localhost:8080/auth/csrf
-TOKEN=$(awk '$6=="XSRF-TOKEN"{print $7}' jar.txt)
-curl -s -b jar.txt -c jar.txt -H "X-XSRF-TOKEN: $TOKEN" -H "Content-Type: application/json" -d '{"email":"ben@example.com","password":"your-demo-password"}' http://localhost:8080/auth/sign-in
-curl -s -b jar.txt http://localhost:8080/auth/me
+JAR=$(mktemp)
+read -rs -p "Demo password: " PW; echo
+curl -s -c "$JAR" http://localhost:8080/auth/csrf
+TOKEN=$(awk '$6=="XSRF-TOKEN"{print $7}' "$JAR")
+curl -s -b "$JAR" -c "$JAR" -H "X-XSRF-TOKEN: $TOKEN" -H "Content-Type: application/json" -d "{\"email\":\"ben@example.com\",\"password\":\"$PW\"}" http://localhost:8080/auth/sign-in
+curl -s -b "$JAR" http://localhost:8080/auth/me
 ```
 
-Sign-in issues a new `XSRF-TOKEN`; read it again from `jar.txt` before a request that changes data.
+Sign-in issues a new `XSRF-TOKEN`; read it again from `"$JAR"` before a request that changes data. When you are done, run `rm -f "$JAR"; unset PW`.
 
 ### User interface
 
