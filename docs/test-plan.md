@@ -127,7 +127,7 @@ Decided on 2026-11-17 by the programmer, who approved the proposed assumptions a
 | A7 | Tests assert status, `code` and `details[].field`, never message text. | Wording not fixed (NFR-09, PD-13) | All 4xx, TE-03 | Accepted |
 | A8 | `title: null` on create gets 422. | API-A2 by analogy | TV-01 | Accepted |
 | A9 | The tie-break "title ignoring case, then id" and the unfiltered `status_counts` are expected as stated. | openapi `listTasks` only | TL-02, TL-03 | Accepted |
-| A10 | Persistence is proven by reading in a separate request; no restart check. | NFR-03 gives no method | TC-02 | Accepted |
+| A10 | Persistence is proven by reading in a separate request; the automated tests do not restart the application. A restart check was done manually on 2026-11-17 (see Coverage increment and INC-08 AC-INC08.14; headless-browser script on a scratch database, not automated). | NFR-03 gives no method | TC-02 | Accepted |
 | A11 | Comments and assignees are seeded and cascade-checked. Notifications cannot be created through the API yet, so they are seeded directly or left out. | AC-26.3; createTask "Not yet implemented" | TD-02 | Accepted |
 
 ## Open questions and documentation gaps
