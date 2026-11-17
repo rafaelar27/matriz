@@ -22,11 +22,14 @@ erDiagram
     Comment |o--o| Notification : "R-16 triggers"
     Member ||--o{ Feedback : "R-17 sends"
     Account ||--o{ PersonalDataRequest : "R-18 makes"
+    Task ||--o{ TaskAssignee : "R-19 is worked on by"
+    Member ||--o{ TaskAssignee : "R-20 is assigned as"
 
     Account {
         id account_id PK
         string name "personal data"
         string email UK "personal data"
+        string password_hash "BCrypt hash"
     }
     Workspace {
         id workspace_id PK
@@ -70,6 +73,11 @@ erDiagram
         date due_date "optional"
         enum status "To do, In progress, Done"
         id created_by_member_id FK
+    }
+    TaskAssignee {
+        id task_id PK, FK
+        id member_id PK, FK
+        datetime assigned_at
     }
     Comment {
         id comment_id PK

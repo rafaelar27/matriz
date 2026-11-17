@@ -4,9 +4,9 @@
 
 ## Purpose and scope of the model
 
-The model describes the data Matriz must keep to support the MVP: FR-01 to FR-21 and US-01 to US-21. It follows the data-ownership rule of the [architecture](architecture.md#decision): each entity is owned by one component, and other components reach it only through that component.
+The model describes the data Matriz must keep to support the MVP: FR-01 to FR-22 and US-01 to US-29. It follows the data-ownership rule of the [architecture](architecture.md#decision): each entity is owned by one component, and other components reach it only through that component.
 
-**In scope:** accounts, workspaces and their members, invitations, projects and project members, tasks, comments, in-app notifications, feedback and personal-data requests.
+**In scope:** accounts, workspaces and their members, invitations, projects and project members, tasks, task assignees, comments, in-app notifications, feedback and personal-data requests.
 
 **Not modelled:**
 
@@ -16,6 +16,8 @@ The model describes the data Matriz must keep to support the MVP: FR-01 to FR-21
 - **Features outside the initial scope.** For example task priority (F17), subtasks (F18), attachments (F32), task history (F33), email notifications (F37), labels (F22), guest access (F07) and billing (F46).
 
 Attribute types are generic: `id` (a unique identifier), `string` (short text), `text` (long text), `boolean`, `date`, `datetime` and `enum` (a fixed list of values).
+
+**Physical representation.** In PostgreSQL: ids are UUIDs (`gen_random_uuid()`); string and text are `TEXT` without maximum lengths (the limits are checked by the modules); enums are stored as upper-case codes with CHECK constraints (for example `TO_DO`, `IN_PROGRESS`, `DONE`; `ACTIVE`, `DEACTIVATED`); datetimes are `TIMESTAMPTZ`. Approved with INC-01 on 2026-11-12.
 
 ## Entities summary
 
@@ -33,6 +35,8 @@ Attribute types are generic: `id` (a unique identifier), `string` (short text), 
 | **Notification** | An in-app notice to a member about a task assignment or a comment on a task they own. | CMP-08 Notifications | FR-17; US-16 |
 | **Feedback** | A problem report or suggestion sent by a member. | CMP-10 Feedback and Personal Data Requests | FR-20; US-20 |
 | **PersonalDataRequest** | A person's request for a copy or the deletion of their personal data, handled manually by the support team. | CMP-10 Feedback and Personal Data Requests | FR-21; US-21 |
+
+**Implementation status (2026-11-16).** V1 creates every entity and V3 adds TaskAssignee. No code reads or writes `invitation`, `notification`, `feedback` or `personal_data_request` in this delivery, because FR-03, FR-17, FR-20 and FR-21 are not built. `project.is_archived` is always false (no archive operation, FR-06, US-07). `member.role` and `member.status` are only read (no role change or deactivation, FR-03, FR-04). Deleting a task or project still cascades to its notifications (DA-05, BR-21).
 
 ### Requirement coverage
 
@@ -59,6 +63,7 @@ Attribute types are generic: `id` (a unique identifier), `string` (short text), 
 | FR-19 Overdue highlighting | Task.due_date, Task.status, derived (BR-16) |
 | FR-20 Send feedback | Feedback |
 | FR-21 Personal data requests | PersonalDataRequest |
+| FR-22 Task assignees | TaskAssignee, Task, Member |
 
 ### User story coverage
 
@@ -85,6 +90,14 @@ Attribute types are generic: `id` (a unique identifier), `string` (short text), 
 | US-19 Read-only access for Viewers | Member.role, Project, Task |
 | US-20 Send feedback | Feedback |
 | US-21 Personal data requests | PersonalDataRequest |
+| US-22 Create a personal account | Account |
+| US-23 Project Manager invites a member | Invitation, Member |
+| US-24 Edit a project | Project |
+| US-25 Edit a task | Task |
+| US-26 Delete a task I created | Task (created_by_member_id) |
+| US-27 Delete a project | Project, ProjectMember, Task, Comment, Notification |
+| US-28 Search projects by name | Project.name |
+| US-29 Assign members to a task | TaskAssignee, ProjectMember |
 
 ## Attributes per entity
 
@@ -251,7 +264,7 @@ The primary key (task_id, member_id) makes a second assignment of the same membe
 
 ## Business rules
 
-These are confirmed by the documentation.
+These are confirmed by the documentation. Not enforced in this delivery, because their features are not built: BR-01 (creating a workspace), BR-03 (changing roles), BR-04, BR-06, BR-08 (choosing project members), BR-14, BR-16, BR-17. BR-05 is enforced only by `member_workspace_account_uk`.
 
 | ID | Rule | Source |
 |---|---|---|

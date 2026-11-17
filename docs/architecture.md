@@ -382,6 +382,19 @@ Revisit this choice, recording the outcome in the [decision log](constraints.md#
 5. The development team changes (KC-08) and its skills differ from Java and JavaScript.
 6. Performance problems appear that come from the data-access layer rather than from the data model.
 
+## Implementation notes (2026-11-16)
+
+Recorded during the release review of 2026-11-16 (see the [implementation plan](implementation-plan.md#status-log)). The design above is unchanged; these notes record where the code built so far differs from it or does not yet cover it. None of them is a decision.
+
+| ID | Deviation or gap | Evidence |
+|---|---|---|
+| AR-01 | The project task list and its filters (FR-13, FR-15) are built in the `tasks` package (CMP-05), not in CMP-06 Task Views, whose package `taskviews` holds no code. Where they belong is pending (release review 2026-11-16, finding R-13 on module placement). | `tasks/TaskService.java`, `tasks/TaskController.java`; `taskviews/package-info.java` |
+| AR-02 | CMP-09 Progress Tracking reads Projects and Workspaces as well as Tasks, and checks whether the caller can see a project itself, not through CMP-03 Access Control. The behaviour matches `getProjectProgress`. | `progress/ProgressController.java` (imports `ProjectDirectory`, `MemberDirectory`; visibility check in `progress`) |
+| AR-03 | CMP-07 Comments also depends on Projects and Workspaces, besides Tasks and Access Control. | `comments/CommentService.java` (imports `ProjectDirectory`, `MemberDirectory`) |
+| AR-04 | Workspace isolation (NFR-01) is checked in the module services through `AccessPolicy.requireWorkspaceAccess`, not by limiting every repository query in the data-access layer (CMP-12). The access tests show NFR-01 holds. | `accesscontrol/AccessPolicy.java`; `tasks/TaskService.java`; `VerificationApiTest` `case08*`, `TaskAccessTest` |
+| AR-05 | Not built in this delivery: workspace creation, invitations, role changes and deactivation in CMP-02 (FR-02, FR-03, FR-04); archiving and choosing project members in CMP-04 (FR-06 archive, FR-07); the events of CMP-05 and CMP-07 (no module publishes or subscribes to events); CMP-06 "My tasks" (FR-14); CMP-08 Notifications (FR-17); overdue rules in CMP-09 (FR-19); CMP-10 (FR-20, FR-21); CMP-13 Email. Their packages hold only `package-info.java`, and `storage` (CMP-12) holds no code because Spring Data JPA repositories live in each module. | `email/`, `feedback/`, `notifications/`, `taskviews/`, `storage/` |
+| AR-06 | Two packages are not components: `shared` (the API error body and handler, id parsing, page and size parsing, `GET /config.js`) and `seed` (the demo-data command). | `shared/`, `seed/` |
+
 ## Pending decisions
 
 ### Technical decisions already listed in constraints.md
