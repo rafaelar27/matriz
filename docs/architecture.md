@@ -351,7 +351,7 @@ Only tools needed to build, store data and test are chosen. Each is compared wit
 | Modular monolith (decision rules 1–3) | One Spring Boot application. One Java package per module (CMP-01 to CMP-10) exposing a public service interface. In-process events for "task assigned" and "comment added". How boundaries are checked stays pending (TD-12); the stack allows automated checks or code review. |
 | Workspace scoping (rule 4, NFR-01, SP-02) | Every repository query is limited to the signed-in member's workspace, in the data-access layer (CMP-12). Whether every table carries workspace_id directly is still open (database.md, DA-09). |
 | Data model (database.md) | 11 entities become 11 tables created by Flyway migrations, with primary keys, foreign keys for R-01 to R-18, composite keys and the unique constraints listed above. Rules that span rows, such as keeping at least one Workspace Administrator (SP-07, R-02), are enforced in CMP-02 inside a transaction. |
-| API (openapi.yaml) | `createTask` and `updateTaskStatus` become REST controller methods in CMP-05, with request validation and one shared error handler for 400/401/403/404/422. |
+| API (openapi.yaml) | `createTask` and `updateTask` become REST controller methods in CMP-05, with request validation and one shared error handler for 400/401/403/404/422. |
 | Security (SP-01 to SP-07) | Spring Security requires sign-in for every request (SP-01) and rejects deactivated members (SP-04). Permission rules are checked in CMP-03 (SP-03). Password hashing (BCrypt) is available if TD-03 chooses passwords. No payment data is stored (SP-06). |
 | No loss of saved work (NFR-03) | Each action runs in one database transaction. Backup and recovery remain pending (TD-05). |
 

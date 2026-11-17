@@ -112,7 +112,7 @@ Deactivating Eli and demoting a task creator need direct database setup, because
 
 ## Assumptions
 
-Decided on 2026-11-17 by the programmer, who approved the proposed assumptions and recommendations as a whole ("go ahead with your recommendations"). The assumptions below are unconfirmed documentation-wise (AGENTS S4) and are recorded as **accepted for this plan**, not as project decisions.
+Decided on 2026-11-17 by the programmer, who approved the proposed assumptions and recommendations as a whole ("go ahead with your recommendations"). The assumptions below are unconfirmed documentation-wise (AGENTS S4) and are recorded as **accepted for this plan**, not as project decisions. A1 was confirmed on 2026-11-17 (decision log).
 
 | # | Assumption | Basis | Used in | Decision |
 |---|---|---|---|---|

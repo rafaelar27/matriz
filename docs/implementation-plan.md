@@ -53,7 +53,7 @@
 | `GET /auth/csrf`, `POST /auth/sign-in` | Anyone | Sign-in: email and password match the BCrypt hash; CSRF header present | 401 `invalid_credentials` (same for every reason) / 403 `csrf_invalid` | FR-01, SP-01 |
 | `GET /auth/me`, `POST /auth/sign-out` | Signed in | Valid session (and CSRF header for sign-out) | 401 / 403 `csrf_invalid` | FR-01 |
 | `POST /projects/{id}/tasks` | Project Manager, Team Member | Active member of the project's workspace; not Viewer; **provisional:** not Workspace Administrator (PD-03), caller is a project member (PD-20), a Team Member sets only themselves as owner (PD-01); owner is a member of the project; creator taken from the session | 404 other workspace or unknown / 403 / 422 | FR-09, FR-10, BR-09, BR-12, AC-10.1–10.3, AC-19.2 |
-| `PATCH /tasks/{id}` | The task's owner, if Team Member or Project Manager | Active member of the task's workspace; caller is the owner (**provisional** for Project Managers, PD-01); Viewers refused even as owner (**provisional**, PD-17) | 404 / 403 / 422 | FR-12, AC-11.1–11.3 |
+| `PATCH /projects/{id}/tasks/{task_id}` (status change through `updateTask`; the unscoped `PATCH /tasks/{id}` was removed from the contract on 2026-11-17) | The task's owner, if Team Member or Project Manager | Active member of the project's workspace; the task belongs to the project; caller is the owner (**provisional** for Project Managers, PD-01); Viewers refused even as owner (**provisional**, PD-17) | 404 / 403 / 422 | FR-12, AC-11.1–11.3 |
 | List or view projects, task list *(later increment)* | Every active member, Viewers included | Same workspace | 404 | FR-08, FR-13, AC-19.1 |
 | Create, edit, archive projects; manage project members *(later)* | Project Manager | Same workspace; which Project Managers may edit is not documented; archiving pending PD-05 | 403 / 404 | FR-06, FR-07, US-06, US-07, US-08, US-24 |
 | Edit a task, change its owner *(later)* | Project Manager (AC-10.4); others pending PD-01 | New owner is a project member | 403 / 422 | FR-09, FR-10, AC-10.4 |
@@ -132,7 +132,7 @@
 | AC-INC04.12 | Permissions: Viewers and Workspace Administrators read only; Team Members edit their own tasks and never reassign; only owners change status; only creators delete; a refused request changes nothing. | `TaskApiTest`, `TaskAccessTest` | Pass |
 | AC-INC04.13 | Without a session every task operation gets 401, and the interface goes to sign-in. | `TaskApiTest`; browser after a restart | Pass |
 
-**Known gap:** AC-10.3 ("Ben is not offered as an owner") is not met in the interface: the form offers every workspace member, because no endpoint lists a project's members (decided 2026-11-12). The backend refuses owners outside the project (422).
+**Known gap (resolved 2026-11-17):** AC-10.3 was reworded on 2026-11-17 (see the decision log): a request naming a workspace member outside the project as owner is refused. The backend refuses such owners (422). In INC-04 the form offered every workspace member (decided 2026-11-12).
 
 ### INC-05: Task collaboration
 

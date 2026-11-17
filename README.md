@@ -244,9 +244,9 @@ All demo data is fictitious. Every demo account uses the password you set in `MA
 |---|---|---|---|
 | Create a task for a project member | `ana@example.com` | `POST /projects/d0000000-0000-0000-0000-000000000001/tasks` with owner `c0000000-0000-0000-0000-000000000003` (Ben) | 201 |
 | Project in another workspace | `ben@example.com` | `POST /projects/d0000000-0000-0000-0000-000000000003/tasks` ("Lab inventory") | 404 |
-| Task in another workspace | `vera@example.com` | `PATCH /tasks/e0000000-0000-0000-0000-000000000005` | 404 |
+| Task in another workspace | `vera@example.com` | `PATCH /projects/d0000000-0000-0000-0000-000000000003/tasks/e0000000-0000-0000-0000-000000000005` (Lab inventory, Northwind Lab) | 404 |
 | Viewer is read-only | `vera@example.com` | `POST /projects/d0000000-0000-0000-0000-000000000001/tasks` | 403 |
-| Owner changes status | `ben@example.com` | `PATCH /tasks/e0000000-0000-0000-0000-000000000001` with `{"status":"Done"}` | 200 |
+| Owner changes status | `ben@example.com` | `PATCH /projects/d0000000-0000-0000-0000-000000000001/tasks/e0000000-0000-0000-0000-000000000001` with `{"status":"Done"}` | 200 |
 | Non-owner changes status | `ana@example.com` | the same request | 403 (provisional, PD-01) |
 | Owner not in the project | `ana@example.com` | `POST /projects/d0000000-0000-0000-0000-000000000002/tasks` with owner `c0000000-0000-0000-0000-000000000004` (Vera) | 422 |
 | Spoofed creator | `ben@example.com` | `POST /projects/d0000000-0000-0000-0000-000000000002/tasks` with `created_by_member_id` | 422 |
