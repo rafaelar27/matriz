@@ -48,7 +48,7 @@ Deactivating Eli and demoting a task creator need direct database setup, because
 
 ★ marks an essential scenario. "Unchanged" means the test re-reads the task and checks that nothing changed.
 
-**Automated by `TaskIntegrationTest` (2026-11-17):** TC-01, TC-02 (without the `/progress` check), TV-01 (title cases `"   "`, 151 characters, `""` and missing only), TG-01, TA-03 (Dan reading; the reverse case is not covered), the create case of TA-04, and TA-01 (create and get only). Details in [Integration test results](#integration-test-results). For the other scenarios this plan does not state whether the older test classes cover them.
+**Automation status (2026-11-17):** the matrix has 45 active scenarios (47 IDs minus the dropped TU-09 and TA-06). The scenarios checked in the Coverage increment are covered by the tests listed in [Coverage increment (2026-11-17)](#coverage-increment-2026-11-17), in `TaskIntegrationTest` (real HTTP, real sign-in), `TaskApiTest`, `TaskAccessTest` and `TaskTitleRuleTest` (TV-09, unit level). Scenarios not named in that list were not re-checked in the increment and rely on the existing test classes, whose coverage this plan does not state. Exceptions: TU-06 is partly covered (only `title: null` is tested for the title); TA-05 is partly covered (`GET` is asserted, not `PATCH` and `DELETE` of a foreign-workspace task through the user's own project); TA-07 and TC-08 assert only "refused, no data" while Q-03 is open; TE-01 to TE-03 are browser-only and not automated (no browser-test tool in the project). Cases deliberately untested: Q-07 to Q-09 and Q-11 (see the open questions). No per-status count is given because the existing test classes were not mapped scenario by scenario.
 
 | ID | Scenario | Preconditions | Input | Expected result | Level | Source |
 |---|---|---|---|---|---|---|
@@ -70,7 +70,7 @@ Deactivating Eli and demoting a task creator need direct database setup, because
 | TV-08 | Malformed body | Ana | Invalid JSON; no body | 400 `malformed_request` | API | API-A2; A6 |
 | TV-09 | Title rule as pure logic | None | Table: spaces-only, 2, 3, 150, 151 chars, padded | Accepts or rejects as in TV-01 and TV-02, with the trimmed value | Unit (only if the rule is isolated, Q-10) | FR-09; BR-10; AC-10.5 |
 | TL-01 | Every active workspace member can list tasks | Vera, Carla, Tom, Ana in turn | `GET /projects/P1/tasks` | 200 with the same tasks for all four | API | FR-05; FR-08; FR-13; AC-19.1 |
-| TL-02 | Order, fields, counts | P1 has: due 11-09 "b"; due 11-02 "a"; no due "Beta"; no due "alpha" | `GET` list | Order: 11-02, 11-09, then `alpha`, `Beta`. Each item has the Task fields. `status_counts` has the three statuses in order To do, In progress, Done | API | FR-13; decision log 2026-11-12; A9 |
+| TL-02 | Order, fields, counts | P1 has: due 11-09 "bbb"; due 11-02 "aaa"; no due "Beta"; no due "alpha" | `GET` list | Order: 11-02, 11-09, then `alpha`, `Beta`. Each item has the Task fields. `status_counts` has the three statuses in order To do, In progress, Done | API | FR-13; decision log 2026-11-12; A9 |
 | TL-03 | Filters combine | Mixed statuses and owners | status=`In progress`; owner=Ben; both | Only matching tasks; `total` is the filtered count; `status_counts` is unfiltered | API | FR-15; US-14; listTasks |
 | TL-04 | Paging | 25 tasks | Default; `page=1&size=10` | Default size 20; correct slices; each task on exactly one page; total 25 | API | FR-13; listTasks |
 | TL-05 | Invalid query parameters | Any member | status=`done`; size=0; size=101; page=-1; page=`x` | 422 | API | listTasks |
@@ -143,6 +143,10 @@ These stay open until the project decision-maker answers them (KC-01). No scenar
 | Q-10 | Is the title rule an isolated unit? | FR-09 | Decides whether TV-09 exists at Unit level |
 | Q-11 | What is the `Location` header value? The `openapi.yaml` example was corrected on 2026-11-17 to a project-scoped path, but the format is not stated as a rule. | createTask | TC-01 checks presence only |
 | Q-12 | Baseline fixtures: for the integration test class (`TaskIntegrationTest`) they come from the demo seeder, with cleanup by created task id (decided in the approved plan, 2026-11-17). Deactivating Eli and demoting a creator need direct setup. | — | Test-tooling choice for the programmer |
+| Q-13 | Does an empty `PATCH {}` by a Viewer or Workspace Administrator return 403 or 200 with no change? `openapi.yaml` `updateTask` says both "a body with no fields changes nothing" and "Viewers and Workspace Administrators cannot change tasks"; it does not say which wins. `TaskApiTest.viewersAndWorkspaceAdministratorsReadButNeverChange` currently expects 403. | updateTask; FR-05; AC-19.2 | Expected result of that case is unconfirmed |
+| Q-14 | Which `details[].field` is returned for an unknown field such as `priority` or `task_id`? `openapi.yaml` names `details[].field` only for `created_by_member_id`. | createTask; TV-07; A5 | TV-07 asserts 422 and nothing created, not the field name |
+| Q-15 | `TaskAccessTest.viewerCannotCreateTasks` asserts message text, against A7 (tests assert status, `code` and `details[].field`, never message text). Keep, change or accept as an exception? | A7; NFR-09; PD-13 | Left as is; outside the Coverage increment |
+| Q-16 | Existing tests without a scenario ID in their name stay unnamed. Should they be renamed or mapped to scenario IDs? | — | Coverage of those scenarios cannot be stated per scenario |
 
 Resolved: Q-01 (no positive priority scenarios) and Q-06 (provisional rules are tested now and marked prov.), approved by the programmer on 2026-11-17. Q-02 (404 for outsiders), Q-04 (AC-10.3 reworded: the backend refuses a non-project owner) and Q-05 (`updateTaskStatus` removed from the contract; TU-09 and TA-06 dropped) were decided by the project decision-maker on 2026-11-17 and are in the [decision log](constraints.md#decision-log).
 
@@ -225,3 +229,63 @@ None. Nothing was changed in production code, migrations or the contract.
 - The reverse case of TA-03 (Ana on a Northwind project).
 - TA-01 for list, `PATCH` and `DELETE`.
 - The earlier total of 140 tests in README.md was not independently re-checked before this change; the observed total is now 145 (observed, not computed).
+
+The results above are kept as first recorded on 2026-11-17. Where the list above says a case is not covered, the Coverage increment below supersedes it.
+
+### Coverage increment (2026-11-17)
+
+Environment as in [Environment setup](#environment-setup): local PostgreSQL 16, database `matriz_test`, same environment-variable setup. Expected results come from this plan's matrix and `openapi.yaml`. Assertions use status, `code` and `details[].field`, never message text (A7). All results below were observed as expected.
+
+**New or extended tests**
+
+| Test | Scenario | Expected result | Observed | Pass/Fail | Source |
+|---|---|---|---|---|---|
+| `TaskIntegrationTest.createTaskWithEveryFieldAndReadItBack` (extended) | TC-02 | As in the matrix, plus `GET /progress`: total +1, done unchanged | As expected | Pass | AC-10.1; FR-13; FR-18; NFR-03; A10 |
+| `TaskIntegrationTest.invalidTitleIsRefusedAndNothingIsCreated` (extended) | TV-01 | Titles `"ab"`, `"  ab  "` and `null`: 422, field `title`, nothing created | As expected | Pass | AC-10.2; AC-10.5; FR-09; BR-10 |
+| `TaskIntegrationTest.withoutCsrfHeaderChangesAreRefused` (new) | TA-02 | `POST`, `PATCH` and `DELETE` without `X-XSRF-TOKEN` over the real cookie flow: 403 `csrf_invalid`; task unchanged | As expected | Pass | openapi CsrfHeader |
+| `TaskApiTest.titleAndOwnerOnlyUseTheDefaults` | TC-03 | 201; status `To do`; description and due date null or absent | As expected | Pass | FR-12; BR-11; AC-10.1; A3 |
+| `TaskApiTest.invalidDueDateOnCreateIsRefused` | TV-06 | 422, field `due_date` | As expected | Pass | FR-11; createTask |
+| `TaskApiTest.unknownFieldsOnCreateAreRefused` | TV-07 | `priority` and `task_id`: 422; nothing created (field name not asserted, Q-14) | As expected | Pass | openapi "Identity"; createTask; F17 out of scope; A5 |
+| `TaskApiTest.malformedBodyOnCreateIsABadRequest` | TV-08 | 400 `malformed_request` | As expected | Pass | API-A2; A6 |
+| `TaskApiTest.everyActiveWorkspaceMemberListsTheSameTasks` | TL-01 | 200 with the same tasks for every active member | As expected | Pass | FR-05; FR-08; FR-13; AC-19.1 |
+| `TaskApiTest.listOrderFieldsAndCounts` | TL-02 | Order, Task fields, `status_counts` in order | As expected | Pass | FR-13; decision log 2026-11-12; A9 |
+| `TaskApiTest.pagingCoversEveryTaskOnce` (25 tasks) | TL-04 | Default size 20; each task on exactly one page; total 25 | As expected | Pass | FR-13; listTasks |
+| `TaskApiTest.allowedEditorsChangeTitleDescriptionAndDueDate` | TU-01 | 200 with the new values; owner, status, created_by unchanged | As expected | Pass | US-25; updateTask (prov. PD-01) |
+| `TaskApiTest.viewerWhoOwnsATaskCannotEditIt` | TU-03 (c) | 403; unchanged | As expected | Pass | FR-05; AC-19.2; PD-17 prov. |
+| `TaskApiTest.workspaceAdministratorCannotEditATask` | TU-03 (d) | 403; unchanged | As expected | Pass | PD-03 prov. |
+| `TaskApiTest.projectManagerWhoIsNotTheCreatorCannotDelete` | TD-03 (a) | 403; task still exists | As expected | Pass | AC-26.2; BR-12; deleteTask |
+| `TaskApiTest.creatorWhoIsNowAViewerCannotDelete` | TD-03 (d) | 403; task still exists | As expected | Pass | AC-26.2; BR-12; deleteTask |
+| `TaskApiTest.memberOfAcmeCannotReadNorthwindTasks` | TA-03 (reverse) | 404 `not_found`; no task data | As expected | Pass | NFR-01; SP-02; API-A3 |
+| `TaskAccessTest.missingOrNonexistentOwnerIsRefused` | TV-05 | 422, field `owner_member_id`; nothing created | As expected | Pass | FR-10; BR-09; AC-10.3; NFR-01 |
+| `TaskAccessTest.projectManagerOutsideTheProjectCannotCreateUntilPd20` | TC-07 (e) | 403 `forbidden`; nothing created | As expected | Pass | PD-20 prov.; createTask |
+| `TaskAccessTest.permissionIsCheckedBeforeValuesForANonOwnerProjectManager` and `...ForATeamMemberSettingTheOwner` | TU-07 | 403, not 422; unchanged | As expected | Pass | updateTask |
+| `TaskAccessTest.deactivatedMemberCannotReadTasks` | TA-07 | Status 403 or 404, no data (Q-03 open) | As expected | Pass | SP-04; FR-03 |
+| `TaskTitleRuleTest` (new, 5 tests, package `com.matriz.tasks`, plain JUnit 5, no Spring and no database; calls the package-private static `TaskService.title`) | TV-09 | Accepts or rejects as in TV-01 and TV-02, with the trimmed value | As expected | Pass | FR-09; BR-10; AC-10.5 |
+
+**Existing tests extended** (error code and "nothing created" or "unchanged" added; all Pass): `TaskApiTest.statusMustBeOneOfTheThreeApiValues` (TV-04); `TaskApiTest.unknownFieldsAndInvalidValuesAreRefused` (TU-06, adds `due_date` `"abc"`); `TaskApiTest.deletingATaskRemovesItsCommentsAndNotificationsAndUpdatesTheCounts` (TD-01, progress total -1); `TaskApiTest.viewersAndWorkspaceAdministratorsReadButNeverChange` (TD-03 b and c; TU-03 d); `TaskApiTest.everyTaskOperationNeedsASession` (TA-01, code and unchanged); `TaskAccessTest` methods for TC-07 b, c and d (code and nothing created); `TaskAccessTest.teamMemberCreatesATaskTheyOwn` (TC-05, owner asserted); `TaskAccessTest.deactivatedMemberIsRefused` (TC-08, nothing created; exact 403 kept).
+
+**Runs**
+
+| Run | Command | Date (UTC) | Output summary | Database state after the run |
+|---|---|---|---|---|
+| 1 | `mvn verify` | 2026-11-17 | 170 tests, 0 failures, 0 errors, 0 skipped, BUILD SUCCESS | 5 tasks; 0 task ids not like `e0000000-%`; title, status and owner of the 5 seeded tasks unchanged |
+| 2 | `mvn verify` | 2026-11-17 | Same counts, BUILD SUCCESS | Same as run 1 |
+| 3 | `mvn test -Dtest=TaskIntegrationTest` | 2026-11-17 | 6 tests, 0 failures, BUILD SUCCESS | Same as run 1 |
+| 4 (independent, by the programmer) | `mvn verify` | 2026-11-17 | 170 tests, BUILD SUCCESS | Read-only `psql` afterwards: 5 tasks; 0 task ids not like `e0000000-%` |
+
+A first attempt failed with "Connection refused" because the local PostgreSQL cluster was down. The cluster was restarted and that attempt is not counted.
+
+Tests per class in `mvn verify` (identical in runs 1 and 2): `ClientConfigControllerTest` 16, `AssignmentApiTest` 8, `TaskAccessTest` 27, `CsrfCookieTest` 1, `TaskIntegrationTest` 6, `TaskTitleRuleTest` 5, `TaskApiTest` 29, `VerificationApiTest` 12, `AuthenticationTest` 10, `DatabaseSetupTest` 3, `ClientConfigApiTest` 4, `ProjectApiTest` 42, `CommentApiTest` 7. Total 170.
+
+**Bugs found:** None. Nothing was changed in production code, migrations or the contract in this increment.
+
+**Not verified / not covered**
+
+- TU-06: title `""`, spaces, `"ab"` and 151 characters on `PATCH` are not tested; only `title: null`.
+- TA-05: `PATCH` and `DELETE` of a foreign-workspace task through the user's own project are not asserted (`GET` is). The same-workspace cross-project case is covered by an existing test.
+- Deliberately untested (Q-07 to Q-09, Q-11): titles of tabs, newlines or non-breaking spaces; wrong JSON types; past due dates; malformed path ids; the `Location` value.
+- Sign-out and idle expiry for tasks.
+- Persistence across a real application restart (manual check, A10).
+- TE-01 to TE-03: browser-only; not automatable with the project's tools (a browser-test dependency would need approval).
+- TA-07 and TC-08 assert "refused, no data" only (Q-03).
+- INC-08 steps not yet done: review, security audit, `docs/verification.md` Cases 05 and 08, and the manual restart check.
