@@ -32,7 +32,7 @@ class TaskStatusRuleTest {
     @ParameterizedTest(name = "refuses [{0}]")
     @ValueSource(strings = {"done", "DONE", "Doing", "", "Por fazer", "Em curso", "Concluída"})
     @NullSource
-    @DisplayName("TV-04, AC-11.2 · any other status value is refused 422 validation_failed on field status")
+    @DisplayName("TV-04, openapi TaskValidationFailed (null added 2026-11-17), BR-11 · any other status value is refused 422 validation_failed on field status")
     void refusesOtherValues(String value) {
         assertThatThrownBy(() -> TaskService.status(value, "m")).isInstanceOfSatisfying(ApiException.class, e -> {
             assertThat(e.status()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);

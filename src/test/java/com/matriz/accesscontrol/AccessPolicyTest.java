@@ -131,7 +131,8 @@ class AccessPolicyTest {
         return Stream.of(
                 Arguments.of(PM, true, true), Arguments.of(PM, false, true),
                 Arguments.of(TM, true, false), Arguments.of(TM, false, false),
-                Arguments.of(WA, true, false), Arguments.of(V, true, false));
+                Arguments.of(WA, true, false), Arguments.of(V, true, false),
+                Arguments.of(WA, false, false), Arguments.of(V, false, false));
     }
 
     @ParameterizedTest(name = "{0} owner={1} change owner -> allowed={2}")
@@ -139,6 +140,19 @@ class AccessPolicyTest {
     @DisplayName("AC-10.4, FR-10 · change owner: PM only, TM denied even as owner (prov. PD-01, PD-03, PD-17)")
     void changeOwnerTable(Role role, boolean owner, boolean allowed) {
         check(allowed, () -> policy.checkEditTask(actor(role), owner ? ME : OTHER, false, true, false));
+    }
+
+    private static Stream<Arguments> statusOnlyEdit() {
+        return Stream.of(
+                Arguments.of(WA, true, false), Arguments.of(WA, false, false),
+                Arguments.of(V, true, false), Arguments.of(V, false, false));
+    }
+
+    @ParameterizedTest(name = "{0} owner={1} status-only update -> allowed={2}")
+    @MethodSource("statusOnlyEdit")
+    @DisplayName("FR-12, FR-05, AC-11.3 · status-only update through the edit check: Viewer and Workspace Administrator refused (prov. PD-03, PD-17)")
+    void statusOnlyEditTable(Role role, boolean owner, boolean allowed) {
+        check(allowed, () -> policy.checkEditTask(actor(role), owner ? ME : OTHER, false, false, true));
     }
 
     private static Stream<Arguments> combinations() {
@@ -167,7 +181,7 @@ class AccessPolicyTest {
 
     @ParameterizedTest(name = "{0} creator={1} delete task -> allowed={2}")
     @MethodSource("deleteTask")
-    @DisplayName("BR-12, AC-26.1, AC-26.2, TD-03 · delete task: only the creator, never Viewer (prov. PD-03)")
+    @DisplayName("BR-12, AC-26.1, AC-26.2, test-plan TD-03 · delete task: only the creator, never Viewer (prov. PD-03)")
     void deleteTaskTable(Role role, boolean creator, boolean allowed) {
         check(allowed, () -> policy.checkDeleteTask(actor(role), creator ? ME : OTHER));
     }
