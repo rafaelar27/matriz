@@ -311,13 +311,13 @@ Four of the TU-06 title values were already partly asserted by `VerificationApiT
 
 ## Unit tests and coverage (2026-11-17)
 
-**Environment.** Database `matriz_test` on the local PostgreSQL 16 cluster, with the same environment-variable setup as in [Environment setup](#environment-setup); the variables are set in the shell only and nothing secret is written here. Coverage is measured with JaCoCo (`jacoco-maven-plugin` 0.8.14; goals `prepare-agent` and `report`, no `check` goal, no thresholds, no exclusions). The report is written to `target/site/jacoco` by `mvn verify`.
+**Environment.** Database `matriz_test` on the local PostgreSQL 16 cluster, with the same environment-variable setup as in [Environment setup](#environment-setup); the variables are set in the shell only and nothing secret is written here. Coverage is measured with JaCoCo (`jacoco-maven-plugin` 0.8.14; goals `prepare-agent` and `report`, no `check` goal, no thresholds, no exclusions). The report is written to `target/site/jacoco` by `mvn verify`. A later Surefire `<argLine>` must contain `@{argLine}`, otherwise the JaCoCo agent is not attached and coverage silently reads 0%. (No `argLine` exists today, so coverage works.)
 
 Expected results of the new unit tests come from `openapi.yaml` (0.7.0-draft), [requirements.md](requirements.md), [user-stories.md](user-stories.md), [database.md](database.md), the [decision log](constraints.md#decision-log) and this plan. Cells that depend on PD-01, PD-03, PD-17 or PD-20 are marked prov. The tests assert status and error code, never message text (A7). They use no Spring, no database and no mocking library, and no dependency or production code was added or changed for them.
 
 ### Coverage before and after
 
-Source: `jacoco.csv` (58 classes). "Before" is the 174-test baseline; "after" is the 276-test run. Packages are under `com.matriz`. Instr = instructions, Br = branches, Line = lines; `n/a` = no branches.
+Source: `jacoco.csv` (58 classes). "Before" is the 174-test baseline; "after" is the 276-test run (the 282-test runs after the review follow-up gave the same overall figures: 97.4% instructions, 88.0% branches, 98.3% lines; `AccessPolicy` 100/100/100; `accesscontrol` 99.0/96.4/100). Packages are under `com.matriz`. Instr = instructions, Br = branches, Line = lines; `n/a` = no branches.
 
 | Package | Instr before | Br before | Line before | Instr after | Br after | Line after |
 |---|---|---|---|---|---|---|
@@ -349,16 +349,16 @@ Reading of the figures: the integration tests already ran most of the code, so t
 
 | Class | Tests | Rules and IDs | Pass/Fail |
 |---|---|---|---|
-| `accesscontrol/AccessPolicyTest` | 71 | Role-by-action decision table: manage project, create task as project member and as non-member, owner at creation, change status, edit content, change owner, all-or-nothing combinations, delete task, assign and unassign, comment, workspace access (non-member 404 `not_found`; deactivated member refused, status asserted only as 403 or 404, Q-03). Cells that depend on PD-01, PD-03, PD-17 and PD-20 are marked prov. | Pass |
+| `accesscontrol/AccessPolicyTest` | 77 (was 71) | Role-by-action decision table: manage project, create task as project member and as non-member, owner at creation, change status, edit content, change owner (now also refusals for a Viewer and a Workspace Administrator who is not the owner), status-only changes through `checkEditTask` (now also refusals for a Viewer and a Workspace Administrator, as owner and as non-owner; all 403 `forbidden`), all-or-nothing combinations, delete task, assign and unassign, comment, workspace access (non-member 404 `not_found`; deactivated member refused, status asserted only as 403 or 404, Q-03). Cells that depend on PD-01, PD-03, PD-17 and PD-20 are marked prov. The display name that cited "TD-03" now reads "test-plan TD-03", to avoid a clash with [constraints.md](constraints.md) TD-03. | Pass |
 | `accesscontrol/RoleTest` | 1 | The four roles, labels in `openapi.yaml` order | Pass |
-| `tasks/TaskStatusRuleTest` | 13 | Task status values and rule | Pass |
+| `tasks/TaskStatusRuleTest` | 13 | Task status values and rule, including a `null` status (citation: openapi `TaskValidationFailed` (`null` added 2026-11-17), BR-11) | Pass |
 | `tasks/TaskDescriptionRuleTest` | 3 | 2000 characters accepted; 2001 refused with 422 and field `description`; null clears | Pass |
 | `tasks/TaskEntityTest` | 3 | Task entity | Pass |
 | `shared/ApiExceptionTest` | 4 | 404, 403, 422 and 409 | Pass |
 | `shared/ApiExceptionHandlerTest` | 3 | `ApiException` passed through; non-JSON body gives 400 `malformed_request`; unknown field gives 422 `validation_failed` (field name not asserted, Q-14) | Pass |
 | `shared/IdsTest` | 4 | Identifier helper | Pass |
 
-Total 102 new tests, plus the existing `TaskTitleRuleTest` (5, TV-09; see Q-10). The `AccessPolicy` code matched the decision table cell by cell.
+Total 108 new tests (77 + 1 + 13 + 3 + 3 + 4 + 3 + 4; was 102 before the review follow-up), plus the existing `TaskTitleRuleTest` (5, TV-09; see Q-10). The `AccessPolicy` code matched the decision table cell by cell.
 
 ### Runs
 
@@ -370,7 +370,22 @@ Total 102 new tests, plus the existing `TaskTitleRuleTest` (5, TV-09; see Q-10).
 | 3 (tester) | `mvn test -Dtest=<the 8 new classes>` | 2026-11-17 | 102 tests, 0 failures, BUILD SUCCESS | 3.8 s | Not recorded for this run |
 | 4 (independent, by the main session) | `mvn verify` | 2026-11-17 | 276 tests, BUILD SUCCESS | 55.5 s | 5 tasks; 0 task ids not like `e0000000-%` |
 
-Total tests: 174 + 102 = 276. `mvn test` writes `jacoco.exec` but no report; use `mvn test jacoco:report` for one.
+| 5 (tester, after the review follow-up, run 1) | `mvn verify` | 2026-11-17 | 282 tests, 0 failures, 0 errors, 0 skipped, BUILD SUCCESS | 55.2 s | 5 tasks; 0 task ids not like `e0000000-%` (checked once after runs 5 and 6) |
+| 6 (tester, run 2) | `mvn verify` | 2026-11-17 | 282 tests, identical counts, BUILD SUCCESS | 55.0 s | As above |
+| 7 (tester) | `mvn test -Dtest=AccessPolicyTest,TaskStatusRuleTest` | 2026-11-17 | 90 tests, 0 failures, BUILD SUCCESS | 6.3 s | Not recorded for this run |
+| 8 (independent, by the main session) | `mvn verify` | 2026-11-17 | 282 tests, BUILD SUCCESS | 54.3 s | 5 tasks; 0 task ids not like `e0000000-%` |
+
+Runs 1 to 4 are history for the 276-test state (174 + 102). Current state: 174 + 108 = 282 tests (runs 5 to 8). `mvn test` writes `jacoco.exec` but no report; use `mvn test jacoco:report` for one.
+
+### Review follow-up (2026-11-17)
+
+The reviewer's findings on INC-09 (verdict approve with changes; 0 Blocker, 0 Major, 5 Minor) and what was done, all as recommended and approved by the programmer. These are INC-09 R-01 to R-05, not the INC-08 findings with the same numbers.
+
+- INC-09 R-01: the JaCoCo `argLine` risk was undocumented. A comment was added to `pom.xml` and the sentence in the Environment note above; no `argLine` exists today.
+- INC-09 R-02: the `AccessPolicyTest` display name cited "TD-03", which clashes with TD-03 in constraints.md. It now reads "test-plan TD-03".
+- INC-09 R-03: the deactivated-member test accepts 403 or 404 on purpose (Q-03 open). No change; tighten it when Q-03 is decided.
+- INC-09 R-04: the `null` status case in `TaskStatusRuleTest` was not stated in the contract. The rule is now stated in `openapi.yaml` (`TaskValidationFailed` and the `createTask` 422 triggers: "including `null`"; version not changed), and the test citation was changed to "openapi TaskValidationFailed (null added 2026-11-17), BR-11".
+- INC-09 R-05: six refusal rows were added to `AccessPolicyTest` (Viewer and Workspace Administrator non-owner change-owner, 2; status-only through `checkEditTask` for Viewer and Workspace Administrator as owner and non-owner, 4), all 403 `forbidden`, marked prov. for PD-03 and PD-17. `AccessPolicyTest` is now 77 tests and the suite 282.
 
 ### Still not covered, and why
 

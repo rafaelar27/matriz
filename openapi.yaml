@@ -745,7 +745,8 @@ paths:
               characters after trimming, including a title of spaces only
               (AC-10.2, BR-10).
             - `description` is longer than 2000 characters.
-            - `status` is not exactly one of `To do`, `In progress`, `Done`.
+            - `status` is not exactly one of `To do`, `In progress`, `Done`
+              (including `null`).
             - `owner_member_id` is missing (BR-09).
             - `owner_member_id` does not refer to a member of this project,
               including a member of the workspace who is not in the project
@@ -1356,8 +1357,8 @@ components:
         The body is well formed but breaks a validation rule: `title` shorter
         than 3 or longer than 150 characters after trimming (including spaces
         only or `null`); `description` longer than 2000 characters; `status`
-        not exactly one of `To do`, `In progress`, `Done`; `owner_member_id`
-        `null` or not a member of the task's project; an invalid date; or a
+        not exactly one of `To do`, `In progress`, `Done` (including `null`);
+        `owner_member_id` `null` or not a member of the task's project; an invalid date; or a
         field that cannot be sent.
       content:
         application/json:
