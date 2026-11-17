@@ -232,6 +232,7 @@ flowchart TB
 | Front-end approach | **Static HTML, CSS and plain JavaScript**, served by the same Spring Boot application and calling the REST API in [openapi.yaml](../openapi.yaml) |
 | Database | **PostgreSQL** (relational), installed on the developer's computer |
 | Supporting tools | **Maven** (build), **Hibernate** through Spring Data JPA (data access), **Flyway** (schema migrations), **JUnit 5 with Spring Boot Test and MockMvc** (tests) |
+| Code coverage measurement | **JaCoCo** (Maven plugin 0.8.14, added 2026-11-17); the report is written to `target/site/jacoco` at `mvn verify`; no coverage thresholds |
 
 ### Inputs specific to this decision
 

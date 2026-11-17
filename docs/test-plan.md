@@ -14,7 +14,7 @@
 
 | Level | Meaning |
 |---|---|
-| **Unit** | An isolated rule without database or authentication, for example title validation. Used only if the rule is isolated in code (Q-10). |
+| **Unit** | An isolated rule without database or authentication, for example title validation. Used only where the rule is isolated in code (Q-10, resolved 2026-11-17). Unit classes that exist (2026-11-17): `TaskTitleRuleTest`, `AccessPolicyTest`, `RoleTest`, `TaskStatusRuleTest`, `TaskDescriptionRuleTest`, `TaskEntityTest`, `ApiExceptionTest`, `ApiExceptionHandlerTest` and `IdsTest` (see [Unit tests and coverage](#unit-tests-and-coverage-2026-11-17)). |
 | **API** (Integration/API) | An HTTP request to the application with authentication and the database. Verifies status codes, bodies, persistence and permissions. |
 | **E2E** (End-to-end) | Through the user interface. Used only where the acceptance criterion is about what the interface offers or says. |
 
@@ -140,7 +140,7 @@ These stay open until the project decision-maker answers them (KC-01). No scenar
 | Q-07 | Does a title of tabs, newlines or non-breaking spaces count as "only spaces"? How are characters counted for non-ASCII text? | FR-09, BR-10 | Untested |
 | Q-08 | What happens with a wrong JSON type (for example `title: 123`) and with a due date in the past on creation? | API-A2, FR-11 | Untested |
 | Q-09 | What does a malformed id in the path return, 404 or 422? | API-A4 | Untested |
-| Q-10 | Is the title rule an isolated unit? | FR-09 | Decides whether TV-09 exists at Unit level |
+| Q-10 | Is the title rule an isolated unit? **Resolved 2026-11-17:** yes, `TaskService.title`, automated as TV-09 in `TaskTitleRuleTest` (5 tests). | FR-09 | TV-09 exists at Unit level |
 | Q-11 | What is the `Location` header value? The `openapi.yaml` example was corrected on 2026-11-17 to a project-scoped path, but the format is not stated as a rule. | createTask | TC-01 checks presence only |
 | Q-12 | Baseline fixtures: for the integration test class (`TaskIntegrationTest`) they come from the demo seeder, with cleanup by created task id (decided in the approved plan, 2026-11-17). Deactivating Eli and demoting a creator need direct setup. | — | Test-tooling choice for the programmer |
 | Q-13 | Does an empty `PATCH {}` by a Viewer or Workspace Administrator return 403 or 200 with no change? `openapi.yaml` `updateTask` says both "a body with no fields changes nothing" and "Viewers and Workspace Administrators cannot change tasks"; it does not say which wins. `TaskApiTest.viewersAndWorkspaceAdministratorsReadButNeverChange` currently expects 403. | updateTask; FR-05; AC-19.2 | Expected result of that case is unconfirmed |
@@ -308,3 +308,82 @@ Four of the TU-06 title values were already partly asserted by `VerificationApiT
 - TE-01 to TE-03: browser-only; not automatable with the project's tools (a browser-test dependency would need approval).
 - TA-07 and TC-08 assert "refused, no data" only (Q-03).
 - INC-08 steps not yet done: review, security audit, `docs/verification.md` Cases 05 and 08, and the manual restart check.
+
+## Unit tests and coverage (2026-11-17)
+
+**Environment.** Database `matriz_test` on the local PostgreSQL 16 cluster, with the same environment-variable setup as in [Environment setup](#environment-setup); the variables are set in the shell only and nothing secret is written here. Coverage is measured with JaCoCo (`jacoco-maven-plugin` 0.8.14; goals `prepare-agent` and `report`, no `check` goal, no thresholds, no exclusions). The report is written to `target/site/jacoco` by `mvn verify`.
+
+Expected results of the new unit tests come from `openapi.yaml` (0.7.0-draft), [requirements.md](requirements.md), [user-stories.md](user-stories.md), [database.md](database.md), the [decision log](constraints.md#decision-log) and this plan. Cells that depend on PD-01, PD-03, PD-17 or PD-20 are marked prov. The tests assert status and error code, never message text (A7). They use no Spring, no database and no mocking library, and no dependency or production code was added or changed for them.
+
+### Coverage before and after
+
+Source: `jacoco.csv` (58 classes). "Before" is the 174-test baseline; "after" is the 276-test run. Packages are under `com.matriz`. Instr = instructions, Br = branches, Line = lines; `n/a` = no branches.
+
+| Package | Instr before | Br before | Line before | Instr after | Br after | Line after |
+|---|---|---|---|---|---|---|
+| Overall | 97.2% | 86.8% | 98.0% | 97.4% | 88.0% | 98.3% |
+| `com.matriz` | 37.5% | n/a | 33.3% | 37.5% | n/a | 33.3% |
+| `accesscontrol` | 97.8% | 92.9% | 98.3% | 99.0% | 96.4% | 100% |
+| `accounts` | 98.6% | 70.0% | 98.5% | 98.6% | 70.0% | 98.5% |
+| `comments` | 98.9% | 100% | 100% | 98.9% | 100% | 100% |
+| `progress` | 92.5% | 75.0% | 95.8% | 92.5% | 75.0% | 95.8% |
+| `projects` | 97.7% | 89.4% | 99.4% | 97.7% | 89.4% | 99.4% |
+| `seed` | 99.3% | 50.0% | 98.9% | 99.3% | 50.0% | 98.9% |
+| `shared` | 96.6% | 68.8% | 97.9% | 97.4% | 75.0% | 100% |
+| `tasks` | 96.1% | 87.0% | 96.8% | 96.1% | 87.0% | 96.8% |
+| `workspaces` | 97.2% | 100% | 100% | 97.2% | 100% | 100% |
+
+Target classes (Instr / Br / Line):
+
+| Class | Before | After |
+|---|---|---|
+| `AccessPolicy` | 96.7% / 95.7% / 96.4% | 100% / 100% / 100% |
+| `Ids` | 81.8% / 50.0% / 80.0% | 100% / 100% / 100% |
+| `ApiExceptionHandler` | 95.2% / 70.0% / 100% | 95.2% / 70.0% / 100% |
+| `TaskService` | 100% / 93.8% / 100% | 100% / 93.8% / 100% |
+| `Task`, `TaskStatus`, `TaskView`, `ApiException`, `Role` | 100% / n/a / 100% | 100% / n/a / 100% |
+
+Reading of the figures: the integration tests already ran most of the code, so the overall figure barely moved. The new unit tests give a fast, exhaustive check of the permission table, where a failure points to one class. Coverage shows which code ran, not that its behavior is correct; it is not verification.
+
+### New unit-test classes
+
+| Class | Tests | Rules and IDs | Pass/Fail |
+|---|---|---|---|
+| `accesscontrol/AccessPolicyTest` | 71 | Role-by-action decision table: manage project, create task as project member and as non-member, owner at creation, change status, edit content, change owner, all-or-nothing combinations, delete task, assign and unassign, comment, workspace access (non-member 404 `not_found`; deactivated member refused, status asserted only as 403 or 404, Q-03). Cells that depend on PD-01, PD-03, PD-17 and PD-20 are marked prov. | Pass |
+| `accesscontrol/RoleTest` | 1 | The four roles, labels in `openapi.yaml` order | Pass |
+| `tasks/TaskStatusRuleTest` | 13 | Task status values and rule | Pass |
+| `tasks/TaskDescriptionRuleTest` | 3 | 2000 characters accepted; 2001 refused with 422 and field `description`; null clears | Pass |
+| `tasks/TaskEntityTest` | 3 | Task entity | Pass |
+| `shared/ApiExceptionTest` | 4 | 404, 403, 422 and 409 | Pass |
+| `shared/ApiExceptionHandlerTest` | 3 | `ApiException` passed through; non-JSON body gives 400 `malformed_request`; unknown field gives 422 `validation_failed` (field name not asserted, Q-14) | Pass |
+| `shared/IdsTest` | 4 | Identifier helper | Pass |
+
+Total 102 new tests, plus the existing `TaskTitleRuleTest` (5, TV-09; see Q-10). The `AccessPolicy` code matched the decision table cell by cell.
+
+### Runs
+
+| Run | Command | Date (UTC) | Output summary | Total time | Database state after the run |
+|---|---|---|---|---|---|
+| Baseline | `mvn verify` | 2026-11-17 | 174 tests, 0 failures, BUILD SUCCESS | 1:04 min (includes the first JaCoCo download) | Not recorded for this run |
+| 1 (tester) | `mvn verify` | 2026-11-17 | 276 tests, 0 failures, 0 errors, 0 skipped, BUILD SUCCESS | 56.8 s | Not recorded for this run |
+| 2 (tester) | `mvn verify` | 2026-11-17 | 276 tests, same counts, BUILD SUCCESS | 53.6 s | 5 tasks; 0 task ids not like `e0000000-%` |
+| 3 (tester) | `mvn test -Dtest=<the 8 new classes>` | 2026-11-17 | 102 tests, 0 failures, BUILD SUCCESS | 3.8 s | Not recorded for this run |
+| 4 (independent, by the main session) | `mvn verify` | 2026-11-17 | 276 tests, BUILD SUCCESS | 55.5 s | 5 tasks; 0 task ids not like `e0000000-%` |
+
+Total tests: 174 + 102 = 276. `mvn test` writes `jacoco.exec` but no report; use `mvn test jacoco:report` for one.
+
+### Still not covered, and why
+
+- Rules tested only at API level, because they sit behind Spring beans and testing them in isolation would need a production change. They are **refactoring candidates** for the human; nothing was changed: project name, description, date-order and owner rules in `ProjectService.apply` (BR-21, BR-23, FR-06); the comment body rule in `CommentService.add` (BR-13, AC-15.2); the assignment rules in `AssignmentService` (1 to 20 ids, duplicates; FR-22, BR-22); the owner-membership check in `TaskService.owner` (BR-09).
+- Packages with the lowest branch coverage after this run: `seed` 50.0%, `accounts` 70.0%, `progress` 75.0%, `shared` 75.0%. Not investigated further.
+- Deliberately not tested, open questions: an empty `PATCH` by a Viewer or Workspace Administrator (Q-13); the exact status for a deactivated member (Q-03); an empty-string description; a creator who is no longer in the project; moving a task back from Done (PD-06).
+
+### Bugs found
+
+None. Nothing was changed in production code, migrations or the contract.
+
+### Not verified
+
+- No person has reviewed the JaCoCo HTML report.
+- The effect of the JaCoCo agent on build time was measured only as total time (the baseline includes a one-off download).
+- The Q-03 and Q-13 cells (see above): their expected results are unconfirmed.
