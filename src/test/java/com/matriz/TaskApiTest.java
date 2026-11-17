@@ -314,8 +314,8 @@ class TaskApiTest extends ApiTestSupport {
         create(dan, WEBSITE, titled("Intruder")).andExpect(status().isNotFound());
         update(dan, WEBSITE, T_IMAGES, "{\"title\":\"Intruder\"}").andExpect(status().isNotFound());
         remove(dan, WEBSITE, T_IMAGES).andExpect(status().isNotFound());
-        mvc.perform(patch("/tasks/" + T_IMAGES).session(dan).with(csrf()).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"status\":\"Done\"}")).andExpect(status().isNotFound());
+        update(dan, WEBSITE, T_IMAGES, "{\"status\":\"Done\"}").andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("not_found"));
         // Through his own project, a foreign task id is not found either.
         mvc.perform(get(path(LAB, T_IMAGES)).session(dan)).andExpect(status().isNotFound());
         assertThat(count("SELECT count(*) FROM task WHERE title = 'Intruder'")).isZero();

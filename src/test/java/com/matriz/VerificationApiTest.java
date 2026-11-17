@@ -63,8 +63,7 @@ class VerificationApiTest extends ApiTestSupport {
     }
 
     private ResultActions changeStatus(MockHttpSession s, String task, String status) throws Exception {
-        return mvc.perform(patch("/tasks/" + task).session(s).with(csrf())
-                .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"" + status + "\"}"));
+        return updateTask(s, WEBSITE, task, "{\"status\":\"" + status + "\"}");
     }
 
     private ResultActions listTasks(MockHttpSession s, String project, String... params) throws Exception {
@@ -464,8 +463,10 @@ class VerificationApiTest extends ApiTestSupport {
                         .contentType(MediaType.APPLICATION_JSON).content("{\"member_ids\":[\"" + ACME_BEN + "\"]}")),
                 mvc.perform(delete(task + "/assignees/" + ACME_VERA).session(dan).with(csrf())),
                 mvc.perform(get(task + "/eligible-assignees").session(dan)),
-                mvc.perform(patch("/tasks/" + T_LAYOUT).session(dan).with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"Done\"}")));
+                mvc.perform(patch(task).session(dan).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"Done\"}")),
+                mvc.perform(patch(throughLab).session(dan).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"Done\"}")));
         for (ResultActions result : refused) {
             result.andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("not_found"));
         }
@@ -491,8 +492,6 @@ class VerificationApiTest extends ApiTestSupport {
                 .andExpect(jsonPath("$.code").value("forbidden"));
         discardRefusedRequest();
         updateTask(ben, WEBSITE, T_LAYOUT, "{\"status\":\"Done\"}").andExpect(status().isForbidden());
-        discardRefusedRequest();
-        changeStatus(ben, T_LAYOUT, "Done").andExpect(status().isForbidden());
         discardRefusedRequest();
         deleteTask(ben, WEBSITE, T_LAYOUT).andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("forbidden"));
