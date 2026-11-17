@@ -48,7 +48,7 @@ Deactivating Eli and demoting a task creator need direct database setup, because
 
 ★ marks an essential scenario. "Unchanged" means the test re-reads the task and checks that nothing changed.
 
-**Automation status (2026-11-17):** the matrix has 45 active scenarios (47 IDs minus the dropped TU-09 and TA-06). The scenarios checked in the Coverage increment are covered by the tests listed in [Coverage increment (2026-11-17)](#coverage-increment-2026-11-17), in `TaskIntegrationTest` (real HTTP, real sign-in), `TaskApiTest`, `TaskAccessTest` and `TaskTitleRuleTest` (TV-09, unit level). Scenarios not named in that list were not re-checked in the increment and rely on the existing test classes, whose coverage this plan does not state. Exceptions: TU-06 is partly covered (only `title: null` is tested for the title); TA-05 is partly covered (`GET` is asserted, not `PATCH` and `DELETE` of a foreign-workspace task through the user's own project); TA-07 and TC-08 assert only "refused, no data" while Q-03 is open; TE-01 to TE-03 are browser-only and not automated (no browser-test tool in the project). Cases deliberately untested: Q-07 to Q-09 and Q-11 (see the open questions). No per-status count is given because the existing test classes were not mapped scenario by scenario.
+**Automation status (2026-11-17):** the matrix has 45 active scenarios (47 IDs minus the dropped TU-09 and TA-06). The scenarios checked in the Coverage increment are covered by the tests listed in [Coverage increment (2026-11-17)](#coverage-increment-2026-11-17), in `TaskIntegrationTest` (real HTTP, real sign-in), `TaskApiTest`, `TaskAccessTest` and `TaskTitleRuleTest` (TV-09, unit level). Scenarios not named in that list were not re-checked in the increment and rely on the existing test classes, whose coverage this plan does not state. TU-06 (invalid titles, description, owner on edit) and TA-05 (`PATCH` and `DELETE`, both directions) are covered by four tests added in the second coverage run (see [Coverage increment (2026-11-17)](#coverage-increment-2026-11-17)). Exceptions: TA-07 and TC-08 assert only "refused, no data" while Q-03 is open; TE-01 to TE-03 are browser-only and not automated (no browser-test tool in the project). Cases deliberately untested: Q-07 to Q-09 and Q-11 (see the open questions). No per-status count is given because the existing test classes were not mapped scenario by scenario.
 
 | ID | Scenario | Preconditions | Input | Expected result | Level | Source |
 |---|---|---|---|---|---|---|
@@ -147,6 +147,7 @@ These stay open until the project decision-maker answers them (KC-01). No scenar
 | Q-14 | Which `details[].field` is returned for an unknown field such as `priority` or `task_id`? `openapi.yaml` names `details[].field` only for `created_by_member_id`. | createTask; TV-07; A5 | TV-07 asserts 422 and nothing created, not the field name |
 | Q-15 | `TaskAccessTest.viewerCannotCreateTasks` asserts message text, against A7 (tests assert status, `code` and `details[].field`, never message text). Keep, change or accept as an exception? | A7; NFR-09; PD-13 | Left as is; outside the Coverage increment |
 | Q-16 | Existing tests without a scenario ID in their name stay unnamed. Should they be renamed or mapped to scenario IDs? | — | Coverage of those scenarios cannot be stated per scenario |
+| Q-17 | `openapi.yaml` does not state whether a project mismatch (404, "task must belong to project_id") is checked before the permission check (403). `TaskApiTest.veraCannotChangeOrDeleteANorthwindTaskThroughHerOwnProject` asserts 404. This order is the tester's reading, not a documented rule. Confirm. | updateTask; deleteTask; NFR-01; API-A3 | Expected result of the TA-05 reverse case is an unconfirmed reading |
 
 Resolved: Q-01 (no positive priority scenarios) and Q-06 (provisional rules are tested now and marked prov.), approved by the programmer on 2026-11-17. Q-02 (404 for outsiders), Q-04 (AC-10.3 reworded: the backend refuses a non-project owner) and Q-05 (`updateTaskStatus` removed from the contract; TU-09 and TA-06 dropped) were decided by the project decision-maker on 2026-11-17 and are in the [decision log](constraints.md#decision-log).
 
@@ -261,6 +262,12 @@ Environment as in [Environment setup](#environment-setup): local PostgreSQL 16, 
 | `TaskAccessTest.permissionIsCheckedBeforeValuesForANonOwnerProjectManager` and `...ForATeamMemberSettingTheOwner` | TU-07 | 403, not 422; unchanged | As expected | Pass | updateTask |
 | `TaskAccessTest.deactivatedMemberCannotReadTasks` | TA-07 | Status 403 or 404, no data (Q-03 open) | As expected | Pass | SP-04; FR-03 |
 | `TaskTitleRuleTest` (new, 5 tests, package `com.matriz.tasks`, plain JUnit 5, no Spring and no database; calls the package-private static `TaskService.title`) | TV-09 | Accepts or rejects as in TV-01 and TV-02, with the trimmed value | As expected | Pass | FR-09; BR-10; AC-10.5 |
+| `TaskApiTest.invalidTitlesOnEditAreRefusedAndTheRowIsUnchanged` (second run; new) | TU-06 (title) | Ana, `PATCH` on a Website redesign task with title `""`, `"   "`, `"ab"`, `"  ab  "` and 151 characters: 422 `validation_failed`, `details[].field` `title`; full row (title, description, due date, status, owner, creator) and task count unchanged | As expected | Pass | AC-25.1; AC-25.2; AC-10.5; BR-10; openapi TaskValidationFailed |
+| `TaskApiTest.invalidDescriptionAndOwnerOnEditAreRefusedAndTheRowIsUnchanged` (second run; new) | TU-06 (description, owner) | Description of 2001 characters: 422, field `description`. `owner_member_id` null, owner Acme Carla (not a project member) and owner Northwind Carla (other workspace): 422, field `owner_member_id`. Row unchanged | As expected | Pass | TaskValidationFailed; AC-10.3 |
+| `TaskApiTest.danCannotChangeOrDeleteAnAcmeTaskThroughHisOwnProject` (second run; new) | TA-05 | Dan (Project Manager of Northwind Lab only), own project Lab inventory in the path, Acme task `T_IMAGES`: `PATCH {"status":"Done"}`, `PATCH {"title":"Hijacked"}` and `DELETE` each give 404 `not_found`; no task data in the body; the Acme task and the task count unchanged | As expected | Pass | NFR-01; SP-02; API-A3 (confirmed 2026-11-17); updateTask; deleteTask ("must belong to project_id") |
+| `TaskApiTest.veraCannotChangeOrDeleteANorthwindTaskThroughHerOwnProject` (second run; new) | TA-05 (reverse) | Same as the previous row for Vera (Acme only), Website redesign in the path, task `T_EQUIPMENT`: 404 `not_found` each; nothing changed. Asserts 404 for a project mismatch before any 403 permission check (see Q-17) | As expected | Pass | NFR-01; SP-02; API-A3; updateTask; deleteTask; Q-17 |
+
+Display names of the four second-run tests start with the scenario ID. None of them changed production code.
 
 **Existing tests extended** (error code and "nothing created" or "unchanged" added; all Pass): `TaskApiTest.statusMustBeOneOfTheThreeApiValues` (TV-04); `TaskApiTest.unknownFieldsAndInvalidValuesAreRefused` (TU-06, adds `due_date` `"abc"`); `TaskApiTest.deletingATaskRemovesItsCommentsAndNotificationsAndUpdatesTheCounts` (TD-01, progress total -1); `TaskApiTest.viewersAndWorkspaceAdministratorsReadButNeverChange` (TD-03 b and c; TU-03 d); `TaskApiTest.everyTaskOperationNeedsASession` (TA-01, code and unchanged); `TaskAccessTest` methods for TC-07 b, c and d (code and nothing created); `TaskAccessTest.teamMemberCreatesATaskTheyOwn` (TC-05, owner asserted); `TaskAccessTest.deactivatedMemberIsRefused` (TC-08, nothing created; exact 403 kept).
 
@@ -277,15 +284,27 @@ A first attempt failed with "Connection refused" because the local PostgreSQL cl
 
 Tests per class in `mvn verify` (identical in runs 1 and 2): `ClientConfigControllerTest` 16, `AssignmentApiTest` 8, `TaskAccessTest` 27, `CsrfCookieTest` 1, `TaskIntegrationTest` 6, `TaskTitleRuleTest` 5, `TaskApiTest` 29, `VerificationApiTest` 12, `AuthenticationTest` 10, `DatabaseSetupTest` 3, `ClientConfigApiTest` 4, `ProjectApiTest` 42, `CommentApiTest` 7. Total 170.
 
-**Bugs found:** None. Nothing was changed in production code, migrations or the contract in this increment.
+**Second coverage run (2026-11-17)**
+
+The four tests added to `TaskApiTest` (rows marked "second run" above) use the same rollback-based style as the existing tests. Environment as before: local PostgreSQL 16, database `matriz_test`. The 170-test runs above are kept as history.
+
+| Run | Command | Date (UTC) | Output summary | Database state after the run |
+|---|---|---|---|---|
+| 1 | `mvn verify` | 2026-11-17 | 174 tests, 0 failures, 0 errors, 0 skipped, BUILD SUCCESS | 5 tasks; 0 task ids not like `e0000000-%`; title, status and owner of the 5 seeded tasks unchanged |
+| 2 | `mvn verify` | 2026-11-17 | Identical counts, BUILD SUCCESS | Same as run 1 |
+| 3 (independent, by the programmer) | `mvn verify` | 2026-11-17 | 174 tests, BUILD SUCCESS | Read-only `psql` afterwards: 5 tasks; 0 task ids not like `e0000000-%` |
+
+Tests per class (identical in runs 1 and 2): `ClientConfigControllerTest` 16, `AssignmentApiTest` 8, `TaskAccessTest` 27, `CsrfCookieTest` 1, `TaskIntegrationTest` 6, `TaskTitleRuleTest` 5, `TaskApiTest` 33 (was 29), `VerificationApiTest` 12, `AuthenticationTest` 10, `DatabaseSetupTest` 3, `ClientConfigApiTest` 4, `ProjectApiTest` 42, `CommentApiTest` 7. Total 174.
+
+Four of the TU-06 title values were already partly asserted by `VerificationApiTest.case04UpdateRefusesInvalidTitles`, which checks only the title column; plain `"ab"` on `PATCH` and the full-row check are new.
+
+**Bugs found:** None. Nothing was changed in production code, migrations or the contract in this increment, including the second coverage run.
 
 **Not verified / not covered**
 
-- TU-06: title `""`, spaces, `"ab"` and 151 characters on `PATCH` are not tested; only `title: null`.
-- TA-05: `PATCH` and `DELETE` of a foreign-workspace task through the user's own project are not asserted (`GET` is). The same-workspace cross-project case is covered by an existing test.
+- Persistence across an application restart (A10) was checked manually on 2026-11-17, not automated, on a scratch database `matriz_verify` (not `matriz_test`). API level: Ben changed a task status through the project-scoped `PATCH` and a task was created; after an application restart the old session got 401 `session_expired`, and after signing in again the status and the created task were still there, the database read-back matched, and the removed `PATCH /tasks/{id}` returned 404. Interface level: a headless-browser script (Playwright, throwaway, not a committed test; a stand-in, not a person using a browser) changed a status to "Em curso"; it survived a page reload and an application restart, and the database read-back matched. There is still no automated restart test.
 - Deliberately untested (Q-07 to Q-09, Q-11): titles of tabs, newlines or non-breaking spaces; wrong JSON types; past due dates; malformed path ids; the `Location` value.
 - Sign-out and idle expiry for tasks.
-- Persistence across a real application restart (manual check, A10).
 - TE-01 to TE-03: browser-only; not automatable with the project's tools (a browser-test dependency would need approval).
 - TA-07 and TC-08 assert "refused, no data" only (Q-03).
 - INC-08 steps not yet done: review, security audit, `docs/verification.md` Cases 05 and 08, and the manual restart check.
