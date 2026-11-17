@@ -674,4 +674,85 @@ class TaskApiTest extends ApiTestSupport {
             assertThat(body).doesNotContain("Count lab equipment");
         }
     }
+
+    @Test
+    @DisplayName("TU-06 (title) · US-25, AC-25.1, AC-25.2, AC-10.5, BR-10, TaskValidationFailed · PATCH title \"\", spaces, \"ab\", \"  ab  \" "
+            + "and 151 characters: 422 validation_failed on field title, the whole task row unchanged")
+    void invalidTitlesOnEditAreRefusedAndTheRowIsUnchanged() throws Exception {
+        // Already asserted elsewhere (code, field, title unchanged): "", spaces, "  ab  " and 151 characters in
+        // VerificationApiTest.case04UpdateRefusesInvalidTitles; title null in unknownFieldsAndInvalidValuesAreRefused.
+        // Missing there: plain "ab", and the other columns unchanged. This test covers both for the five values.
+        MockHttpSession ana = signIn("ana@example.com");
+        Map<String, Object> before = snapshot(T_LAYOUT);
+        long tasks = taskCount();
+        for (String title : new String[] {"", "   ", "ab", "  ab  ", "a".repeat(151)}) {
+            update(ana, WEBSITE, T_LAYOUT, "{\"title\":\"" + title + "\"}").andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.code").value("validation_failed"))
+                    .andExpect(jsonPath("$.details[*].field").value(org.hamcrest.Matchers.hasItem("title")));
+            assertThat(snapshot(T_LAYOUT)).as("row unchanged after title of length " + title.length())
+                    .isEqualTo(before);
+            assertThat(taskCount()).isEqualTo(tasks);
+        }
+    }
+
+    @Test
+    @DisplayName("TU-06 (description, owner) · US-25, AC-10.3, AC-25.1, TaskValidationFailed · PATCH description of 2001 characters, "
+            + "owner null and owner outside the project: 422 validation_failed on the named field, the row unchanged")
+    void invalidDescriptionAndOwnerOnEditAreRefusedAndTheRowIsUnchanged() throws Exception {
+        MockHttpSession ana = signIn("ana@example.com");
+        Map<String, Object> before = snapshot(T_LAYOUT);
+        String[][] invalid = {
+            {"{\"description\":\"" + "d".repeat(2001) + "\"}", "description"},
+            {"{\"owner_member_id\":null}", "owner_member_id"},
+            // Carla (Acme administrator) is not a member of Website redesign; Northwind's Carla is another workspace.
+            {"{\"owner_member_id\":\"" + ACME_CARLA + "\"}", "owner_member_id"},
+            {"{\"owner_member_id\":\"" + NW_CARLA + "\"}", "owner_member_id"},
+        };
+        for (String[] c : invalid) {
+            update(ana, WEBSITE, T_LAYOUT, c[0]).andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.code").value("validation_failed"))
+                    .andExpect(jsonPath("$.details[*].field").value(org.hamcrest.Matchers.hasItem(c[1])));
+            assertThat(snapshot(T_LAYOUT)).as("row unchanged after " + c[1]).isEqualTo(before);
+        }
+    }
+
+    /** PATCH and DELETE of a task of another workspace through the caller's own project: 404, nothing changed. */
+    private void assertForeignTaskUntouched(String email, String ownProject, String foreignTask) throws Exception {
+        MockHttpSession session = signIn(email);
+        Map<String, Object> before = snapshot(foreignTask);
+        long tasks = taskCount();
+        String title = (String) before.get("title");
+        for (String body : new String[] {"{\"status\":\"Done\"}", "{\"title\":\"Hijacked\"}"}) {
+            String response = bodyOf(update(session, ownProject, foreignTask, body).andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("not_found")));
+            assertNoTaskData(response, title, foreignTask);
+            assertThat(snapshot(foreignTask)).as(email + " row unchanged after PATCH " + body).isEqualTo(before);
+        }
+        String response = bodyOf(remove(session, ownProject, foreignTask).andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("not_found")));
+        assertNoTaskData(response, title, foreignTask);
+        assertThat(count("SELECT count(*) FROM task WHERE task_id = ?::uuid", foreignTask)).isEqualTo(1);
+        assertThat(snapshot(foreignTask)).as(email + " row unchanged after DELETE").isEqualTo(before);
+        assertThat(taskCount()).isEqualTo(tasks);
+    }
+
+    private static void assertNoTaskData(String body, String title, String taskId) {
+        Map<String, Object> json = JsonPath.read(body, "$");
+        assertThat(json).doesNotContainKeys("task_id", "title", "owner_member_id", "status", "items");
+        assertThat(body).doesNotContain(title).doesNotContain(taskId);
+    }
+
+    @Test
+    @DisplayName("TA-05 · NFR-01, SP-02, API-A3, updateTask, deleteTask · Dan (Northwind Lab only) PATCHes and DELETEs an Acme task through his own "
+            + "project Lab inventory: 404 not_found, no task data, the Acme task still exists and is unchanged")
+    void danCannotChangeOrDeleteAnAcmeTaskThroughHisOwnProject() throws Exception {
+        assertForeignTaskUntouched("dan@example.com", LAB, T_IMAGES);
+    }
+
+    @Test
+    @DisplayName("TA-05 reverse · NFR-01, SP-02, API-A3, updateTask, deleteTask · Vera (Acme only) PATCHes and DELETEs a Northwind task through "
+            + "her own project Website redesign: 404 not_found, no task data, the Northwind task is unchanged")
+    void veraCannotChangeOrDeleteANorthwindTaskThroughHerOwnProject() throws Exception {
+        assertForeignTaskUntouched("vera@example.com", WEBSITE, T_EQUIPMENT);
+    }
 }
