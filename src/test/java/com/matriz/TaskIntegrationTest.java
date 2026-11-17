@@ -29,7 +29,7 @@ import com.matriz.seed.DemoDataSeeder;
 
 /**
  * Integration tests for task creation and reading (INC-09, number provisional; US-10; FR-09 to FR-13; NFR-01,
- * NFR-03; test-plan TC-01, TC-02, TV-01, TG-01, TA-01, TA-03).
+ * NFR-03; test-plan TC-01, TC-02, TV-01, TG-01, TA-01, TA-02, TA-03).
  *
  * <p>Unlike the other API tests, these use real HTTP on a random port, a real sign-in ({@code GET /auth/csrf} then
  * {@code POST /auth/sign-in}), the real session cookie and the real {@code X-XSRF-TOKEN} header, with nothing
@@ -74,13 +74,22 @@ class TaskIntegrationTest {
         }
 
         Resp call(String method, String path, String body) throws Exception {
+            return send(method, path, body, true);
+        }
+
+        /** Same as {@link #call} but never sends the X-XSRF-TOKEN header (the cookie jar is still used). */
+        Resp callWithoutCsrfHeader(String method, String path, String body) throws Exception {
+            return send(method, path, body, false);
+        }
+
+        private Resp send(String method, String path, String body, boolean csrfHeader) throws Exception {
             HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
             if (body == null) {
                 b.method(method, HttpRequest.BodyPublishers.noBody());
             } else {
                 b.header("Content-Type", "application/json").method(method, HttpRequest.BodyPublishers.ofString(body));
             }
-            if (!method.equals("GET")) {
+            if (csrfHeader && !method.equals("GET")) {
                 String token = xsrf();
                 if (token != null) {
                     b.header("X-XSRF-TOKEN", token);
@@ -161,6 +170,18 @@ class TaskIntegrationTest {
         throw new AssertionError("no status_counts entry for " + status);
     }
 
+    /** {total, done} of the project from GET /progress (FR-18). */
+    private int[] progress(Client c, String project) throws Exception {
+        Resp r = c.call("GET", "/progress?project_id=" + project, null);
+        assertThat(r.status).isEqualTo(200);
+        for (JsonNode n : r.json()) {
+            if (n.get("project_id").asText().equals(project)) {
+                return new int[] {n.get("total").asInt(), n.get("done").asInt()};
+            }
+        }
+        throw new AssertionError("no progress entry for " + project);
+    }
+
     private void assertError(Resp r, int status, String code) throws Exception {
         assertThat(r.status).isEqualTo(status);
         assertThat(r.json().get("code").asText()).isEqualTo(code);
@@ -173,6 +194,7 @@ class TaskIntegrationTest {
         JsonNode before = listWebsite(ana);
         assertThat(before.get("total").asInt()).isEqualTo(3);
         int todoBefore = statusCount(before, "To do");
+        int[] progressBefore = progress(ana, WEBSITE);
 
         Resp created = ana.call("POST", "/projects/" + WEBSITE + "/tasks",
                 "{\"title\":\"Draft homepage text\","
@@ -231,10 +253,15 @@ class TaskIntegrationTest {
         JsonNode after = listWebsite(signedIn("ben@example.com"));
         assertThat(after.get("total").asInt()).isEqualTo(4);
         assertThat(statusCount(after, "To do")).isEqualTo(todoBefore + 1);
+
+        // TC-02 (d): progress total +1, done unchanged (FR-18).
+        int[] progressAfter = progress(ana, WEBSITE);
+        assertThat(progressAfter[0]).as("progress total").isEqualTo(progressBefore[0] + 1);
+        assertThat(progressAfter[1]).as("progress done").isEqualTo(progressBefore[1]);
     }
 
     @Test
-    @DisplayName("TV-01 · AC-10.2, AC-10.5, BR-10 · an invalid title is refused with 422 validation_failed and nothing is created")
+    @DisplayName("TV-01 · AC-10.2, AC-10.5, BR-10, A8 · an invalid title is refused with 422 validation_failed and nothing is created")
     void invalidTitleIsRefusedAndNothingIsCreated() throws Exception {
         Client ana = signedIn("ana@example.com");
         String[] bodies = {
@@ -242,6 +269,9 @@ class TaskIntegrationTest {
             taskBody("x".repeat(151)),
             taskBody(""),
             "{\"owner_member_id\":\"" + BEN + "\"}",
+            taskBody("ab"),
+            taskBody("  ab  "),
+            "{\"title\":null,\"owner_member_id\":\"" + BEN + "\"}", // A8
         };
         for (String body : bodies) {
             Resp r = ana.call("POST", "/projects/" + WEBSITE + "/tasks", body);
@@ -317,5 +347,36 @@ class TaskIntegrationTest {
 
         assertThat(totalTasks()).isEqualTo(5);
         assertThat(websiteTasks()).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("TA-02 · openapi CsrfHeader · POST, PATCH and DELETE without X-XSRF-TOKEN give 403 csrf_invalid and change nothing")
+    void withoutCsrfHeaderChangesAreRefused() throws Exception {
+        Client ana = signedIn("ana@example.com");
+        // A task this test creates itself (with the header), so that PATCH and DELETE have a target.
+        Resp made = ana.call("POST", "/projects/" + WEBSITE + "/tasks", taskBody("Csrf target task"));
+        assertThat(made.status).isEqualTo(201);
+        String id = made.json().get("task_id").asText();
+        createdTaskIds.add(id);
+        assertThat(totalTasks()).isEqualTo(6);
+
+        Resp post = ana.callWithoutCsrfHeader("POST", "/projects/" + WEBSITE + "/tasks", taskBody("No header task"));
+        if (post.status == 201) {
+            createdTaskIds.add(post.json().get("task_id").asText());
+        }
+        assertError(post, 403, "csrf_invalid");
+        assertThat(totalTasks()).as("no task created without the header").isEqualTo(6);
+
+        Resp patch = ana.callWithoutCsrfHeader("PATCH", "/projects/" + WEBSITE + "/tasks/" + id,
+                "{\"title\":\"Changed without header\"}");
+        assertError(patch, 403, "csrf_invalid");
+        assertThat(jdbc.queryForObject("SELECT title FROM task WHERE task_id = ?::uuid", String.class, id))
+                .isEqualTo("Csrf target task");
+
+        Resp delete = ana.callWithoutCsrfHeader("DELETE", "/projects/" + WEBSITE + "/tasks/" + id, null);
+        assertError(delete, 403, "csrf_invalid");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM task WHERE task_id = ?::uuid", Integer.class, id))
+                .as("task still exists").isEqualTo(1);
+        assertThat(totalTasks()).isEqualTo(6);
     }
 }

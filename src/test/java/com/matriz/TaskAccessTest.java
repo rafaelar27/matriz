@@ -2,6 +2,7 @@ package com.matriz;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -49,6 +50,14 @@ class TaskAccessTest extends ApiTestSupport {
                 taskId);
     }
 
+    /** Number of stored tasks (pending writes flushed first). */
+    private long taskCount() {
+        entityManager.flush();
+        return jdbc.queryForObject("SELECT count(*) FROM task", Long.class);
+    }
+
+    private static final String NW_ANA = "c0000000-0000-0000-0000-000000000006";
+
     private static String task(String title, String owner) {
         return "{\"title\":\"" + title + "\",\"owner_member_id\":\"" + owner + "\"}";
     }
@@ -77,6 +86,7 @@ class TaskAccessTest extends ApiTestSupport {
     void teamMemberCreatesATaskTheyOwn() throws Exception {
         createTask(signIn("ben@example.com"), TRADE_FAIR, task("Book the stand", ACME_BEN))
                 .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.owner_member_id").value(ACME_BEN))
                 .andExpect(jsonPath("$.created_by_member_id").value(ACME_BEN));
     }
 
@@ -147,21 +157,28 @@ class TaskAccessTest extends ApiTestSupport {
 
     @Test
     void workspaceAdministratorCannotCreateTasksUntilPd03() throws Exception {
+        long tasks = taskCount();
         createTask(signIn("carla@example.com"), LAB, task("Placeholder task", NW_CARLA))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("forbidden"));
+        assertThat(taskCount()).isEqualTo(tasks);
     }
 
     @Test
     void teamMemberCannotAssignSomeoneElseUntilPd01() throws Exception {
+        long tasks = taskCount();
         createTask(signIn("ben@example.com"), WEBSITE, task("Placeholder task", ACME_ANA))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("forbidden"));
+        assertThat(taskCount()).isEqualTo(tasks);
     }
 
     @Test
     void creatorMustBeAProjectMemberUntilPd20() throws Exception {
         jdbc.update("DELETE FROM project_member WHERE project_id = ?::uuid AND member_id = ?::uuid", TRADE_FAIR, ACME_BEN);
+        entityManager.clear();
+        long tasks = taskCount();
         createTask(signIn("ben@example.com"), TRADE_FAIR, task("Placeholder task", ACME_BEN))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("forbidden"));
+        assertThat(taskCount()).isEqualTo(tasks);
     }
 
     @Test
@@ -172,8 +189,10 @@ class TaskAccessTest extends ApiTestSupport {
         jdbc.update("UPDATE member SET status = 'DEACTIVATED' WHERE member_id = ?::uuid", ACME_BEN);
         // The test shares one persistence context across requests; a real request starts with an empty one.
         entityManager.clear();
+        long tasks = taskCount();
         // Takes effect on the next request, without signing out (SP-04).
         createTask(ben, TRADE_FAIR, task("Placeholder task", ACME_BEN)).andExpect(status().isForbidden());
+        assertThat(taskCount()).as("TC-08: nothing created").isEqualTo(tasks);
         // Q-03 is open: only "refused (not 200) and unchanged" is asserted, not a specific 403 or 404.
         int refused = changeStatus(ben, WEBSITE, T_IMAGES, "{\"status\":\"Done\"}").andReturn().getResponse().getStatus();
         assertThat(refused).isNotEqualTo(200);
@@ -306,5 +325,69 @@ class TaskAccessTest extends ApiTestSupport {
                 .andReturn().getResponse().getStatus();
         assertThat(result / 100).isNotEqualTo(2);
         assertThat(row(T_IMAGES)).isEqualTo(before);
+    }
+
+    // --- New scenarios (test-plan matrix) -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("TV-05 · FR-10, BR-09, AC-10.3 · a missing owner (valid title) or a nonexistent owner id is 422 on owner_member_id and nothing is created")
+    void missingOrNonexistentOwnerIsRefused() throws Exception {
+        MockHttpSession ana = signIn("ana@example.com");
+        long tasks = taskCount();
+        createTask(ana, WEBSITE, "{\"title\":\"A valid title\"}").andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("validation_failed"))
+                .andExpect(jsonPath("$.details[0].field").value("owner_member_id"));
+        assertThat(taskCount()).isEqualTo(tasks);
+        createTask(ana, WEBSITE, task("A valid title", "c0000000-0000-0000-0000-000000000999"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("validation_failed"))
+                .andExpect(jsonPath("$.details[0].field").value("owner_member_id"));
+        assertThat(taskCount()).isEqualTo(tasks);
+    }
+
+    @Test
+    @DisplayName("TC-07 (e) · PD-20 prov. · a Project Manager who is not a member of the project cannot create in it: 403 forbidden, nothing created")
+    void projectManagerOutsideTheProjectCannotCreateUntilPd20() throws Exception {
+        // Dan is a Project Manager of Northwind Lab, not a member of Lab inventory; the owner is a project member.
+        long tasks = taskCount();
+        createTask(signIn("dan@example.com"), LAB, task("Placeholder task", NW_ANA))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("forbidden"));
+        assertThat(taskCount()).isEqualTo(tasks);
+    }
+
+    @Test
+    @DisplayName("TU-07 (a) · updateTask · permissions are checked before values: a non-owner Project Manager sending a valid title and a status gets 403, not 422, and the title is unchanged")
+    void permissionIsCheckedBeforeValuesForANonOwnerProjectManager() throws Exception {
+        Map<String, Object> before = row(T_IMAGES);
+        changeStatus(signIn("ana@example.com"), WEBSITE, T_IMAGES, "{\"title\":\"New title\",\"status\":\"Done\"}")
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("forbidden"));
+        assertThat(row(T_IMAGES)).isEqualTo(before);
+    }
+
+    @Test
+    @DisplayName("TU-07 (b) · updateTask, PD-01 prov. · permissions are checked before values: a Team Member sending a new owner and an empty title gets 403, not 422, and nothing changes")
+    void permissionIsCheckedBeforeValuesForATeamMemberSettingTheOwner() throws Exception {
+        Map<String, Object> before = row(T_IMAGES);
+        changeStatus(signIn("ben@example.com"), WEBSITE, T_IMAGES,
+                "{\"owner_member_id\":\"" + ACME_ANA + "\",\"title\":\"\"}")
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("forbidden"));
+        assertThat(row(T_IMAGES)).isEqualTo(before);
+    }
+
+    @Test
+    @DisplayName("TA-07 · SP-04, FR-03, Q-03 open · a member deactivated after sign-in cannot list or read tasks: not 2xx, 403 or 404, no task data")
+    void deactivatedMemberCannotReadTasks() throws Exception {
+        MockHttpSession ben = signIn("ben@example.com");
+        jdbc.update("UPDATE member SET status = 'DEACTIVATED' WHERE member_id = ?::uuid", ACME_BEN);
+        entityManager.clear();
+        var list = mvc.perform(get("/projects/" + WEBSITE + "/tasks").session(ben)).andReturn().getResponse();
+        var one = mvc.perform(get("/projects/" + WEBSITE + "/tasks/" + T_IMAGES).session(ben)).andReturn().getResponse();
+        for (var response : new org.springframework.mock.web.MockHttpServletResponse[] {list, one}) {
+            // Q-03 is open: 403 or 404 are both accepted; the exact code is not asserted.
+            assertThat(response.getStatus()).isIn(403, 404);
+            String body = response.getContentAsString();
+            assertThat(body).doesNotContain("\"items\"").doesNotContain("\"title\"")
+                    .doesNotContain("Review homepage images");
+        }
     }
 }
