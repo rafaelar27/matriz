@@ -1,10 +1,10 @@
 # Matriz — Architecture
 
-> **Status:** decided on 2026-11-05 by the project decision-maker (KC-01). This decision covers the architectural style and the logical components of the MVP. The language, framework, front-end approach and database are chosen under [Technology stack](#technology-stack) (confirmed on 2026-11-12). No hosting provider has been chosen; the remaining choices are listed under [Pending decisions](#pending-decisions). Requirement IDs are defined in [requirements.md](requirements.md), user stories in [user-stories.md](user-stories.md), and constraints, assumptions and pending decisions in [constraints.md](constraints.md).
+> **Status:** decided on 2026-11-05 by the project decision-maker (KC-01). This decision covers the architectural style and the logical components of the MVP. The language, framework, front-end approach and database are chosen under [Technology stack](#technology-stack) (confirmed on 2026-11-12). Hosting was chosen in part on 2026-11-18 (Render for the application, Neon for the database; decided, not yet deployed; see [Technology stack](#technology-stack)); the remaining choices are listed under [Pending decisions](#pending-decisions). Requirement IDs are defined in [requirements.md](requirements.md), user stories in [user-stories.md](user-stories.md), and constraints, assumptions and pending decisions in [constraints.md](constraints.md).
 
 ## Context
 
-The MVP is limited to FR-01 to FR-21 and NFR-01 to NFR-10 ([MVP scope](requirements.md#mvp-scope)). The forces that shape the architecture are:
+The MVP is limited to FR-01 to FR-22 and NFR-01 to NFR-10 ([MVP scope](requirements.md#mvp-scope)). The forces that shape the architecture are:
 
 | Force | Source | Status |
 |---|---|---|
@@ -222,7 +222,7 @@ flowchart TB
 
 ## Technology stack
 
-> **Status:** proposed on 2026-11-05 and **confirmed on 2026-11-12 by the project decision-maker** (KC-01). It resolves TD-10 and TD-11 and narrows TD-01. It does **not** decide TD-02, TD-03, TD-04, TD-05, TD-06, TD-07, TD-08, TD-09 or TD-12. The JaCoCo row was added on 2026-11-17 (see the [decision log](constraints.md#decision-log)). The Docker, Docker Compose and GitHub Actions row was added on 2026-11-18.
+> **Status:** proposed on 2026-11-05 and **confirmed on 2026-11-12 by the project decision-maker** (KC-01). It resolves TD-10 and TD-11 and narrows TD-01. It does **not** decide TD-04, TD-05, TD-06, TD-07, TD-08, TD-09 or TD-12. TD-03 was decided on 2026-11-12 (session cookie with BCrypt passwords; see the [decision log](constraints.md#decision-log)), and TD-02 was decided in part on 2026-11-18 (see the Hosting row below). The JaCoCo row was added on 2026-11-17 (see the [decision log](constraints.md#decision-log)). The Docker, Docker Compose and GitHub Actions row and the Hosting row were added on 2026-11-18.
 
 ### Summary
 
@@ -233,7 +233,8 @@ flowchart TB
 | Database | **PostgreSQL** (relational), installed on the developer's computer or run as the PostgreSQL 16 container of `compose.yaml` |
 | Supporting tools | **Maven** (build), **Hibernate** through Spring Data JPA (data access), **Flyway** (schema migrations), **JUnit 5 with Spring Boot Test and MockMvc** (tests) |
 | Code coverage measurement | **JaCoCo** (Maven plugin 0.8.14, added 2026-11-17); the report is written to `target/site/jacoco` at `mvn verify`; no coverage thresholds |
-| Packaging and continuous integration | **Docker** (one image of the application, Eclipse Temurin 21), **Docker Compose** (PostgreSQL 16 and the application on one machine, on the dedicated network `matriz-net`) and **GitHub Actions** (tests, image build, end-to-end test); added 2026-11-18, see the [decision log](constraints.md#decision-log). Not a hosting decision: images are not published (TD-02, TD-05, TD-06 stay pending). |
+| Packaging and continuous integration | **Docker** (one image of the application, Eclipse Temurin 21), **Docker Compose** (PostgreSQL 16 and the application on one machine, on the dedicated network `matriz-net`) and **GitHub Actions** (tests, image build, end-to-end test); added 2026-11-18, see the [decision log](constraints.md#decision-log). Not a hosting decision: images are not published. |
+| Hosting (decided in part, 2026-11-18; **not yet deployed**, no public URL exists) | **Render** (one Docker Web Service, free plan) for the application and **Neon** (managed PostgreSQL, direct connection endpoint, TLS) for the database, both in an EU region; approved by the project decision-maker (KC-01), see the [decision log](constraints.md#decision-log). One Render Web Service serves the API and the static interface from the same origin; a separate Render Static Site is not used, because `onrender.com` subdomains are different sites and the session and CSRF cookies are same-site only (TD-03); the `MATRIZ_API_BASE_URL` rule is unchanged. The public deployment has no demo data. Backup (TD-05) and availability (TD-06) stay pending. Risk for NFR-04, not a decision: the free plan may stop the service when idle and sessions are kept in memory, so a stop or restart ends every session [TO CONFIRM]. The exact regions, free-plan limits, and TLS and connection options are not verified [TO CONFIRM]. Open question: how accounts are created on the public site, because sign-up and invitations are not built (FR-01, FR-03). |
 
 ### Inputs specific to this decision
 
@@ -243,12 +244,12 @@ These come from the project decision-maker's request on 2026-11-05. Items marked
 |---|---|---|
 | The developer is one student, familiar with Java and JavaScript. | Project decision-maker, 2026-11-05; KC-08 | Stated input |
 | The MVP must be built in **1 week**. | Project decision-maker, 2026-11-05 | Stated input. **Conflicts with AQ30** ("within a few months"); see the report. |
-| Matriz runs **locally** for the course; there is no hosted deployment. | Project decision-maker, 2026-11-05 | Stated input. TD-02, TD-05 and TD-06 remain pending for any deployment beyond local use. |
+| Matriz runs **locally** for the course; there is no hosted deployment. | Project decision-maker, 2026-11-05 | Stated input, **superseded in part on 2026-11-18**: hosting was chosen (Render and Neon, see the Hosting row in the summary above and the [decision log](constraints.md#decision-log)), but nothing is deployed yet, so Matriz still runs only locally and in CI. TD-05 and TD-06 remain pending for any deployment. |
 | **TS-A1.** No course or instructor requirement fixes a technology. | None was given | **Assumption** |
 | **TS-A2.** "Familiar with JavaScript" means plain JavaScript in the browser, not TypeScript or a front-end framework such as React. | Team context | **Assumption** |
 | **TS-A3.** The developer can install a JDK and PostgreSQL on their own computer. | Local running | **Assumption** |
 
-The comparison considers only FR-01 to FR-21 and NFR-01 to NFR-10. No option was rated on how well it supports features outside the initial scope.
+The comparison considers only FR-01 to FR-22 and NFR-01 to NFR-10. No option was rated on how well it supports features outside the initial scope.
 
 ### Evaluation criteria
 
@@ -257,8 +258,8 @@ The comparison considers only FR-01 to FR-21 and NFR-01 to NFR-10. No option was
 | C1 | Fit with architecture and API style | The MVP is a modular monolith with explicit module interfaces and data ownership (decision rules 1–3) and a REST/JSON API ([openapi.yaml](../openapi.yaml)) with distinct 400, 401, 403, 404 and 422 responses (API-A2, API-A3). |
 | C2 | Fit with the data model | [database.md](database.md) has 11 entities, 18 relationships (R-01 to R-18), composite keys (ProjectMember), composite uniqueness (Member: workspace_id + account_id) and unique email (DA-01). |
 | C3 | Team familiarity and learning curve | One developer (KC-08) who knows Java and JavaScript; there is no time to learn a new language. |
-| C4 | Development speed for the MVP | 1 week for 21 functional requirements (stated input). |
-| C5 | Security support | Signed-in access only (FR-01, SP-01), role-based permissions in one place (FR-04, FR-05, SP-03, CMP-03), deactivated members locked out (SP-04), workspace isolation (NFR-01, SP-02), input validation (AC-10.2, EC-08), safe queries, and support for password hashing should TD-03 choose passwords. |
+| C4 | Development speed for the MVP | 1 week for 22 functional requirements (stated input). |
+| C5 | Security support | Signed-in access only (FR-01, SP-01), role-based permissions in one place (FR-04, FR-05, SP-03, CMP-03), deactivated members locked out (SP-04), workspace isolation (NFR-01, SP-02), input validation (AC-10.2, EC-08), safe queries, and support for password hashing (TD-03, decided 2026-11-12: passwords). |
 | C6 | Testing support | Acceptance criteria and edge cases (for example AC-10.x, AC-11.x, AC-17.x, EC-03) must be checkable; NFR-01 and NFR-03 should be testable at one boundary (see Justification above). |
 | C7 | Ecosystem, documentation and community | A single student developer relies on documentation and examples to solve problems quickly. |
 | C8 | Ease of local setup | Matriz runs locally for the course (stated input). |
@@ -288,7 +289,7 @@ The MVP includes a web user interface (CMP-11, NFR-08). Options are compared wit
 | C2 Data model | **High.** Uses the API's JSON; no direct data access. | **High.** Uses the same services. | **High.** Uses the API's JSON. |
 | C3 Familiarity | **High.** Plain JavaScript is known (TS-A2). | **Medium.** Java is known; Thymeleaf syntax is new but small. | **Low.** React, JSX and its state model are new (TS-A2). |
 | C4 Speed for 1 week | **Medium.** No build step, but DOM updates are written by hand for a few screens (dashboard, project list, task list, task detail, members, forms). | **High** for pages alone, **Medium** overall because the REST API must also be built. | **Low.** Learning React and setting up the toolchain costs part of the week. |
-| C5 Security | **Medium.** Must avoid inserting user text as HTML (use `textContent`) and handle the sign-in credential carefully, once TD-03 is decided. | **High.** Escapes output by default and works with Spring Security's CSRF protection. | **Medium.** Escapes by default, but credential handling between two projects adds work. |
+| C5 Security | **Medium.** Must avoid inserting user text as HTML (use `textContent`) and handle the sign-in credential carefully (TD-03, decided 2026-11-12). | **High.** Escapes output by default and works with Spring Security's CSRF protection. | **Medium.** Escapes by default, but credential handling between two projects adds work. |
 | C6 Testing | **Medium.** API tests cover the rules; the UI itself is checked manually against the acceptance criteria. | **Medium.** Controllers are testable with MockMvc; page rendering is checked manually. | **Medium.** Component tests are possible but add another toolchain. |
 | C7 Ecosystem | **High.** Web standards, documented by MDN. | **High.** Mature and well documented. | **High.** Very large community. |
 | C8 Local setup | **High.** Files are served by the Spring Boot application; nothing else to install. | **High.** Part of the Spring Boot application. | **Medium.** Needs Node.js, npm and a second dev server. |
@@ -340,11 +341,11 @@ Only tools needed to build, store data and test are chosen. Each is compared wit
 
 **Trade-offs and risks accepted:**
 
-- Spring Security has a learning curve; configuring sign-in waits for TD-03.
+- Spring Security has a learning curve, mainly for sign-in (TD-03 was decided on 2026-11-12).
 - Hand-written front-end JavaScript is slower per screen than a framework and harder to maintain if the UI grows a lot.
 - PostgreSQL must be installed locally (TS-A3), which costs some setup time in the first day.
 - JPA can generate inefficient queries if relationships are loaded carelessly.
-- The 1-week schedule is tight for 21 functional requirements whatever the stack; this choice reduces, but does not remove, that risk.
+- The 1-week schedule is tight for 22 functional requirements whatever the stack; this choice reduces, but does not remove, that risk.
 
 ### How the stack supports the documented design
 
@@ -354,7 +355,7 @@ Only tools needed to build, store data and test are chosen. Each is compared wit
 | Workspace scoping (rule 4, NFR-01, SP-02) | Every repository query is limited to the signed-in member's workspace, in the data-access layer (CMP-12). Whether every table carries workspace_id directly is still open (database.md, DA-09). |
 | Data model (database.md) | 11 entities become 11 tables created by Flyway migrations, with primary keys, foreign keys for R-01 to R-18, composite keys and the unique constraints listed above. Rules that span rows, such as keeping at least one Workspace Administrator (SP-07, R-02), are enforced in CMP-02 inside a transaction. |
 | API (openapi.yaml) | `createTask` and `updateTask` become REST controller methods in CMP-05, with request validation and one shared error handler for 400/401/403/404/422. |
-| Security (SP-01 to SP-07) | Spring Security requires sign-in for every request (SP-01) and rejects deactivated members (SP-04). Permission rules are checked in CMP-03 (SP-03). Password hashing (BCrypt) is available if TD-03 chooses passwords. No payment data is stored (SP-06). |
+| Security (SP-01 to SP-07) | Spring Security requires sign-in for every request (SP-01) and rejects deactivated members (SP-04). Permission rules are checked in CMP-03 (SP-03). Passwords are hashed with BCrypt (TD-03, decided 2026-11-12). No payment data is stored (SP-06). |
 | No loss of saved work (NFR-03) | Each action runs in one database transaction. Backup and recovery remain pending (TD-05). |
 
 ### Consequences
@@ -379,8 +380,8 @@ Revisit this choice, recording the outcome in the [decision log](constraints.md#
 
 1. A course or instructor requirement fixes a technology (TS-A1).
 2. The front end grows beyond what plain JavaScript can maintain, for example after pilot feedback asks for more interactive views; consider a front-end framework then.
-3. Matriz is deployed beyond local use; TD-02, TD-05 and TD-06 must then be decided, and the database setup reviewed.
-4. TD-03 chooses a sign-in method that Spring Security does not support well.
+3. Matriz is deployed beyond local use; TD-05 and TD-06 must then be decided (TD-02 is decided in part, 2026-11-18), and the database setup reviewed.
+4. A later change of the sign-in method (decided in TD-03 on 2026-11-12) is one that Spring Security does not support well.
 5. The development team changes (KC-08) and its skills differ from Java and JavaScript.
 6. Performance problems appear that come from the data-access layer rather than from the data model.
 
@@ -401,13 +402,13 @@ Recorded during the release review of 2026-11-16 (see the [implementation plan](
 
 ### Technical decisions already listed in constraints.md
 
-None of these is decided by this document. The architectural style narrows each one as follows.
+None of these is decided by this document. The architectural style narrows each one as follows. TD-03 is shown for completeness: it was decided on 2026-11-12 and is no longer pending (see the [decision log](constraints.md#decision-log)).
 
 | ID | Decision | Effect of this architecture |
 |---|---|---|
 | TD-01 | How users access Matriz on computers | Decides how CMP-11 User Interface is delivered. Narrowed by [Technology stack](#technology-stack): a web interface of static HTML, CSS and JavaScript, used in a browser. |
-| TD-02 | Where data is stored and hosted, including the region | Applies to the single logical store, CMP-12. |
-| TD-03 | How accounts are created and how sign-in works | Implemented inside CMP-01. |
+| TD-02 | Where data is stored and hosted, including the region | Applies to the single logical store, CMP-12. Decided in part on 2026-11-18: Render for the application and Neon for the database, both in an EU region; not yet deployed (see the Hosting row in [Technology stack](#technology-stack)). |
+| TD-03 | How accounts are created and how sign-in works | **Resolved 2026-11-12** (sign-in by email and password, BCrypt, server-side session cookie; see the decision log). Implemented inside CMP-01; sign-up is not built yet (FR-01). |
 | TD-04 | How invitation emails are sent | Implemented behind CMP-13. |
 | TD-05 | Backup and recovery | Covers one data store. |
 | TD-06 | How availability and capacity targets are met and monitored | Applies to one deployable unit. |

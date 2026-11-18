@@ -16,7 +16,7 @@
 | INC-08 | Remove the unscoped task status route | Done (2026-11-17) |
 | INC-09 | Coverage measurement and unit tests | Done (2026-11-17) |
 | INC-10 | Unit tests for the INC-09 refactoring candidates | Done (2026-11-18) |
-| INC-11 | English task status labels | Done |
+| INC-11 | English task status labels | Done (2026-11-18) |
 
 **Not built in this delivery** (release review 2026-11-16): sign-up (FR-01, US-22); FR-02 (US-02); invitations and member management (FR-03; US-03, US-05, US-23) and role assignment and changes (FR-04; US-03, US-04) apart from reading active members (the FR-04 permissions are enforced by `AccessPolicy`, CMP-03); archiving (FR-06, US-07); choosing project members (FR-07, US-08) apart from the creator; FR-14 (US-13); FR-17 (US-16); FR-19 (US-18); FR-20 (US-20); FR-21 (US-21). Decided as left out: filtering by due date (FR-15, 2026-11-12) and task priority (F17).
 
@@ -370,6 +370,8 @@ All runs were on the isolated database `matriz_test` (local PostgreSQL 16), with
 **Basis:** FR-12; AC-10.1; NFR-09 and PD-13 (the launch language of the whole interface stays pending); the decision-log entry of 2026-11-18, which supersedes the entry of 2026-11-12 "Task statuses are shown in Portuguese" (approved by the user in the session, 2026-11-18); AC-INC04.11 and AC-INC06.13, superseded as to the labels.
 
 **Built:** `STATUS_LABELS` in `src/main/resources/static/js/app.js` and `e2e/tests/create-task.spec.ts` changed. Documentation updated: README.md, decision log and PD-13 note in constraints.md, AC-10.1 clarification removed in user-stories.md, TE-04 and the assertions row in test-plan.md (historical execution records unchanged). No change to migrations, `openapi.yaml`, Java code or access rules.
+
+**Done date:** 2026-11-18, taken from the git history: commit `aede488` ("Record INC-11 verification results and mark it Done", 2026-11-18) changed the status from "In progress" to "Done"; the [status log](#status-log) row of the same date agrees.
 
 | ID | Acceptance criterion | Verification method | Result |
 |---|---|---|---|
