@@ -34,6 +34,8 @@ The MVP serves four user types: Workspace Administrator, Project Manager, Team M
 | Progress tracking | FR-18 Project progress indicator · FR-19 Overdue highlighting |
 | Support and privacy | FR-20 Send feedback · FR-21 Personal data requests |
 
+**Not built in this delivery** (see [docs/implementation-plan.md](docs/implementation-plan.md#increments)): sign-up (FR-01, US-22; sign-in is built); workspace creation (FR-02); invitations and member management (FR-03) and role assignment and changes (FR-04), apart from reading a workspace's active members (the FR-04 permissions are enforced); archiving projects (FR-06, US-07); choosing project members (FR-07, US-08), apart from the creator becoming a member; "My tasks" (FR-14); in-app notifications (FR-17); overdue highlighting (FR-19); feedback (FR-20); personal-data requests (FR-21). Left out by decision: filtering tasks by due date (FR-15, 2026-11-12) and task priority (F17).
+
 ## Documentation structure
 
 | File | Contents |
@@ -41,14 +43,16 @@ The MVP serves four user types: Workspace Administrator, Project Manager, Team M
 | [docs/requirements.md](docs/requirements.md) | Vision and objectives, user types, functional requirements (FR-xx), non-functional requirements (NFR-xx), MVP scope, features outside the initial scope |
 | [docs/user-stories.md](docs/user-stories.md) | User stories (US-xx), priorities, acceptance criteria, edge cases (EC-xx), traceability to requirements |
 | [docs/constraints.md](docs/constraints.md) | Known constraints (KC-xx), assumptions (AQ1–AQ33), security and privacy requirements (SP-xx), pending technical decisions (TD-xx), scope limitations and pending product decisions (PD-xx) |
-| [docs/architecture.md](docs/architecture.md) | Architectural style (decided 2026-11-05), components (CMP-xx), requirement coverage, component diagram |
+| [docs/architecture.md](docs/architecture.md) | Architectural style (decided 2026-11-05), components (CMP-xx), requirement coverage, component diagram, technology stack (decided 2026-11-12), implementation notes (2026-11-16) |
 | [docs/database.md](docs/database.md) | Conceptual and logical data model, business rules (BR-xx), data-model assumptions (DA-xx) |
 | [docs/database-diagram.md](docs/database-diagram.md) | Entity-relationship diagram of the data model |
-| [openapi.yaml](openapi.yaml) | Draft API specification (authentication, projects, progress, tasks, task assignees and comments), API assumptions (API-Ax) |
+| [openapi.yaml](openapi.yaml) | Draft API specification, version 0.8.0-draft (authentication, projects, progress, tasks, task assignees and comments), API assumptions (API-Ax) |
 | [docs/ui/README.md](docs/ui/README.md) | UI notes for the dashboard: screen elements (E-xx), navigation, UI assumptions (UI-Ax) |
 | [docs/ui/dashboard-wireframe.html](docs/ui/dashboard-wireframe.html) | Low-fidelity dashboard wireframe |
-| [docs/implementation-plan.md](docs/implementation-plan.md) | Implementation increments, their acceptance criteria and verification, status log |
+| [docs/implementation-plan.md](docs/implementation-plan.md) | Implementation increments, their acceptance criteria and verification, what is not built in this delivery, status log |
 | [docs/verification.md](docs/verification.md) | QA verification campaign: environment, commands, scenario results with evidence, automated tests, bugs found, limitations and open questions |
+| [AGENTS.md](AGENTS.md) | Rules for every agent working in this repository; technology-specific guidelines (setup, commands, layout, secrets) |
+| [.claude/agents/](.claude/agents/) | Definitions of the project agents: planner, database, tester, reviewer, security-auditor, doc-keeper |
 
 ## Getting started
 
@@ -60,7 +64,9 @@ The application is a single Spring Boot application (Java 21) using a local Post
 |---|---|---|
 | JDK | 21 | `java -version` |
 | Maven | 3.9 or later | `mvn -v` |
-| PostgreSQL | 18 (tested); running on `localhost:5432` | `& "C:\Program Files\PostgreSQL\18\bin\pg_isready.exe" -h localhost` |
+| PostgreSQL | 18 (tested; the migrations use `gen_random_uuid()`, built in from version 13); running on `localhost:5432` | `& "C:\Program Files\PostgreSQL\18\bin\pg_isready.exe" -h localhost` |
+
+Maven uses the JDK in `JAVA_HOME`, which must be JDK 21 (`mvn -v` shows it). The first build downloads dependencies, including Spring Boot 3.5.7, from Maven Central and needs internet access. The paths below assume PostgreSQL 18 in its default folder; change `18` to your version, or use `psql` and `pg_isready` directly if they are on your `PATH`.
 
 ### 1. Create the database
 
@@ -109,7 +115,7 @@ mvn -DskipTests package
 mvn spring-boot:run
 ```
 
-Flyway applies any pending migrations from `src/main/resources/db/migration` at startup; on an empty database the log shows `Successfully applied 4 migrations`, and on later starts `Schema "public" is up to date`. The application listens on port 8080. Stop it with `Ctrl+C`. Starting it again keeps all data. On a database that already has migrations V1 to V3, the next start applies V4, which stops startup if any project has no owner or a start date after its due date.
+Flyway applies any pending migrations from `src/main/resources/db/migration` at startup; on an empty database the log shows `Successfully applied 4 migrations`, and on later starts `Schema "public" is up to date`. The application, with its user interface, listens on port `MATRIZ_PORT` (default 8080). It keeps this terminal busy until you stop it. Stop it with `Ctrl+C`. Starting it again keeps all data. On a database that already has migrations V1 to V3, the next start applies V4, which stops startup if any project has no owner or a start date after its due date.
 
 ### 5. Load the demo data
 
@@ -117,23 +123,30 @@ Flyway applies any pending migrations from `src/main/resources/db/migration` at 
 mvn spring-boot:run "-Dspring-boot.run.profiles=seed"
 ```
 
-The seed command inserts the demo data and exits. It never deletes data, and running it again inserts nothing (`Demo data: 0 new rows inserted`). Normal startup never seeds. On a database seeded before 2026-11-12, running it once more adds only the Orchard Office demo data (5 new rows).
+The seed command inserts the demo data and exits. It never deletes data, and running it again inserts nothing (`Demo data: 0 new rows inserted`). Normal startup never seeds. On a database seeded before 2026-11-12, running it once more adds only the Orchard Office demo data (5 new rows). Run it in a second terminal while the application runs, or after stopping it. It needs `MATRIZ_DEMO_PASSWORD` and stops with an error if it is empty. It also applies any pending migration, so it works on an empty database too. Requests that change data (for example the tests in Demo users) change the demo data, and running the seed again does not restore it.
 
 ### 6. Run the verification check
 
-```powershell
-mvn verify
-```
-
-Runs all automated tests. Expected result: `Tests run: 323, Failures: 0` and `BUILD SUCCESS`. The coverage report (JaCoCo) is written to `target/site/jacoco/index.html` after `mvn verify`; `mvn test` does not write it, and no coverage threshold is set.
-
-- `DatabaseSetupTest` checks the database configured in `.env`: it answers queries, every migration succeeded and all 11 tables from [docs/database.md](docs/database.md) exist. It changes no data.
-- `AuthenticationTest`, `CsrfCookieTest`, `TaskAccessTest`, `ProjectApiTest`, `TaskApiTest`, `AssignmentApiTest`, `CommentApiTest`, `ClientConfigApiTest` and `VerificationApiTest` check sign-in, sign-out, the project, task, assignee and comment operations, the open `GET /config.js` and every access rule through API requests; `VerificationApiTest` holds the API checks of the QA verification campaign ([docs/verification.md](docs/verification.md)). They use the separate `matriz_test` database (`MATRIZ_TEST_DB_URL`, default `jdbc:postgresql://localhost:5432/matriz_test`), load the demo data there and roll back every change (the one exception is `TaskIntegrationTest`, described below). Create that database once, as the `matriz` role:
+Create the separate test database once, as the `matriz` role:
 
 ```powershell
 & "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U matriz -h localhost -d matriz -c "CREATE DATABASE matriz_test OWNER matriz"
 ```
 
+Then point `MATRIZ_DB_URL` at it in the shell, run the tests, and clear it, so that a later `mvn spring-boot:run` in the same window uses the development database again:
+
+```powershell
+$env:MATRIZ_DB_URL = "jdbc:postgresql://localhost:5432/matriz_test"
+mvn verify
+Remove-Item Env:MATRIZ_DB_URL
+```
+
+In Git Bash, `MATRIZ_DB_URL=jdbc:postgresql://localhost:5432/matriz_test mvn verify` sets it for that command only. If you changed `MATRIZ_TEST_DB_URL`, use the same value. Without this, `DatabaseSetupTest` connects to the development database from `.env` and applies any pending migration there.
+
+Runs all automated tests. Expected result: `Tests run: 323, Failures: 0` and `BUILD SUCCESS`. The coverage report (JaCoCo) is written to `target/site/jacoco/index.html` after `mvn verify`; `mvn test` does not write it, and no coverage threshold is set. If another process holds `target/matriz-0.1.0-SNAPSHOT.jar` (for example `java -jar`), the last packaging step fails; `mvn verify -Dspring-boot.repackage.skip=true` runs the same tests without it.
+
+- `DatabaseSetupTest` checks the database in `MATRIZ_DB_URL`: it answers queries, every migration succeeded, and 11 of the 12 tables from [docs/database.md](docs/database.md) exist (`task_assignee` is not checked). It changes no data, but starting it applies any pending migration to that database.
+- `AuthenticationTest`, `CsrfCookieTest`, `TaskAccessTest`, `ProjectApiTest`, `TaskApiTest`, `AssignmentApiTest`, `CommentApiTest`, `ClientConfigApiTest` and `VerificationApiTest` check sign-in, sign-out, the project, task, assignee and comment operations, the open `GET /config.js` and every access rule through API requests; `VerificationApiTest` holds the API checks of the QA verification campaign ([docs/verification.md](docs/verification.md)). They use the test database in `MATRIZ_TEST_DB_URL`, load the demo data there with a fixed test password, and roll back every change.
 - `ClientConfigControllerTest` is a unit test without a database: it checks which `MATRIZ_API_BASE_URL` values are accepted or stop startup, and that an accepted value is safely encoded in `/config.js`.
 - `TaskTitleRuleTest` is a unit test of the task title rule, with no Spring and no database; it lives in `src/test/java/com/matriz/tasks`.
 - `AccessPolicyTest`, `RoleTest`, `TaskStatusRuleTest`, `TaskDescriptionRuleTest`, `TaskEntityTest`, `ApiExceptionTest`, `ApiExceptionHandlerTest`, `IdsTest`, `ProjectNameRuleTest`, `ProjectDescriptionRuleTest`, `ProjectDateOrderRuleTest`, `ProjectOwnerRuleTest`, `CommentBodyRuleTest`, `AssignmentRuleTest` and `TaskOwnerRuleTest` are also unit tests, with no Spring and no database.
@@ -145,8 +158,6 @@ export MATRIZ_DB_USER="matriz"
 export MATRIZ_DB_PASSWORD="<role password>"
 mvn test -Dtest=TaskIntegrationTest
 ```
-
-  While `mvn verify` runs, `MATRIZ_DB_URL` must also point at the test database (the same URL as `MATRIZ_TEST_DB_URL`), so that `DatabaseSetupTest` never touches the development database.
 
 ### Authentication
 
@@ -162,20 +173,24 @@ Matriz uses a **server-side session cookie** (TD-03, decided 2026-11-12). The AP
 
 **Session lifecycle:** created at sign-in (always a new session id); kept in memory on the server; expires after **8 hours without requests** (`MATRIZ_SESSION_TIMEOUT`, for example `30m` or `1m`); ended by sign-out or by restarting the application. A request with an ended or expired session gets 401 `session_expired` ("Your session has ended. Sign in again."). Passwords are stored only as BCrypt hashes and never appear in responses or logs. A wrong password and an unknown email get the same response: 401 `invalid_credentials`.
 
-**Who may do what:** the backend reads the caller's identity only from the session, and their role and status from the database on every request. A project or task in another workspace returns 404, as if it did not exist; a refused action inside the caller's own workspace returns 403. Some rules are **provisional** until their pending decisions are made: Workspace Administrators cannot create tasks (PD-03), Team Members can only create tasks they own and only owners change a task's status (PD-01), Viewers are refused even on tasks they own (PD-17), and only project members can create tasks in a project (PD-20).
+**Who may do what:** the backend reads the caller's identity only from the session, and their role and status from the database on every request. A project or task in another workspace returns 404, as if it did not exist; a refused action inside the caller's own workspace returns 403. Some rules are **provisional** until their pending decisions are made: Workspace Administrators cannot create, edit or delete projects, and can only read tasks and comments (PD-03), Team Members can only create tasks they own and only owners change a task's status (PD-01), Viewers are refused even on tasks they own (PD-17), and only project members can create tasks in a project (PD-20).
 
-**Try it with curl** (Git Bash or any shell with `curl`; replace `your-demo-password` with your `MATRIZ_DEMO_PASSWORD`):
+**Try it with curl** (Git Bash or any shell with `curl`). The cookie jar is a temporary file outside the repository, because it holds a live session; type your `MATRIZ_DEMO_PASSWORD` when asked, so that it does not end up in the shell history:
 
 ```bash
-curl -s -c jar.txt http://localhost:8080/auth/csrf
-TOKEN=$(awk '$6=="XSRF-TOKEN"{print $7}' jar.txt)
-curl -s -b jar.txt -c jar.txt -H "X-XSRF-TOKEN: $TOKEN" -H "Content-Type: application/json" -d '{"email":"ben@example.com","password":"your-demo-password"}' http://localhost:8080/auth/sign-in
-curl -s -b jar.txt http://localhost:8080/auth/me
+JAR=$(mktemp)
+read -rs -p "Demo password: " PW; echo
+curl -s -c "$JAR" http://localhost:8080/auth/csrf
+TOKEN=$(awk '$6=="XSRF-TOKEN"{print $7}' "$JAR")
+curl -s -b "$JAR" -c "$JAR" -H "X-XSRF-TOKEN: $TOKEN" -H "Content-Type: application/json" -d "{\"email\":\"ben@example.com\",\"password\":\"$PW\"}" http://localhost:8080/auth/sign-in
+curl -s -b "$JAR" http://localhost:8080/auth/me
 ```
+
+Sign-in issues a new `XSRF-TOKEN`; read it again from `"$JAR"` before a request that changes data. When you are done, run `rm -f "$JAR"; unset PW`.
 
 ### User interface
 
-The user interface is static HTML, CSS and JavaScript in `src/main/resources/static`, served by the application itself; there is no separate front-end build or server. Start the application (step 4) and open <http://localhost:8080>.
+The user interface is static HTML, CSS and JavaScript in `src/main/resources/static`, served by the application itself; there is no separate front-end build or server. Start the application (step 4) and open <http://localhost:8080> (or your `MATRIZ_PORT`).
 
 The interface finds the API through `GET /config.js`, which the application generates from `MATRIZ_API_BASE_URL` and which only `static/js/app.js` reads. Leave the variable empty to use the server that serves the page. Set it to a path such as `/api` only when a proxy on the same site forwards that path to the application. In Git Bash, set `MSYS_NO_PATHCONV=1` when passing `MATRIZ_API_BASE_URL` on the command line, or the shell rewrites `/api` into a Windows path. `GET /config.js` is open without a session and holds no secret; it is not part of the API contract.
 
@@ -226,7 +241,7 @@ Open a project from the project list. Its **Tasks** section lists the project's 
 |---|---|---|
 | Filter | Choose a **Status** and/or an **Owner**; both combine with the pages, and the choice stays in the address after a reload | Every member |
 | View | Click a task's title | Every member |
-| + New task | Title (3 to 150 characters, not only spaces), description (up to 2000), owner, due date, status (Por fazer by default) | Project Managers and Team Members who are members of the project; Team Members own the tasks they create |
+| + New task | Title (3 to 150 characters, not only spaces), description (up to 2000), owner (Project Managers choose from the workspace's active members, and an owner outside the project is refused with 422; editing offers only project members), due date, status (Por fazer by default) | Project Managers and Team Members who are members of the project; Team Members own the tasks they create |
 | Edit | **Edit** on the row | Project Managers, or the owner if a Team Member; only Project Managers change the owner |
 | Change status | The status list on the row | The task's owner |
 | Delete | **Delete** on the row, then confirm; the task's comments and notifications are deleted with it | The member who created the task |
@@ -250,7 +265,7 @@ Author, dates and eligibility are always decided by the backend. Assigning the s
 
 ### Demo users
 
-All demo data is fictitious. Every demo account uses the password you set in `MATRIZ_DEMO_PASSWORD`. Ids are fixed, so requests can use them directly.
+All demo data is fictitious. Every demo account uses the password you set in `MATRIZ_DEMO_PASSWORD`. Ids are fixed, so requests can use them directly. Requests that change data need the session cookie and the `X-XSRF-TOKEN` header (see [Authentication](#authentication)). Successful requests change the demo data.
 
 | Test | Sign in as | Request | Expected |
 |---|---|---|---|
@@ -265,11 +280,11 @@ All demo data is fictitious. Every demo account uses the password you set in `MA
 
 | Email | Workspace and role | Use it to test |
 |---|---|---|
-| `ana@example.com` | Acme Studio: Project Manager · Northwind Lab: Team Member | The same person with different roles in two workspaces; a Project Manager in the shared project "Website redesign" |
-| `ben@example.com` | Acme Studio: Team Member | A Team Member in the shared project; owns an overdue task; **cannot access** "Lab inventory" (another workspace, NFR-01) |
+| `ana@example.com` | Acme Studio: Project Manager · Northwind Lab: Team Member | The same person with different roles in two workspaces; a Project Manager in the shared project "Website redesign"; in Northwind Lab a Team Member of "Lab inventory", who can only create tasks she owns (provisional, PD-01) |
+| `ben@example.com` | Acme Studio: Team Member | A Team Member in the shared project; owns a task past its due date (overdue highlighting, FR-19, is not built in this delivery); **cannot access** "Lab inventory" (another workspace, NFR-01) |
 | `vera@example.com` | Acme Studio: Viewer | Read-only access (FR-05) in the shared project; **cannot access** "Lab inventory" |
-| `carla@example.com` | Acme Studio and Northwind Lab: Workspace Administrator | Member and role management (FR-03, FR-04); cannot create, edit or delete projects (provisional, PD-03) |
-| `dan@example.com` | Northwind Lab: Project Manager | Creates and edits Northwind projects; **sees no** Acme Studio project (NFR-01) |
+| `carla@example.com` | Acme Studio and Northwind Lab: Workspace Administrator | Provisional PD-03 refusals: reads every project, task and comment of both workspaces, but gets 403 when creating, editing or deleting projects, when creating, editing, deleting, assigning or changing the status of tasks, and when commenting. She owns "Lab inventory" and is a project member there, yet cannot edit it. No demo project is outside her workspaces, so she has no 404 case. Member and role management (FR-03, FR-04) is not built in this delivery |
+| `dan@example.com` | Northwind Lab: Project Manager | Creates and edits Northwind projects; cannot create tasks in "Lab inventory", because he is not a project member there (provisional, PD-20); **sees no** Acme Studio project (NFR-01) |
 | `eva@example.com` | Orchard Office: Project Manager | A workspace without projects: the dashboard shows "No projects yet." with **+ New project**; **sees no** Acme Studio or Northwind Lab project (NFR-01). Creating a project as Eva ends the empty state; deleting it restores it |
 | `finn@example.com` | Orchard Office: Workspace Administrator | The same empty dashboard without **+ New project** (provisional, PD-03); keeps an administrator in Orchard Office (SP-07) |
 
@@ -281,12 +296,12 @@ All demo data is fictitious. Every demo account uses the password you set in `MA
 
 Orchard Office has no projects on purpose, to show the empty state.
 
-Every member of a workspace can see all of its projects (FR-08), so access differences between users come from workspaces (NFR-01) and roles (FR-04), not from project membership.
+Every member of a workspace can see all of its projects (FR-08). What a user can change depends on their workspace (NFR-01) and role (FR-04) and, for creating tasks and commenting, on being a member of the project (provisional, PD-20).
 
 ## Current project status
 
 - **Stage:** development. The specification documents remain drafts pending client validation.
 - **Done:** initial analysis, functional proposal and MVP specifications. Architectural style decided on 2026-11-05 (modular monolith, see the [decision log](docs/constraints.md#decision-log)). Draft data model, ER diagram, API specification (authentication, projects, progress, tasks, assignees and comments), and dashboard wireframe. Technology stack chosen on 2026-11-12: Java 21 and Spring Boot 3, a static HTML/CSS/JS front end and PostgreSQL (see [Technology stack](docs/architecture.md#technology-stack)).
-- **In progress:** development. The project setup (INC-01), authentication and access control (INC-02), projects (INC-03), tasks (INC-04), task collaboration (INC-05) and project owner required and date order (INC-07) increments are done (see [docs/implementation-plan.md](docs/implementation-plan.md)): sign-in, profile, sign-out, creating, listing, searching, viewing, editing and deleting projects, creating, listing, filtering, viewing, editing and deleting tasks and changing their status, assigning members to tasks, and commenting on tasks; every project has an owner, and its start date is not after its due date. The user interface covers sign-in, the dashboard, projects, tasks, assignees and comments, and is being reworked one screen at a time (INC-06, in progress; the sign-in and dashboard screens, the project list and the project form are done). Hosting and other technical choices are still pending; see [pending technical decisions](docs/constraints.md#pending-technical-decisions).
+- **In progress:** development. The project setup (INC-01), authentication and access control (INC-02), projects (INC-03), tasks (INC-04), task collaboration (INC-05) and project owner required and date order (INC-07) increments are done (see [docs/implementation-plan.md](docs/implementation-plan.md)): sign-in, profile, sign-out, creating, listing, searching, viewing, editing and deleting projects, creating, listing, filtering by status and owner, viewing, editing and deleting tasks and changing their status, assigning members to tasks, and commenting on tasks; every project has an owner, and its start date is not after its due date. The user interface covers sign-in, the dashboard, projects, tasks, assignees and comments, and is being reworked one screen at a time (INC-06, in progress; the sign-in and dashboard screens, the project list and the project form are done). **Not built in this delivery:** sign-up (FR-01), FR-02, FR-03, role assignment and changes (FR-04), project archiving (FR-06), choosing project members (FR-07), FR-14, FR-17, FR-19, FR-20 and FR-21; see [Features planned for the MVP](#features-planned-for-the-mvp). Hosting and other technical choices are still pending; see [pending technical decisions](docs/constraints.md#pending-technical-decisions).
 - **Blocking next step:** the five assumptions that shape the MVP most (AQ3, AQ6, AQ7, AQ11, AQ17) were confirmed on 2026-10-29 (see the [decision log](docs/constraints.md#decision-log)). The remaining [pending product decisions](docs/constraints.md#pending-product-decisions) (PD-01 to PD-13, PD-15 to PD-20 and PD-22 to PD-24; PD-04, PD-10 and PD-13 in part) must be made before the features they affect are designed. While the client is unavailable, the project decision-maker makes them (KC-01).
-- **Last updated:** 2026-11-16.
+- **Last updated:** 2026-11-17.

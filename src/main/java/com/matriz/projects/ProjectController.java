@@ -19,14 +19,12 @@ import org.springframework.web.bind.annotation.RestController;
 import com.matriz.accounts.SignedInAccount;
 import com.matriz.shared.ApiException;
 import com.matriz.shared.Ids;
+import com.matriz.shared.PageParams;
 
 /** listProjects, createProject, getProject, updateProject, deleteProject (openapi.yaml). */
 @RestController
 @RequestMapping("/projects")
 class ProjectController {
-
-    private static final int DEFAULT_SIZE = 20;
-    private static final int MAX_SIZE = 100;
 
     private final ProjectService service;
 
@@ -49,8 +47,8 @@ class ProjectController {
             workspace = Optional.of(Ids.parse(workspaceId).orElseThrow(() -> ApiException.validation(
                     "The projects could not be listed.", "workspace_id", "The workspace id is not valid.")));
         }
-        int p = intParam("page", page, 0, 0, Integer.MAX_VALUE);
-        int s = intParam("size", size, DEFAULT_SIZE, 1, MAX_SIZE);
+        int p = PageParams.page(page, "The projects could not be listed.");
+        int s = PageParams.size(size, "The projects could not be listed.");
         return service.list(caller.accountId(), q, workspace, p, s);
     }
 
@@ -80,22 +78,5 @@ class ProjectController {
 
     private static UUID id(String value) {
         return Ids.parse(value).orElseThrow(() -> ApiException.notFound(ProjectService.NOT_FOUND));
-    }
-
-    private static int intParam(String name, String value, int defaultValue, int min, int max) {
-        if (value == null || value.isEmpty()) {
-            return defaultValue;
-        }
-        try {
-            int n = Integer.parseInt(value);
-            if (n >= min && n <= max) {
-                return n;
-            }
-        } catch (NumberFormatException e) {
-            // reported below
-        }
-        String range = max == Integer.MAX_VALUE ? "a whole number of at least " + min
-                : "a whole number from " + min + " to " + max;
-        throw ApiException.validation("The projects could not be listed.", name, "The " + name + " must be " + range + ".");
     }
 }

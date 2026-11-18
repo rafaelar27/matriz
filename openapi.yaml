@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: Matriz API
-  version: 0.7.0-draft
+  version: 0.8.0-draft
   summary: Draft API for the Matriz MVP (authentication, projects, progress, tasks, task assignees and comments).
   description: |
     Draft specification of the Matriz MVP API, a project and task management
@@ -14,7 +14,14 @@ info:
     listing, viewing, editing and deletion on 2026-11-12 (INC-04); task assignees
     and comments on 2026-11-12 (INC-05). Version 0.7.0-draft (INC-07): a
     project always has an owner, and its start date is not after its due date
-    (decided 2026-11-12). The technology stack is chosen in
+    (decided 2026-11-12). Version 0.8.0-draft (2026-11-16, release review):
+    documents the actual behaviour of signIn 422, undefined responses,
+    nullable task fields and the Location header; no behaviour change.
+    After that review (2026-11-17 and 2026-11-18, still 0.8.0-draft): the
+    unscoped `updateTaskStatus` (`PATCH /tasks/{task_id}`) was removed, status
+    changes use `updateTask`, `null` is refused as a status, and the
+    `createTask` Location is the project-scoped path (decision log).
+    The technology stack is chosen in
     docs/architecture.md (Technology stack). Authentication uses a server-side
     session cookie (TD-03, decided 2026-11-12); see `components.securitySchemes`.
 
@@ -25,7 +32,7 @@ info:
        `MATRIZ_SESSION` cookie (HttpOnly, SameSite=Lax). A new session id is
        issued on every sign-in, and a new CSRF token with it.
     3. Every other request needs that cookie. Every request that changes data
-       (POST, PATCH, PUT, DELETE) also needs the header `X-XSRF-TOKEN` with the
+       (POST, PATCH, DELETE) also needs the header `X-XSRF-TOKEN` with the
        value of the `XSRF-TOKEN` cookie; without it the response is 403
        `csrf_invalid`.
     4. The session expires after 8 hours without requests (configurable). It
@@ -62,6 +69,16 @@ info:
     secret (SP-01). They are not API operations and are not listed under
     `paths`.
 
+    **Responses outside this contract:** a path or method the contract does
+    not define, an unsupported `Content-Type`, and unexpected server errors
+    (for example 404, 405, 415, 500) get Spring Boot's default error body
+    (fields such as `timestamp`, `status`, `error`, `path`), not the `Error`
+    schema (verification.md O-4). A changing request (POST, PATCH, DELETE)
+    without a valid CSRF header gets 403 `csrf_invalid` before the session
+    is checked; otherwise a request without a session gets 401
+    `not_authenticated`. The open static paths (`/`, `/index.html`,
+    `/css/**`, `/js/**`, `/config.js`) need no session.
+
     **Sources of truth:** docs/requirements.md (FR, NFR), docs/user-stories.md
     (US, AC, EC), docs/constraints.md (AQ, SP, TD, PD), docs/architecture.md
     (CMP) and docs/database.md (entities, BR, DA). Attribute names, types and
@@ -85,6 +102,15 @@ info:
       Added 2026-11-12 (INC-05).
     - `listTaskComments` and `addTaskComment` support US-15 (FR-16). Owning
       component: CMP-07 Comments. Added 2026-11-12 (INC-05).
+
+    **Not built in this delivery:** sign-up (FR-01, US-22); workspace
+    creation (FR-02); invitations and member management (FR-03) and role
+    assignment and changes (FR-04) apart from reading active members (the
+    FR-04 permissions are enforced by CMP-03); archiving projects (FR-06,
+    US-07); choosing project members (FR-07, US-08) apart from the creator;
+    "My tasks" (FR-14); in-app notifications (FR-17); overdue highlighting
+    (FR-19); feedback (FR-20); personal-data requests (FR-21). Filtering by
+    due date (FR-15) was left for later on 2026-11-12.
 
     **Assumptions made in this specification** (not confirmed requirements):
     - **API-A1.** *Withdrawn 2026-11-12:* replaced by the session cookie
@@ -110,14 +136,20 @@ info:
     - **PD-06:** whether a Done task may move back to an earlier status.
     - **PD-11 / TD-07:** which change wins when two people change the same task (EC-07).
     - **PD-12:** whether members are notified of their own actions.
-    - **PD-16:** whether one account can be a member of several workspaces. The
-      paths avoid a workspace identifier: the workspace is the one the project
-      or task belongs to.
+    - **PD-16:** whether one account can be a member of several workspaces.
+      Task paths avoid a workspace identifier; `listProjects` (`workspace_id`)
+      and `listWorkspaceMembers` take one, and `createProject` takes
+      `workspace_id` in its body. The profile lists every active
+      membership; this is not a decision on PD-16.
     - **PD-17:** whether a Viewer who owns a task can change its status.
 
 servers:
-  - url: http://localhost:8080
+  - url: http://localhost:{port}
     description: Local development (README, Getting started). No hosting has been chosen (TD-02).
+    variables:
+      port:
+        default: '8080'
+        description: MATRIZ_PORT (server.port).
 
 security:
   - sessionCookie: []
@@ -217,6 +249,15 @@ paths:
                     message: The email or password is incorrect.
         '403':
           $ref: '#/components/responses/CsrfInvalid'
+        '422':
+          description: |
+            The body is well formed but has a field other than `email` and
+            `password`, or a value of the wrong type (for example an object).
+            `code` is `validation_failed`; `details` names the field.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /auth/me:
     get:
@@ -263,8 +304,10 @@ paths:
       description: |
         Every project of every workspace where the caller is an active member,
         including projects the caller is not a member of (FR-08, AC-19.1) and
-        archived projects (PD-05 pending; see `is_archived`). Projects of other
-        workspaces are never listed (NFR-01). Sorted by name, then id.
+        archived projects (PD-05 pending; see `is_archived`). No operation
+        archives a project in this delivery, so `is_archived` is always
+        `false`. Projects of other workspaces are never listed (NFR-01).
+        Sorted by name, then id.
       parameters:
         - name: q
           in: query
@@ -375,7 +418,7 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
-          description: The workspace does not exist or the caller is not a member of it (NFR-01, API-A3).
+          description: The workspace does not exist or the caller is not a member of it, or `workspace_id` is not a valid id (NFR-01, API-A3).
           content:
             application/json:
               schema:
@@ -516,7 +559,11 @@ paths:
       tags: [Workspaces]
       operationId: listWorkspaceMembers
       summary: Active members of a workspace
-      description: For choosing a project owner (FR-06). Any active member of the workspace.
+      description: |
+        For choosing a project owner (FR-06). The task list also uses it for
+        the owner filter and the create-task owner choice (the API refuses a
+        task owner outside the project, 422). Any active member of the
+        workspace.
       parameters:
         - name: workspace_id
           in: path
@@ -553,6 +600,7 @@ paths:
       description: |
         The tasks of one project with their owner, status and due date (US-12,
         FR-13), optionally filtered by status and owner (US-14, FR-15).
+        Filtering by due date (FR-15) is left for later (decided 2026-11-12).
         Filters combine (AND), and paging applies to the filtered result.
         `status_counts` always counts every task of the project, whatever the
         filters, so it matches the project's progress (FR-18, BR-15).
@@ -668,18 +716,14 @@ paths:
           A Viewer who is a project member may be the owner (FR-10).
         - All referenced records belong to the project's workspace (NFR-01, BR-18).
 
-        **Side effect:** a "task assigned" notification is created for the owner
-        (FR-17, BR-14, US-16). Whether it is created when members assign a task
-        to themselves is pending PD-12.
+        **Planned side effect, not built in this delivery:** a "task assigned"
+        notification for the owner (FR-17, BR-14, US-16; PD-12 pending).
 
         **Provisional rules until decided (403):** Workspace Administrators are
         refused (PD-03); a Team Member may only set themselves as the owner
         (PD-01); the caller must be a member of the project (PD-20).
 
         **Pending:** behaviour in an archived project (PD-05).
-
-        **Not yet implemented (INC-02):** the "task assigned" notification side
-        effect, which belongs to the notifications increment (CMP-08, FR-17).
       parameters:
         - $ref: '#/components/parameters/CsrfHeader'
       requestBody:
@@ -705,11 +749,13 @@ paths:
         '201':
           description: |
             The task was created. Its status is `To do` unless another was sent
-            (AC-10.1). It now appears
-            in the project task list (FR-13) and in the owner's "My tasks" (FR-14).
+            (AC-10.1). It now appears in the project task list (FR-13).
+            "My tasks" (FR-14) is not built in this delivery.
           headers:
             Location:
-              description: Path of the new task.
+              description: |
+                Path of the new task, `/projects/{project_id}/tasks/{task_id}`;
+                read it with `getTask` (decided 2026-11-18).
               schema:
                 type: string
               example: /projects/prj_website/tasks/tsk_001
@@ -808,7 +854,8 @@ paths:
       description: |
         Changes the sent fields (US-25, AC-10.4, US-11). Fields not sent stay
         unchanged; `null` clears `description` or `due_date`. The same rules as
-        `createTask` apply to each value. A body with no fields changes nothing.
+        `createTask` apply to each value. A body with no fields changes nothing;
+        Viewers and Workspace Administrators get 403 even for an empty body.
         The task must belong to `project_id` (404 otherwise).
 
         **Who can change which field** (provisional until PD-01, PD-03 and
@@ -895,7 +942,10 @@ paths:
         name (FR-07, FR-22, BR-22). Deactivated members are never eligible
         (SP-04). Members already assigned are included; `listTaskAssignees`
         tells them apart. Only the member id, name and role are returned.
-        The same list serves as the owner choice for the task (AC-10.3).
+        The task edit form uses this list for the owner choice (AC-10.3). The
+        create form offers the workspace's active members
+        (`listWorkspaceMembers`), because this list needs an existing task;
+        owners outside the project are refused with 422.
 
         **Who can perform it:** any active member of the project's workspace.
       responses:
@@ -1183,8 +1233,8 @@ components:
       name: MATRIZ_SESSION
       description: |
         Server-side session created by `signIn` (TD-03, decided 2026-11-12).
-        The cookie is HttpOnly and SameSite=Lax (and Secure when served over
-        HTTPS). The session expires after 8 hours without requests
+        The cookie is HttpOnly and SameSite=Lax (and Secure when
+        `MATRIZ_COOKIE_SECURE` is `true`). The session expires after 8 hours without requests
         (`MATRIZ_SESSION_TIMEOUT`), and ends at `signOut` or when the
         application restarts. Every operation except `getCsrfToken` and `signIn`
         requires it (FR-01, SP-01). Permissions are then checked by role
@@ -1306,8 +1356,8 @@ components:
                 message: The project was not found.
     ProjectValidationFailed:
       description: |
-        The body is well formed but breaks a validation rule: `name` missing,
-        shorter than 3 or longer than 100 characters after trimming;
+        The body is well formed but breaks a validation rule: `workspace_id`
+        missing or empty on create; `name` missing, shorter than 3 or longer than 100 characters after trimming;
         `description` longer than 1000 characters; `owner_member_id` not an
         active member of the project's workspace; `owner_member_id` sent as
         `null`; an invalid date; `start_date` after `due_date`; or a field
@@ -1574,9 +1624,11 @@ components:
             spaces only is refused (decided 2026-11-12).
           examples: [Draft homepage text]
         description:
-          type: string
+          type: [string, 'null']
           maxLength: 2000
-          description: Optional (DA-04); at most 2000 characters (decided 2026-11-12).
+          description: |
+            Optional (DA-04); at most 2000 characters (decided 2026-11-12).
+            `null` or an empty string means none.
           examples: [First draft of the homepage copy for review.]
         owner_member_id:
           allOf:
@@ -1587,11 +1639,11 @@ components:
             someone other than themselves is pending PD-01.
           examples: [mem_ana]
         due_date:
-          type: string
+          type: [string, 'null']
           format: date
           description: |
             Optional due date (FR-11; DA-04; pending PD-04). A task without a due
-            date is never overdue (EC-06, BR-16).
+            date is never overdue (EC-06, BR-16). `null` means none.
           examples: ['2026-11-06']
         status:
           allOf:
@@ -1693,7 +1745,7 @@ components:
           type: array
           minItems: 1
           maxItems: 20
-          uniqueItems: true
+          description: An id sent twice gives 409 `conflict`, not 422.
           items:
             $ref: '#/components/schemas/Id'
 
@@ -1776,14 +1828,14 @@ components:
 
     Error:
       type: object
-      description: Shared error body for every error response.
+      description: Error body for every error response this contract defines.
       required: [code, message]
       properties:
         code:
           type: string
           description: Stable, machine-readable error code.
-          enum: [malformed_request, not_authenticated, session_expired, forbidden, csrf_invalid, not_found,
-                 validation_failed, conflict]
+          enum: [malformed_request, not_authenticated, session_expired, invalid_credentials, forbidden,
+                 csrf_invalid, not_found, validation_failed, conflict]
         message:
           type: string
           description: Human-readable summary in the interface language (NFR-09, pending PD-13).

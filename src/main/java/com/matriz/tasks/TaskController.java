@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.matriz.accounts.SignedInAccount;
 import com.matriz.shared.ApiException;
 import com.matriz.shared.Ids;
+import com.matriz.shared.PageParams;
 
 /**
  * listTasks, createTask, getTask, updateTask and deleteTask (openapi.yaml 0.7.0-draft). A task's status changes through updateTask. Request
@@ -27,8 +28,6 @@ import com.matriz.shared.Ids;
 @RestController
 class TaskController {
 
-    private static final int DEFAULT_SIZE = 20;
-    private static final int MAX_SIZE = 100;
     private static final String NOT_LISTED = "The tasks could not be listed.";
 
     private final TaskService service;
@@ -53,8 +52,8 @@ class TaskController {
             ownerFilter = Optional.of(Ids.parse(ownerMemberId).orElseThrow(() -> ApiException.validation(
                     NOT_LISTED, "owner_member_id", "The owner id is not valid.")));
         }
-        int p = intParam("page", page, 0, 0, Integer.MAX_VALUE);
-        int s = intParam("size", size, DEFAULT_SIZE, 1, MAX_SIZE);
+        int p = PageParams.page(page, NOT_LISTED);
+        int s = PageParams.size(size, NOT_LISTED);
         return service.list(caller.accountId(), project, statusFilter, ownerFilter, p, s);
     }
 
@@ -91,23 +90,5 @@ class TaskController {
     /** An identifier that is not a valid id cannot exist, so it is reported like any unknown id (404). */
     private static UUID id(String value, String message) {
         return Ids.parse(value).orElseThrow(() -> ApiException.notFound(message));
-    }
-
-    /** Same range checks and messages as listProjects (openapi.yaml: page, size). */
-    private static int intParam(String name, String value, int defaultValue, int min, int max) {
-        if (value == null || value.isEmpty()) {
-            return defaultValue;
-        }
-        try {
-            int n = Integer.parseInt(value);
-            if (n >= min && n <= max) {
-                return n;
-            }
-        } catch (NumberFormatException e) {
-            // reported below
-        }
-        String range = max == Integer.MAX_VALUE ? "a whole number of at least " + min
-                : "a whole number from " + min + " to " + max;
-        throw ApiException.validation(NOT_LISTED, name, "The " + name + " must be " + range + ".");
     }
 }
