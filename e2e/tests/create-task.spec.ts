@@ -27,6 +27,19 @@ function taskRow(page: Page) {
   return page.getByRole('row').filter({ has: page.getByRole('button', { name: title, exact: true }) });
 }
 
+// Column position of a header in the Tasks table, read from the table's own column headers, so the
+// assertions do not depend on the column order.
+async function columnIndex(page: Page, header: string) {
+  const headers = await tasksTable(page).getByRole('columnheader').allTextContents();
+  const index = headers.map((text) => text.trim()).indexOf(header);
+  expect(index, `Tasks table has no "${header}" column; found: ${headers.join(', ')}`).toBeGreaterThanOrEqual(0);
+  return index;
+}
+
+function tasksTable(page: Page) {
+  return page.getByRole('table').filter({ has: page.getByRole('columnheader', { name: 'Task', exact: true }) });
+}
+
 test.beforeEach(() => {
   const host = new URL(process.env.E2E_BASE_URL ?? 'http://localhost:8080').hostname;
   expect(
@@ -42,8 +55,15 @@ test.beforeEach(() => {
 test.afterEach(async ({ page }) => {
   // Remove only the task this test created, through the interface (Delete button and confirmation).
   if (!created) return;
-  const row = taskRow(page);
-  if ((await row.count()) === 0) return;
+  let row = taskRow(page);
+  if ((await row.count()) === 0) {
+    // Not on the project screen (for example after a failed step): open the project again, then look once more.
+    await page.goto('/');
+    await page.getByRole('region', { name: 'Projects' }).getByRole('link', { name: PROJECT, exact: true }).click();
+    await expect(page.getByRole('heading', { level: 1, name: PROJECT })).toBeVisible();
+    row = taskRow(page);
+    await expect(row, `created task not found for cleanup: ${title}`).toHaveCount(1);
+  }
   await row.getByRole('button', { name: `Delete “${title}”` }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Delete task' }).click();
   await expect(page.getByRole('status').filter({ hasText: `“${title}” was deleted.` })).toBeVisible();
@@ -65,7 +85,7 @@ test('AC-10.1 · sign in, open a project, create a task and see it in the list',
   });
 
   await test.step('Open the project: Tasks section and + New task (FR-08, FR-13)', async () => {
-    await page.getByRole('link', { name: PROJECT }).first().click();
+    await page.getByRole('region', { name: 'Projects' }).getByRole('link', { name: PROJECT, exact: true }).click();
     await expect(page.getByRole('heading', { level: 1, name: PROJECT })).toBeVisible();
     await expect(page.getByRole('heading', { level: 2, name: /^Tasks/ })).toBeVisible();
     await expect(page.getByRole('button', { name: '+ New task' })).toBeVisible();
@@ -87,10 +107,11 @@ test('AC-10.1 · sign in, open a project, create a task and see it in the list',
   await test.step('The task is in the list with title, owner, due date and status', async () => {
     const row = taskRow(page);
     await expect(row).toHaveCount(1);
-    await expect(row.getByRole('cell').nth(0)).toHaveText(title);
-    await expect(row.getByRole('cell').nth(1)).toHaveText(OWNER);
-    await expect(row.getByRole('cell').nth(2)).toHaveText(DUE_DATE);
-    await expect(row.getByRole('cell').nth(3)).toHaveText(DEFAULT_STATUS_LABEL);
+    const cells = row.getByRole('cell');
+    await expect(cells.nth(await columnIndex(page, 'Task'))).toHaveText(title);
+    await expect(cells.nth(await columnIndex(page, 'Owner'))).toHaveText(OWNER);
+    await expect(cells.nth(await columnIndex(page, 'Due date'))).toHaveText(DUE_DATE);
+    await expect(cells.nth(await columnIndex(page, 'Status'))).toHaveText(DEFAULT_STATUS_LABEL);
   });
 
   await test.step('After a reload the task is still listed (NFR-03)', async () => {
