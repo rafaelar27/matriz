@@ -151,18 +151,113 @@ class AttemptLimiterTest {
         assertThat(limiter.acquire("k", 5, HOUR)).isZero();
     }
 
-    @Test
-    @DisplayName("NFR-11 · the number of keys is bounded: a flood of keys never grows the map past MAX_KEYS")
-    void keyCountIsBounded() {
-        // Fill to the bound with one live key at the front, then add keys until well past the bound. If the bound
-        // held, the counter of the first key may have been dropped, but memory use did not grow without limit.
-        for (int i = 0; i < AttemptLimiter.MAX_KEYS + 5; i++) {
-            limiter.record("flood-" + i, HOUR);
+    private void fillWithLiveKeys(String prefix, int count) {
+        for (int i = 0; i < count; i++) {
+            limiter.record(prefix + i, HOUR);
         }
-        // Observable effect: the clear made room, so an early key lost its counter and is allowed again.
-        assertThat(limiter.retryAfter("flood-0", 1, HOUR)).isZero();
-        // And the most recent key is still counted.
-        assertThat(limiter.retryAfter("flood-" + (AttemptLimiter.MAX_KEYS + 4), 1, HOUR)).isGreaterThanOrEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("NFR-11 · SP-08 · when MAX_KEYS live windows exist, a new key is refused with a wait of at least 1 second and nothing is created")
+    void newKeyIsRefusedWhenFull() {
+        fillWithLiveKeys("flood-", AttemptLimiter.MAX_KEYS);
+
+        long wait = limiter.acquire("newcomer", 5, HOUR);
+        assertThat(wait).isGreaterThanOrEqualTo(1).isLessThanOrEqualTo(3600);
+        // Nothing was created for it: it is refused again, and a lower-level check sees no counter.
+        assertThat(limiter.acquire("newcomer", 5, HOUR)).isGreaterThanOrEqualTo(1);
+        assertThat(limiter.retryAfter("newcomer", 1, HOUR)).isZero();
+    }
+
+    @Test
+    @DisplayName("NFR-11 · when full, the wait for a new key is the time until the earliest window ends")
+    void waitIsUntilTheEarliestWindowEnds() {
+        limiter.record("early", Duration.ofMinutes(10));
+        clock.advance(Duration.ofMinutes(4));
+        fillWithLiveKeys("flood-", AttemptLimiter.MAX_KEYS - 1);
+
+        assertThat(limiter.acquire("newcomer", 5, HOUR)).isEqualTo(6 * 60);
+        // Once the earliest window has ended it is dropped, and the new key is accepted.
+        clock.advance(Duration.ofMinutes(6));
+        assertThat(limiter.acquire("newcomer", 5, HOUR)).isZero();
+    }
+
+    @Test
+    @DisplayName("NFR-11 · audit S-01 · a flood of MAX_KEYS other keys does not reset an existing lockout")
+    void floodDoesNotResetALockout() {
+        for (int i = 0; i < 5; i++) {
+            limiter.acquire("victim", 5, HOUR);
+        }
+        assertThat(limiter.retryAfter("victim", 5, HOUR)).isGreaterThanOrEqualTo(1);
+
+        fillWithLiveKeys("flood-", AttemptLimiter.MAX_KEYS + 50);
+
+        assertThat(limiter.retryAfter("victim", 5, HOUR)).isGreaterThanOrEqualTo(1);
+        assertThat(limiter.acquire("victim", 5, HOUR)).isGreaterThanOrEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("NFR-11 · when full, existing keys keep counting and a new failure for them is still recorded")
+    void existingKeysKeepCountingWhenFull() {
+        limiter.record("known", HOUR);
+        fillWithLiveKeys("flood-", AttemptLimiter.MAX_KEYS - 1);
+
+        assertThat(limiter.acquire("known", 3, HOUR)).isZero();
+        assertThat(limiter.acquire("known", 3, HOUR)).isZero();
+        assertThat(limiter.acquire("known", 3, HOUR)).isGreaterThanOrEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("NFR-11 · when full, record for a new key is ignored")
+    void recordForNewKeyIsIgnoredWhenFull() {
+        fillWithLiveKeys("flood-", AttemptLimiter.MAX_KEYS);
+
+        limiter.record("newcomer", HOUR);
+        assertThat(limiter.retryAfter("newcomer", 1, HOUR)).isZero();
+    }
+
+    @Test
+    @DisplayName("NFR-11 · when full, expired windows are dropped first so a new key fits")
+    void expiredWindowsMakeRoomWhenFull() {
+        for (int i = 0; i < AttemptLimiter.MAX_KEYS; i++) {
+            limiter.record("old-" + i, Duration.ofMinutes(15));
+        }
+        clock.advance(Duration.ofMinutes(15));
+
+        assertThat(limiter.acquire("newcomer", 5, HOUR)).isZero();
+    }
+
+    @Test
+    @DisplayName("NFR-11 · release gives one attempt back and removes the key at 0")
+    void releaseGivesAnAttemptBack() {
+        limiter.acquire("k", 2, HOUR);
+        limiter.acquire("k", 2, HOUR);
+        assertThat(limiter.retryAfter("k", 2, HOUR)).isGreaterThanOrEqualTo(1);
+
+        limiter.release("k");
+        assertThat(limiter.retryAfter("k", 2, HOUR)).isZero();
+        assertThat(limiter.acquire("k", 2, HOUR)).isZero();
+        assertThat(limiter.acquire("k", 2, HOUR)).isGreaterThanOrEqualTo(1);
+
+        limiter.release("k");
+        limiter.release("k");
+        // At 0 the key is gone: with max 1 a fresh key is allowed, and a further release changes nothing.
+        assertThat(limiter.retryAfter("k", 1, HOUR)).isZero();
+        limiter.release("k");
+        limiter.release("never-seen");
+        assertThat(limiter.acquire("k", 1, HOUR)).isZero();
+        assertThat(limiter.acquire("k", 1, HOUR)).isGreaterThanOrEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("NFR-11 · release of the only attempt frees its slot when the table is full")
+    void releaseFreesASlotWhenFull() {
+        limiter.acquire("holder", 5, HOUR);
+        fillWithLiveKeys("flood-", AttemptLimiter.MAX_KEYS - 1);
+        assertThat(limiter.acquire("newcomer", 5, HOUR)).isGreaterThanOrEqualTo(1);
+
+        limiter.release("holder");
+        assertThat(limiter.acquire("newcomer", 5, HOUR)).isZero();
     }
 
     @Test

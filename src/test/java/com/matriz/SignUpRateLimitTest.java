@@ -201,4 +201,18 @@ class SignUpRateLimitTest extends ApiTestSupport {
                 .andReturn();
         assertThat(result.getRequest().getSession(false)).isNull();
     }
+
+    @Test
+    @DisplayName("AC-22.6 · EC-14 · audit S-07 · sign-ins that can match no account (over 72 bytes, invalid email, control character) count as failures")
+    void unmatchableSignInsCountAsFailures() throws Exception {
+        signIn("ana@example.com", "\u00e4".repeat(37), "10.0.6.1").andExpect(status().isUnauthorized());
+        signIn("ana@example.com", "\u00e4".repeat(37), "10.0.6.1").andExpect(status().isUnauthorized());
+        signIn("ana@example.com", "p".repeat(80), "10.0.6.1").andExpect(status().isUnauthorized());
+        assertTooMany(signIn("ana@example.com", TEST_PASSWORD, "10.0.6.1"));
+
+        for (int i = 0; i < 5; i++) {
+            signIn("not-an-email" + i, "wrong-password-1", "10.0.6.2").andExpect(status().isUnauthorized());
+        }
+        assertTooMany(signIn("ben@example.com", TEST_PASSWORD, "10.0.6.2"));
+    }
 }

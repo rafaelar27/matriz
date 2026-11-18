@@ -12,8 +12,8 @@ import org.springframework.stereotype.Component;
  *
  * <p>The counters start again when the application restarts, and they are only correct with one instance. The
  * number of keys is bounded: when the limit is reached, expired windows are dropped first and, if that is not
- * enough, all counters are cleared (a flood of different keys can therefore reset counters, but it needs as many
- * distinct client addresses as keys). Keys hold an IP address and, for sign-in, a normalized email address; they
+ * enough, new keys are refused (429) until a window ends. A live counter is never forgotten, so a flood of different
+ * addresses cannot lift an existing lockout, but it can block new addresses for up to one window. Keys hold an IP address and, for sign-in, a normalized email address; they
  * are never logged.
  */
 @Component
@@ -45,7 +45,20 @@ public class AttemptLimiter {
         if (retry > 0) {
             return retry;
         }
-        add(key, window);
+        long now = clock.millis();
+        Window w = windows.get(key);
+        boolean newWindow = w == null || now - w.startMillis() >= w.lengthMillis();
+        if (w == null && windows.size() >= MAX_KEYS) {
+            windows.values().removeIf(x -> now - x.startMillis() >= x.lengthMillis());
+            if (windows.size() >= MAX_KEYS) {
+                // Full of live windows: refuse new keys until the earliest one ends. A live counter is never forgotten,
+                // so a flood of addresses cannot reset an existing lockout (audit S-01).
+                return windows.values().stream()
+                        .mapToLong(x -> x.startMillis() + x.lengthMillis() - now).min().stream()
+                        .map(ms -> Math.max(1, (ms + 999) / 1000)).findFirst().orElse(1);
+            }
+        }
+        add(key, window, newWindow);
         return 0;
     }
 
@@ -59,9 +72,17 @@ public class AttemptLimiter {
         return Math.max(1, (w.startMillis() + window.toMillis() - now + 999) / 1000);
     }
 
-    /** Counts one (failed) attempt for {@code key}. */
+    /** Counts one (failed) attempt for {@code key}. Ignored when the table is full of live windows. */
     public synchronized void record(String key, Duration window) {
-        add(key, window);
+        long now = clock.millis();
+        Window w = windows.get(key);
+        if (w == null && windows.size() >= MAX_KEYS) {
+            windows.values().removeIf(x -> now - x.startMillis() >= x.lengthMillis());
+            if (windows.size() >= MAX_KEYS) {
+                return;
+            }
+        }
+        add(key, window, w == null || now - w.startMillis() >= w.lengthMillis());
     }
 
     /** Gives back one attempt counted earlier for {@code key} (for example a sign-in that turned out to succeed). */
@@ -82,23 +103,13 @@ public class AttemptLimiter {
         windows.clear();
     }
 
-    private void add(String key, Duration window) {
+    private void add(String key, Duration window, boolean newWindow) {
         long now = clock.millis();
         Window w = windows.get(key);
-        if (w == null || now - w.startMillis() >= window.toMillis()) {
-            if (w == null && windows.size() >= MAX_KEYS) {
-                makeRoom(now);
-            }
+        if (newWindow || w == null) {
             windows.put(key, new Window(now, 1, window.toMillis()));
         } else {
             windows.put(key, new Window(w.startMillis(), w.count() + 1, w.lengthMillis()));
-        }
-    }
-
-    private void makeRoom(long now) {
-        windows.values().removeIf(w -> now - w.startMillis() >= w.lengthMillis());
-        if (windows.size() >= MAX_KEYS) {
-            windows.clear();
         }
     }
 }

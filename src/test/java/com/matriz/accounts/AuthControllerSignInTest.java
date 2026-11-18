@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.any;
 
 import java.time.Duration;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -18,6 +19,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.InternalAuthenticationServiceException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
@@ -34,17 +36,32 @@ class AuthControllerSignInTest {
 
     private AuthenticationManager manager;
     private AuthController controller;
+    private AttemptLimiter limiter;
 
     @BeforeEach
     void setUp() {
         manager = mock(AuthenticationManager.class);
-        controller = new AuthController(manager, mock(SecurityContextRepository.class),
-                mock(CookieCsrfTokenRepository.class), mock(MembershipProvider.class), mock(SignUpService.class),
-                new AttemptLimiter(), 5, Duration.ofHours(1), 10, 50, Duration.ofMinutes(15));
+        limiter = new AttemptLimiter();
+        controller = controller(10, 50);
     }
 
     private final MockHttpServletRequest request = new MockHttpServletRequest();
     private final MockHttpServletResponse response = new MockHttpServletResponse();
+
+    private AuthController controller(int perIpAndEmail, int perIp) {
+        return new AuthController(manager, mock(SecurityContextRepository.class),
+                mock(CookieCsrfTokenRepository.class), mock(MembershipProvider.class), mock(SignUpService.class),
+                limiter, 5, Duration.ofHours(1), perIpAndEmail, perIp, Duration.ofMinutes(15));
+    }
+
+    private static final String EMAIL_KEY = "sign-in:127.0.0.1|ana@example.test";
+    private static final String IP_KEY = "sign-in:127.0.0.1";
+    private static final Duration WINDOW = Duration.ofMinutes(15);
+
+    /** Seconds to wait if one more attempt were made with a limit of 1: 0 only if no attempt is counted. */
+    private long counted(String key) {
+        return limiter.retryAfter(key, 1, WINDOW);
+    }
 
     private static void assertInvalidCredentials(Throwable t) {
         assertThat(t).isInstanceOfSatisfying(ApiException.class, e -> {
@@ -88,5 +105,79 @@ class AuthControllerSignInTest {
                 .satisfies(AuthControllerSignInTest::assertInvalidCredentials);
 
         verifyNoInteractions(manager);
+    }
+
+    @Test
+    @DisplayName("AC-22.6 · NFR-11 · audit S-02 · an internal failure of the lookup does not consume a sign-in attempt")
+    void internalFailureDoesNotConsumeAnAttempt() {
+        when(manager.authenticate(any(Authentication.class)))
+                .thenThrow(new InternalAuthenticationServiceException("database unavailable"));
+
+        assertThatThrownBy(() -> controller.signIn(
+                new AuthController.SignInRequest("ana@example.test", "any-password"), request, response))
+                .isInstanceOf(InternalAuthenticationServiceException.class);
+
+        assertThat(counted(EMAIL_KEY)).isZero();
+        assertThat(counted(IP_KEY)).isZero();
+    }
+
+    @Test
+    @DisplayName("AC-22.6 · NFR-11 · a wrong password keeps its counted attempt for the address and for the address and email")
+    void wrongPasswordKeepsTheAttempt() {
+        when(manager.authenticate(any(Authentication.class))).thenThrow(new BadCredentialsException("bad"));
+
+        assertThatThrownBy(() -> controller.signIn(
+                new AuthController.SignInRequest("Ana@Example.test ", "wrong-password"), request, response))
+                .satisfies(AuthControllerSignInTest::assertInvalidCredentials);
+
+        assertThat(counted(EMAIL_KEY)).isGreaterThanOrEqualTo(1);
+        assertThat(counted(IP_KEY)).isGreaterThanOrEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("AC-22.6 · NFR-11 · a successful sign-in does not leave a counted attempt")
+    void successLeavesNoCountedAttempt() {
+        SignedInAccount principal = new SignedInAccount(
+                new Account(UUID.randomUUID(), "Ana Demo", "ana@example.test", "hash"));
+        when(manager.authenticate(any(Authentication.class))).thenReturn(
+                UsernamePasswordAuthenticationToken.authenticated(principal, null, principal.getAuthorities()));
+
+        controller.signIn(new AuthController.SignInRequest("ana@example.test", "right-password"), request, response);
+
+        assertThat(counted(EMAIL_KEY)).isZero();
+        assertThat(counted(IP_KEY)).isZero();
+    }
+
+    @Test
+    @DisplayName("AC-22.6 · NFR-11 · when the per-address limit refuses, the per address and email attempt is given back")
+    void perAddressRefusalReleasesTheEmailAttempt() {
+        controller = controller(10, 1);
+        limiter.acquire(IP_KEY, 1, WINDOW);
+
+        assertThatThrownBy(() -> controller.signIn(
+                new AuthController.SignInRequest("ana@example.test", "any-password"), request, response))
+                .isInstanceOfSatisfying(ApiException.class,
+                        e -> assertThat(e.status()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS));
+
+        assertThat(counted(EMAIL_KEY)).isZero();
+        verifyNoInteractions(manager);
+    }
+
+    @Test
+    @DisplayName("EC-14 · SP-10 · an email with a control character, an invalid email or a password over 72 bytes gives 401 without calling the manager, counted as a failure")
+    void unmatchableCredentialsAreFailuresWithoutCallingTheManager() {
+        String[] emails = {"ana\u0000@example.test", "not-an-email", "a@@b"};
+        for (String email : emails) {
+            assertThatThrownBy(() -> controller.signIn(
+                    new AuthController.SignInRequest(email, "any-password"), request, response))
+                    .satisfies(AuthControllerSignInTest::assertInvalidCredentials);
+        }
+        assertThatThrownBy(() -> controller.signIn(
+                new AuthController.SignInRequest("ana@example.test", "\u00e4".repeat(37)), request, response))
+                .satisfies(AuthControllerSignInTest::assertInvalidCredentials);
+
+        verifyNoInteractions(manager);
+        assertThat(counted(IP_KEY)).isGreaterThanOrEqualTo(1);
+        assertThat(counted(EMAIL_KEY)).isGreaterThanOrEqualTo(1);
     }
 }

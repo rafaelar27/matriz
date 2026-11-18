@@ -137,7 +137,7 @@ class AuthController {
         boolean credentialsFailure = false;
         try {
             if (body.email() == null || body.email().isBlank() || body.password() == null
-                    || body.password().isEmpty()) {
+                    || body.password().isEmpty() || !SignUpService.canMatchAnAccount(body.email(), body.password())) {
                 throw invalidCredentials();
             }
             Authentication result;

@@ -27,7 +27,7 @@ import com.matriz.shared.ApiException;
 class SignUpService {
 
     static final int NAME_MAX = 80;
-    /** Email length is not set in the documents; this is the usual upper bound for an address (open point). */
+    /** Email length: the usual upper bound for an address (decided 2026-11-18). */
     static final int EMAIL_MAX = 254;
     static final int PASSWORD_MIN = 12;
     static final int PASSWORD_MAX = 64;
@@ -52,10 +52,10 @@ class SignUpService {
         String cleanEmail = normalizeEmail(email);
 
         int nameLength = cleanName.codePointCount(0, cleanName.length());
-        if (nameLength < 1 || nameLength > NAME_MAX) {
+        if (nameLength < 1 || nameLength > NAME_MAX || hasControlCharacter(cleanName)) {
             issues.add(new ApiError.FieldIssue("name", "The name must be 1 to " + NAME_MAX + " characters long."));
         }
-        if (!looksLikeEmail(cleanEmail)) {
+        if (!looksLikeEmail(cleanEmail) || hasControlCharacter(cleanEmail)) {
             issues.add(new ApiError.FieldIssue("email", "Enter a valid email address."));
         }
         if (password == null || password.codePointCount(0, password.length()) < PASSWORD_MIN
@@ -78,18 +78,42 @@ class SignUpService {
         try {
             return accounts.saveAndFlush(account);
         } catch (DataIntegrityViolationException e) {
-            // Two sign-ups with the same email at the same moment: the database index decides (EC-12).
-            throw emailTaken();
+            // Two sign-ups with the same email at the same moment: the database index decides (EC-12). Any other
+            // data error is not "email taken" (audit S-06).
+            if (accounts.findByEmailIgnoreCase(cleanEmail).isPresent()) {
+                throw emailTaken();
+            }
+            throw e;
         }
     }
 
+    /** True if the text has a control character (for example U+0000, which PostgreSQL cannot store in text). */
+    static boolean hasControlCharacter(String text) {
+        return text.codePoints().anyMatch(Character::isISOControl);
+    }
+
+    /**
+     * Whether a sign-in request can possibly match an account: an email that sign-up would accept, and a password of
+     * at most 72 UTF-8 bytes (BCrypt ignores the rest, so a longer text must not match; SP-10).
+     */
+    static boolean canMatchAnAccount(String email, String password) {
+        String clean = normalizeEmail(email);
+        return looksLikeEmail(clean) && !hasControlCharacter(clean)
+                && password.getBytes(StandardCharsets.UTF_8).length <= PASSWORD_MAX_BYTES;
+    }
+
+    /**
+     * An address with exactly one "@" and text on both sides, at most {@link #EMAIL_MAX} characters, made only of
+     * printable ASCII characters (decided 2026-11-18: ASCII only, so look-alike characters cannot make a second
+     * account for one address).
+     */
     private static boolean looksLikeEmail(String email) {
         if (email.isEmpty() || email.length() > EMAIL_MAX) {
             return false;
         }
         int at = email.indexOf('@');
         return at > 0 && at == email.lastIndexOf('@') && at < email.length() - 1
-                && email.chars().noneMatch(Character::isWhitespace);
+                && email.chars().allMatch(c -> c > 0x20 && c < 0x7F);
     }
 
     private static ApiException emailTaken() {

@@ -33,7 +33,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * Public sign-up through direct API requests (INC-12; FR-01, NFR-11, BR-24, SP-01, SP-09, SP-10; US-22: AC-22.1 to
  * AC-22.5, AC-22.7, AC-22.8, EC-13 to EC-15; AC-INC12.1 to AC-INC12.4, AC-INC12.6, AC-INC12.7). Rate limits are in
  * SignUpRateLimitTest, the simultaneous duplicate (EC-12) in SignUpConcurrencyTest. Decisions of 2026-11-18 in the
- * decision log. The email length limit of 254 is a rule of the decision log, not of the user stories.
+ * decision log. The email length limit of 254 is an implementation limit, not in the docs (open decision).
  */
 @ExtendWith(OutputCaptureExtension.class)
 class SignUpApiTest extends ApiTestSupport {
@@ -235,7 +235,7 @@ class SignUpApiTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("AC-22.2 · an email of 254 characters is accepted and one of 255 is refused (limit from the decision log)")
+    @DisplayName("AC-22.2 · an email of 254 characters is accepted and one of 255 is refused (implementation limit, pending a decision: not in the docs)")
     void emailLengthBoundary() throws Exception {
         String domain = "@example.com";
         String max = "a".repeat(254 - domain.length()) + domain;
@@ -304,6 +304,45 @@ class SignUpApiTest extends ApiTestSupport {
                 .andExpect(jsonPath("$.details[?(@.field == 'email')]", hasSize(1)))
                 .andExpect(jsonPath("$.details[?(@.field == 'password')]", hasSize(1)));
         assertThat(accounts()).isEqualTo(count);
+    }
+
+    // --- Control characters and sign-in input that can match no account (audit S-05, S-07; EC-14) ----------------
+
+    @Test
+    @DisplayName("AC-22.2 · audit S-05 · a name or an email with a control character is refused with 422 at that field and creates nothing")
+    void controlCharactersRefused() throws Exception {
+        int count = accounts();
+        assertRefused(signUp("Ni\u0000a", "a@example.com", NIA_PASSWORD), "name");
+        assertRefused(signUp("Ni\u0007a", "a@example.com", NIA_PASSWORD), "name");
+        assertRefused(signUp("Nia", "a\u0000@example.com", NIA_PASSWORD), "email");
+        assertRefused(signUp("Nia", "a\u0001@example.com", NIA_PASSWORD), "email");
+        assertThat(accounts()).isEqualTo(count);
+    }
+
+    @Test
+    @DisplayName("EC-14 · SP-10 · audit S-07 · a 72-byte account does not sign in with 73 bytes that share its first 72 bytes")
+    void passwordOver72BytesSharingThePrefixGets401() throws Exception {
+        String ok = "\u00e4".repeat(36); // 72 bytes
+        signUp("Nia", "nia@example.com", ok).andExpect(status().isCreated());
+
+        signInAs("nia@example.com", ok).andExpect(status().isOk());
+        signInAs("nia@example.com", ok + "q")
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("invalid_credentials"));
+        signInAs("nia@example.com", "p".repeat(72) + "q".repeat(10))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("invalid_credentials"));
+    }
+
+    @Test
+    @DisplayName("AC-22.5 · audit S-07 · sign-in with an email containing a control character or an invalid form gets the generic 401")
+    void unmatchableSignInEmailsGetTheGeneric401() throws Exception {
+        for (String email : new String[] {"ana\u0000@example.com", "ana\u0007@example.com", "not-an-email", "a@@b",
+                "an a@example.com"}) {
+            signInAs(email, TEST_PASSWORD)
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value("invalid_credentials"));
+        }
     }
 
     // --- Unknown fields, malformed bodies, identity spoofing ----------------------------------------------------
