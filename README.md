@@ -163,7 +163,7 @@ mvn test -Dtest=TaskIntegrationTest
 
 One browser test, in the separate folder `e2e/` (Playwright), signs in as the demo user Ana, opens the project "Website redesign", creates a task, checks that it is in the list and still there after a reload, and then deletes its own task through the interface. It is not part of `mvn verify`.
 
-Prerequisites: Node 22 and a Chromium browser. The test uses Chromium at `/opt/pw-browsers/chromium-1243/chrome-linux64/chrome` by default; on any other machine set `E2E_CHROMIUM_PATH` to your Chromium executable.
+Prerequisites: Node 22 and a Chromium browser. Set up the browser in one of three ways: from `e2e/` run `npm install`, then `npx playwright install chromium` once (not verified in the project's container, where the download is blocked; on Linux `npx playwright install-deps chromium` may also be needed); or set `PLAYWRIGHT_BROWSERS_PATH` to a folder that already has the Chromium of Playwright 1.63.0; or set `E2E_CHROMIUM_PATH` to a Chromium executable. The test adds `--no-sandbox` automatically only when it runs as root.
 
 1. Create a fresh `matriz_test` database (step 6) and set `MATRIZ_DB_URL` (the test database), `MATRIZ_DB_USER`, `MATRIZ_DB_PASSWORD` and `MATRIZ_DEMO_PASSWORD` in the shell.
 2. Seed it once (step 5), then start the application (step 4) and leave it running.

@@ -2,9 +2,12 @@ import { defineConfig } from '@playwright/test';
 
 // Browser end-to-end tests for Matriz. Not part of `mvn verify`.
 // Run from this folder: `npx playwright test` (see tests/create-task.spec.ts for the variables).
-// Chromium: the preinstalled build is used; override its path with E2E_CHROMIUM_PATH.
-const chromiumPath =
-  process.env.E2E_CHROMIUM_PATH ?? '/opt/pw-browsers/chromium-1243/chrome-linux64/chrome';
+// Chromium: by default Playwright uses its own Chromium (install it once with `npx playwright install chromium`,
+// or point PLAYWRIGHT_BROWSERS_PATH at a folder that already has it). To use another Chromium build,
+// set E2E_CHROMIUM_PATH to its executable.
+const chromiumPath = process.env.E2E_CHROMIUM_PATH;
+// Chromium refuses to start its sandbox as root (typical in containers), so --no-sandbox is added only then.
+const runsAsRoot = process.getuid?.() === 0;
 
 export default defineConfig({
   testDir: './tests',
@@ -16,9 +19,8 @@ export default defineConfig({
     baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:8080',
     trace: 'retain-on-failure',
     launchOptions: {
-      executablePath: chromiumPath,
-      // Needed when the browser runs as root in a container.
-      args: ['--no-sandbox'],
+      ...(chromiumPath ? { executablePath: chromiumPath } : {}),
+      args: runsAsRoot ? ['--no-sandbox'] : [],
     },
   },
 });

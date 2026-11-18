@@ -148,6 +148,7 @@ These stay open until the project decision-maker answers them (KC-01). No scenar
 | Q-15 | `TaskAccessTest.viewerCannotCreateTasks` asserts message text, against A7 (tests assert status, `code` and `details[].field`, never message text). Keep, change or accept as an exception? | A7; NFR-09; PD-13 | Left as is; outside the Coverage increment |
 | Q-16 | Existing tests without a scenario ID in their name stay unnamed. Should they be renamed or mapped to scenario IDs? | — | Coverage of those scenarios cannot be stated per scenario |
 | Q-17 | `openapi.yaml` does not state whether a project mismatch (404, "task must belong to project_id") is checked before the permission check (403). `TaskApiTest.veraCannotChangeOrDeleteANorthwindTaskThroughHerOwnProject` asserts 404. This order is the tester's reading, not a documented rule. Confirm. | updateTask; deleteTask; NFR-01; API-A3 | Expected result of the TA-05 reverse case is an unconfirmed reading |
+| Q-18 | US-01 (sign in) and US-12 (see a project's tasks) have no acceptance criteria. The sign-in and project-detail expectations of the E2E test rest on FR-01, FR-08, FR-13, UI-A1 and README.md, not on criteria. Writing criteria is a product decision for the project decision-maker (KC-01). | US-01; US-12; FR-01; FR-08; FR-13; UI-A1 | E2E steps 1 and 2 are traced to FR and UI-A1 only |
 
 Resolved: Q-01 (no positive priority scenarios) and Q-06 (provisional rules are tested now and marked prov.), approved by the programmer on 2026-11-17. Q-02 (404 for outsiders), Q-04 (AC-10.3 reworded: the backend refuses a non-project owner) and Q-05 (`updateTaskStatus` removed from the contract; TU-09 and TA-06 dropped) were decided by the project decision-maker on 2026-11-17 and are in the [decision log](constraints.md#decision-log).
 
@@ -474,8 +475,8 @@ Observed on 2026-11-18. One end-to-end flow, create a task through the user inte
 | Item | Value |
 |---|---|
 | Tool | `@playwright/test` 1.63.0 (Node 22.23.5, npm 10.9.9) in the isolated folder `e2e/`. It is not part of `mvn verify` |
-| Browser | Preinstalled Chromium (Chrome for Testing 153.0.8010.12, `/opt/pw-browsers` chromium-1243), set through `executablePath` (override with `E2E_CHROMIUM_PATH`). `--no-sandbox` is used because the container runs as root |
-| Configuration | `e2e/playwright.config.ts`: 1 worker, no retries, `baseURL` from `E2E_BASE_URL` (default `http://localhost:8080`), trace `retain-on-failure` |
+| Browser | Playwright's own Chromium (in the container, the preinstalled `chromium_headless_shell-1243` found through `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`). There is no default `executablePath`; `E2E_CHROMIUM_PATH` is an optional override (tested with `/opt/pw-browsers/chromium-1243/chrome-linux64/chrome`). `--no-sandbox` is added only when the process runs as root, as in the container |
+| Configuration | `e2e/playwright.config.ts`: 1 worker, no retries, `baseURL` from `E2E_BASE_URL` (default `http://localhost:8080`), trace `retain-on-failure`; no default `executablePath`; `E2E_CHROMIUM_PATH` optional; `--no-sandbox` only as root |
 | Test | `e2e/tests/create-task.spec.ts`, named "AC-10.1 · sign in, open a project, create a task and see it in the list" |
 | Environment variables | `E2E_USER_EMAIL` (`ana@example.com`), `E2E_USER_PASSWORD` (the `MATRIZ_DEMO_PASSWORD` given to the seeder), `E2E_BASE_URL` |
 | Database | Local PostgreSQL 16, database `matriz_test` owned by role `matriz`. Passwords are fictitious and set in the shell only |
@@ -507,21 +508,28 @@ Selector strategy: roles, labels and visible text only; no `data-testid`, no CSS
 | Tester run 2 | `npx playwright test` | 1 passed (1.2 s) | 5 tasks; 0 stray |
 | Independent run 1 (main session, freshly recreated `matriz_test`; seed inserted 37 new rows; `GET /` returned 200) | `npx playwright test` | 1 passed (1.6 s) | 5 tasks; 0 stray |
 | Independent run 2 (main session) | `npx playwright test` | 1 passed (1.0 s) | 5 tasks; 0 stray |
+| Tester, after the config change, run 1 (observed 2026-11-18) | `npx playwright test` with `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`, `E2E_CHROMIUM_PATH` unset | 1 passed (2.7 s), using the preinstalled `chromium_headless_shell-1243` | 5 tasks; 0 stray |
+| Tester, after the config change, run 2 (observed 2026-11-18) | Same as run 1 | 1 passed (1.6 s) | 5 tasks; 0 stray |
+| Tester, after the config change, run 3 (observed 2026-11-18) | `npx playwright test` with `E2E_CHROMIUM_PATH=/opt/pw-browsers/chromium-1243/chrome-linux64/chrome` | 1 passed (2.4 s) | 5 tasks; 0 stray |
+| Tester, after the config change, run 4 (observed 2026-11-18; expected failure) | `npx playwright test` with neither `PLAYWRIGHT_BROWSERS_PATH` nor `E2E_CHROMIUM_PATH` set | Failed as expected: `browserType.launch: Executable doesn't exist at /root/.cache/ms-playwright/chromium_headless_shell-1243/...`. Environment limitation, not an application defect | 5 tasks; 0 stray |
+| Tester, after the config change, install attempt (observed 2026-11-18) | `npx playwright install chromium` | Failed in this container: `Failed to download Chrome for Testing 153.0.8010.12 ... Download failure, code=1` (download blocked). Environment limitation evidence | Not applicable |
 
 The main session did not re-run `mvn verify`.
 
 ### Failures
 
-None, so no classification (application defect, test problem or environment limitation) applies. No environment limitation occurred: `npm install` (with `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`) and the Maven downloads worked.
+No application defect and no test problem. Before the config change, none occurred. After it, two environment limitations were observed on 2026-11-18: run 4 (no browser configured) failed as expected, and `npx playwright install chromium` could not download the browser in this container (see Runs). `npm install` (with `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`) and the Maven downloads worked.
 
 ### Not verified
 
 - The `retain-on-failure` trace was never triggered.
 - Browsers other than Chromium, and Windows.
+- A run as a non-root user (the `--no-sandbox` branch for non-root is not exercised), and macOS.
+- `npx playwright install chromium`: the download is blocked in this container, so the standard install route is not confirmed here.
 - A type check of the spec with `@types/node`. A standalone `tsc` shows only the missing `@types/node` for `process`; it was not added.
 
-### Proposed documentation updates (not applied)
+### Documentation updates
 
-- US-01 and US-12 have no acceptance criteria, so the sign-in and project-detail expectations rest on FR-01, FR-08, FR-13, UI-A1 and README.md.
-- AC-10.1 says "To do", but the interface shows "Por fazer"; README.md maps the two.
-- TE-01 to TE-03 remain unautomated.
+- Applied (Edit A, 2026-11-18): the AC-10.1 wording in `docs/user-stories.md` now carries a clarification that the interface shows "Por fazer" for "To do", as in README.md.
+- Recorded as [Q-18](#open-questions-and-documentation-gaps): US-01 and US-12 have no acceptance criteria, so the sign-in and project-detail expectations rest on FR-01, FR-08, FR-13, UI-A1 and README.md. Writing criteria remains a decision for the project decision-maker (KC-01).
+- Still open: TE-01 to TE-03 remain unautomated.
