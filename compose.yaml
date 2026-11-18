@@ -8,6 +8,7 @@
 
 services:
   db:
+    # Official image, pinned to major version 16 and Debian release (approved: no minor pin).
     image: postgres:16-bookworm
     environment:
       POSTGRES_USER: ${MATRIZ_DB_USER:?set MATRIZ_DB_USER in .env}
@@ -20,6 +21,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+    networks: [matriz-net]
     restart: unless-stopped
     # No published port: only the application reaches the database.
 
@@ -48,6 +50,7 @@ services:
       timeout: 5s
       retries: 12
       start_period: 30s
+    networks: [matriz-net]
     restart: unless-stopped
 
   # One-shot demo data. Not started by "up"; run it with: docker compose run --rm seed
@@ -63,7 +66,12 @@ services:
       SPRING_PROFILES_ACTIVE: seed
       # Empty when unset so that "docker compose up" works without it; the seed command stops with an error if it is blank.
       MATRIZ_DEMO_PASSWORD: ${MATRIZ_DEMO_PASSWORD:-}
+    networks: [matriz-net]
     restart: "no"
+
+# Dedicated network: services reach each other by service name (db, app).
+networks:
+  matriz-net:
 
 volumes:
   matriz-db:
