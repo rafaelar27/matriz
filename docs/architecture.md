@@ -222,7 +222,7 @@ flowchart TB
 
 ## Technology stack
 
-> **Status:** proposed on 2026-11-05 and **confirmed on 2026-11-12 by the project decision-maker** (KC-01). It resolves TD-10 and TD-11 and narrows TD-01. It does **not** decide TD-02, TD-03, TD-04, TD-05, TD-06, TD-07, TD-08, TD-09 or TD-12.
+> **Status:** proposed on 2026-11-05 and **confirmed on 2026-11-12 by the project decision-maker** (KC-01). It resolves TD-10 and TD-11 and narrows TD-01. It does **not** decide TD-02, TD-03, TD-04, TD-05, TD-06, TD-07, TD-08, TD-09 or TD-12. The JaCoCo row was added on 2026-11-17 (see the [decision log](constraints.md#decision-log)).
 
 ### Summary
 

@@ -14,7 +14,7 @@
 
 | Level | Meaning |
 |---|---|
-| **Unit** | An isolated rule without database or authentication, for example title validation. Used only where the rule is isolated in code (Q-10, resolved 2026-11-17). Unit classes that exist (2026-11-17): `TaskTitleRuleTest`, `AccessPolicyTest`, `RoleTest`, `TaskStatusRuleTest`, `TaskDescriptionRuleTest`, `TaskEntityTest`, `ApiExceptionTest`, `ApiExceptionHandlerTest` and `IdsTest` (see [Unit tests and coverage](#unit-tests-and-coverage-2026-11-17)). |
+| **Unit** | An isolated rule without database or authentication, for example title validation. Used only where the rule is isolated in code (Q-10, resolved 2026-11-17). Unit classes that exist (2026-11-17): `TaskTitleRuleTest`, `AccessPolicyTest`, `RoleTest`, `TaskStatusRuleTest`, `TaskDescriptionRuleTest`, `TaskEntityTest`, `ApiExceptionTest`, `ApiExceptionHandlerTest` and `IdsTest`; added 2026-11-18 (INC-10): `ProjectNameRuleTest`, `ProjectDescriptionRuleTest`, `ProjectDateOrderRuleTest`, `ProjectOwnerRuleTest`, `CommentBodyRuleTest`, `AssignmentRuleTest` and `TaskOwnerRuleTest` (see [Unit tests and coverage](#unit-tests-and-coverage-2026-11-17)). |
 | **API** (Integration/API) | An HTTP request to the application with authentication and the database. Verifies status codes, bodies, persistence and permissions. |
 | **E2E** (End-to-end) | Through the user interface. Used only where the acceptance criterion is about what the interface offers or says. |
 
@@ -375,7 +375,7 @@ Total 108 new tests (77 + 1 + 13 + 3 + 3 + 4 + 3 + 4; was 102 before the review 
 | 7 (tester) | `mvn test -Dtest=AccessPolicyTest,TaskStatusRuleTest` | 2026-11-17 | 90 tests, 0 failures, BUILD SUCCESS | 6.3 s | Not recorded for this run |
 | 8 (independent, by the main session) | `mvn verify` | 2026-11-17 | 282 tests, BUILD SUCCESS | 54.3 s | 5 tasks; 0 task ids not like `e0000000-%` |
 
-Runs 1 to 4 are history for the 276-test state (174 + 102). Current state: 174 + 108 = 282 tests (runs 5 to 8). `mvn test` writes `jacoco.exec` but no report; use `mvn test jacoco:report` for one.
+Runs 1 to 4 are history for the 276-test state (174 + 102). Runs 5 to 8 are history for the 282-test state (174 + 108). Current state: 282 + 41 = 323 tests (see [INC-10 (2026-11-18)](#inc-10-2026-11-18)). `mvn test` writes `jacoco.exec` but no report; use `mvn test jacoco:report` for one.
 
 ### Review follow-up (2026-11-17)
 
@@ -387,9 +387,67 @@ The reviewer's findings on INC-09 (verdict approve with changes; 0 Blocker, 0 Ma
 - INC-09 R-04: the `null` status case in `TaskStatusRuleTest` was not stated in the contract. The rule is now stated in `openapi.yaml` (`TaskValidationFailed` and the `createTask` 422 triggers: "including `null`"; version not changed), and the test citation was changed to "openapi TaskValidationFailed (null added 2026-11-17), BR-11".
 - INC-09 R-05: six refusal rows were added to `AccessPolicyTest` (Viewer and Workspace Administrator non-owner change-owner, 2; status-only through `checkEditTask` for Viewer and Workspace Administrator as owner and non-owner, 4), all 403 `forbidden`, marked prov. for PD-03 and PD-17. `AccessPolicyTest` is now 77 tests and the suite 282.
 
+### INC-10 (2026-11-18)
+
+Unit tests for the four refactoring candidates recorded in INC-09 (project, comment and assignment rules, and the task-owner membership/presence rule). Approved by the programmer (option A-narrow). Same environment as above: database `matriz_test` on local PostgreSQL 16, variables in the shell only. Unlike INC-09, production code was changed: commit `b92e516` refactored `src/main` without changing behaviour (same message literals, `ApiException` factories, fields and call order), moving the pure rules into package-private static methods `ProjectService.name`, `description`, `requireOwner`, `requireDateOrder`, `CommentService.body`, `AssignmentService.requireCount`, `requireNoRepeats` and `TaskService.requireOwner`. Checkpoint before any new test: `mvn verify` 282 tests, 0 failures, BUILD SUCCESS, 48.4 s. Commit `1d1b0ac` added the seven classes below (plain JUnit 5, AssertJ and JUnit params; no Spring, no database, no Mockito, no MockMvc); a follow-up commit applied the review fixes. The tests assert status, error code and `details[].field`, never message text (A7). Oracle: `openapi.yaml` 0.7.0-draft, FR-06, FR-10, FR-16, FR-22, BR-09, BR-13, BR-21, BR-22, BR-23, AC-15.2, EC-08 (comments) and the decision log; provisional rules are not involved.
+
+| Class | Tests | Rules and IDs | Pass/Fail |
+|---|---|---|---|
+| `projects/ProjectNameRuleTest` | 10 | Name 3 to 100 characters after trimming: empty, spaces and `ab` refused 422 field `name`; `abc` and 100 characters accepted, also padded; 101 refused (FR-06, BR-21) | Pass |
+| `projects/ProjectDescriptionRuleTest` | 3 | Description at most 1000: 1001 refused 422 field `description`; null returns null | Pass |
+| `projects/ProjectDateOrderRuleTest` | 6 | Start equal to due accepted; start after due refused 422 field `due_date`; one date or none accepted (BR-23) | Pass |
+| `projects/ProjectOwnerRuleTest` | 2 | Null owner refused 422 field `owner_member_id` | Pass |
+| `comments/CommentBodyRuleTest` | 9 | Body null, empty or spaces refused 422 field `body`; `k` accepted; trimmed value returned; 2000 accepted, also padded; 2001 refused (FR-16, BR-13, AC-15.2, EC-08) | Pass |
+| `tasks/AssignmentRuleTest` | 8 | `member_ids` count: null and empty refused 422 field `member_ids`; 1 and 20 accepted; 21 refused; repeats `[X,X]` and `[X,Y,X]` refused 409 `conflict` field `member_ids` (FR-22, BR-22, `assignTask` rule 1) | Pass |
+| `tasks/TaskOwnerRuleTest` | 3 | Task owner null and empty refused 422 field `owner_member_id` (BR-09) | Pass |
+
+Total 41 new tests (10 + 3 + 6 + 2 + 9 + 8 + 3).
+
+Coverage (JaCoCo 0.8.14, `jacoco.csv`, 58 classes; Instr / Br / Line):
+
+| Class | Before INC-10 (282 tests) | After INC-10 (323 tests) |
+|---|---|---|
+| Overall | 97.4% / 88.0% / 98.3% | 97.4% / 88.3% / 98.3% |
+| `TaskService` | 100% / 93.8% / 100% | 100% / 95.8% / 100% (the empty-owner branch is now covered) |
+| `AssignmentService` | 97.0% / 100% / 96.5% | 97.2% / 100% / 96.7% (the uncovered lines are still the concurrent-assignment race path) |
+| `ProjectService` | 97.5% / 89.6% / 98.8% | 97.6% / 89.6% / 98.8% (the empty project description branch stays uncovered: undocumented) |
+| `CommentService` | 98.2% / 100% / 100% | unchanged |
+
+Reading of the figures: the integration tests already ran almost every branch; the gain is exact boundary tests whose failure points to one class. Coverage is not verification.
+
+Runs (all on `matriz_test`):
+
+| Run | Command | Date (UTC) | Output summary | Total time | Database state after the run |
+|---|---|---|---|---|---|
+| Checkpoint (after the refactor, before the new tests) | `mvn verify` | 2026-11-18 | 282 tests, 0 failures, BUILD SUCCESS | 48.4 s | Not recorded for this run |
+| 9 (tester, before the split of bundled tests) | `mvn verify` | 2026-11-18 | 319 tests (37 in the 7 classes), BUILD SUCCESS | 39.3 s | Not recorded for this run |
+| 10 (tester, before the split, run 2) | `mvn verify` | 2026-11-18 | 319 tests, same result | 39.2 s | Not recorded for this run |
+| 11 (independent, by the main session, before the split) | `mvn verify` | 2026-11-18 | 319 tests, BUILD SUCCESS | 39.0 s | Not recorded for this run |
+| 12 (tester, after the review fixes, run 1) | `mvn verify` | 2026-11-18 | 323 tests, 0 failures, 0 errors, 0 skipped, BUILD SUCCESS | 40.8 s | 5 tasks; 0 task ids not like `e0000000-%` (checked once after runs 12 and 13) |
+| 13 (tester, run 2) | `mvn verify` | 2026-11-18 | 323 tests, identical counts, BUILD SUCCESS | 40.8 s | As above |
+| 14 (independent, by the main session) | `mvn verify` | 2026-11-18 | 323 tests, BUILD SUCCESS | 39.99 s | 5 tasks; 0 task ids not like `e0000000-%` (checked after the main session's own runs) |
+| 15 (the 7 classes alone) | `mvn test` limited to the 7 classes | 2026-11-18 | 41 tests, 0 failures | 3.9 s | Not recorded for this run |
+
+Current state: 282 + 41 = 323 tests, 0 failures, 0 errors, 0 skipped. Runs 9 to 11 are history for the 319-test state.
+
+#### Review follow-up (INC-10, 2026-11-18)
+
+The reviewer (read-only) on `b92e516` and `1d1b0ac`: verdict approve with changes, 0 Blocker, 0 Major, 7 Minor. A byte-for-byte comparison of every moved block and of the call order (access/permission before value checks; owner lookup skipped when the owner is null; assignment: count, eligibility, repeats, already assigned) found no behavioural change; `src/main` changed only in the four service files and there are no unused imports. These are INC-10 R-01 to R-07, not the INC-08 or INC-09 findings with the same numbers. No security-auditor run: no access code changed (decided PQ9).
+
+- INC-10 R-01: four project tests cited "US-05" wrongly. Fixed: now US-06 and US-24.
+- INC-10 R-02: AC-10.3 and EC-08 were cited for the project name. Fixed.
+- INC-10 R-03: AC-29.3 was cited for the 1 to 20 count rule. Fixed: now FR-22, BR-22 and `assignTask` rule 1.
+- INC-10 R-04: bundled inputs in `AssignmentRuleTest` and `ProjectDateOrderRuleTest`. Fixed by splitting into parameterised invocations (319 to 323 tests).
+- INC-10 R-05: assert which repeated member is named in the 409. Not applied: undocumented.
+- INC-10 R-06: empty project description untested. Not applied: `openapi.yaml` documents "null or an empty string clears it" only for the task description (`TaskUpdateRequest`); for the project it says only "null clears an optional field".
+- INC-10 R-07: empty task owner id. Not applied: the `openapi.yaml` `Id` schema has `minLength` 1, so an empty id is invalid by the contract.
+
+Not asserted on purpose (open or undocumented): `name: null`, whether the stored project name is trimmed, tabs or newlines as whitespace (Q-07), an empty-string project description stored as null, the membership and eligibility lookups, NFR-01, the check order, and which repeated member is named in the 409. No bug was found: all new tests pass against the refactored code.
+
 ### Still not covered, and why
 
-- Rules tested only at API level, because they sit behind Spring beans and testing them in isolation would need a production change. They are **refactoring candidates** for the human; nothing was changed: project name, description, date-order and owner rules in `ProjectService.apply` (BR-21, BR-23, FR-06); the comment body rule in `CommentService.add` (BR-13, AC-15.2); the assignment rules in `AssignmentService` (1 to 20 ids, duplicates; FR-22, BR-22); the owner-membership check in `TaskService.owner` (BR-09).
+- Rules that were tested only at API level and are now also unit-tested (INC-10, 2026-11-18), for the pure parts only: project name, description, date-order and owner rules (BR-21, BR-23, FR-06); the comment body rule (BR-13, AC-15.2); the assignment count and repeats rules (FR-22, BR-22); the task-owner presence rule (BR-09). The lookups (active-member, project-member, eligibility, already assigned), NFR-01 and the check order remain tested only through the API tests, by design. Not asserted because open or undocumented: `name: null`, stored-name trimming, tabs and newlines (Q-07), an empty-string project description, which repeated member the 409 names.
+- History (INC-09 state): these were then listed as **refactoring candidates**, tested only at API level: project name, description, date-order and owner rules in `ProjectService.apply` (BR-21, BR-23, FR-06); the comment body rule in `CommentService.add` (BR-13, AC-15.2); the assignment rules in `AssignmentService` (1 to 20 ids, duplicates; FR-22, BR-22); the owner-membership check in `TaskService.owner` (BR-09).
 - Packages with the lowest branch coverage after this run: `seed` 50.0%, `accounts` 70.0%, `progress` 75.0%, `shared` 75.0%. Not investigated further.
 - Deliberately not tested, open questions: an empty `PATCH` by a Viewer or Workspace Administrator (Q-13); the exact status for a deactivated member (Q-03); an empty-string description; a creator who is no longer in the project; moving a task back from Done (PD-06).
 

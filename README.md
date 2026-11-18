@@ -125,7 +125,7 @@ The seed command inserts the demo data and exits. It never deletes data, and run
 mvn verify
 ```
 
-Runs all automated tests. Expected result: `Tests run: 282, Failures: 0` and `BUILD SUCCESS`. The coverage report (JaCoCo) is written to `target/site/jacoco/index.html` after `mvn verify`; `mvn test` does not write it, and no coverage threshold is set.
+Runs all automated tests. Expected result: `Tests run: 323, Failures: 0` and `BUILD SUCCESS`. The coverage report (JaCoCo) is written to `target/site/jacoco/index.html` after `mvn verify`; `mvn test` does not write it, and no coverage threshold is set.
 
 - `DatabaseSetupTest` checks the database configured in `.env`: it answers queries, every migration succeeded and all 11 tables from [docs/database.md](docs/database.md) exist. It changes no data.
 - `AuthenticationTest`, `CsrfCookieTest`, `TaskAccessTest`, `ProjectApiTest`, `TaskApiTest`, `AssignmentApiTest`, `CommentApiTest`, `ClientConfigApiTest` and `VerificationApiTest` check sign-in, sign-out, the project, task, assignee and comment operations, the open `GET /config.js` and every access rule through API requests; `VerificationApiTest` holds the API checks of the QA verification campaign ([docs/verification.md](docs/verification.md)). They use the separate `matriz_test` database (`MATRIZ_TEST_DB_URL`, default `jdbc:postgresql://localhost:5432/matriz_test`), load the demo data there and roll back every change (the one exception is `TaskIntegrationTest`, described below). Create that database once, as the `matriz` role:
@@ -136,7 +136,7 @@ Runs all automated tests. Expected result: `Tests run: 282, Failures: 0` and `BU
 
 - `ClientConfigControllerTest` is a unit test without a database: it checks which `MATRIZ_API_BASE_URL` values are accepted or stop startup, and that an accepted value is safely encoded in `/config.js`.
 - `TaskTitleRuleTest` is a unit test of the task title rule, with no Spring and no database; it lives in `src/test/java/com/matriz/tasks`.
-- `AccessPolicyTest`, `RoleTest`, `TaskStatusRuleTest`, `TaskDescriptionRuleTest`, `TaskEntityTest`, `ApiExceptionTest`, `ApiExceptionHandlerTest` and `IdsTest` are also unit tests, with no Spring and no database.
+- `AccessPolicyTest`, `RoleTest`, `TaskStatusRuleTest`, `TaskDescriptionRuleTest`, `TaskEntityTest`, `ApiExceptionTest`, `ApiExceptionHandlerTest`, `IdsTest`, `ProjectNameRuleTest`, `ProjectDescriptionRuleTest`, `ProjectDateOrderRuleTest`, `ProjectOwnerRuleTest`, `CommentBodyRuleTest`, `AssignmentRuleTest` and `TaskOwnerRuleTest` are also unit tests, with no Spring and no database.
 - `TaskIntegrationTest` sends real HTTP requests with a real sign-in, using the CSRF cookie and header; nothing is mocked. It commits its data in the `matriz_test` database, deletes the tasks it creates after each test, and leaves the demo data seeded. Run it alone with the variables below set in the environment (fictitious placeholders):
 
 ```bash
