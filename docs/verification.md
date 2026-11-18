@@ -157,7 +157,7 @@ Verification of the container image of 2026-11-18 (Exercise 02). Basis: the deci
 | `matriz` | `0.1.0-SNAPSHOT`, `local` | Runtime: `eclipse-temurin:21-jre-jammy@sha256:dff6eb46…059d2c` (JRE 21.0.13). Build stage (not shipped): `maven:3.9.11-eclipse-temurin-21@sha256:6fdc855a…c83d237` (JDK 21.0.9) | 519 MB (`docker images`; 519,418,889 bytes) |
 | `eclipse-temurin` | `21-jre-jammy` | Official base (runtime) | 408 MB |
 | `maven` | `3.9.11-eclipse-temurin-21` | Official base (build) | 801 MB |
-| `postgres` | `16-bookworm` | Official image, used as is for the temporary database; same tag as `compose.yaml` and CI | 648 MB |
+| `postgres` | `16-bookworm` | Official image, used as is for the temporary database; same tag and digest as `compose.yaml` and CI | 648 MB |
 
 Digests were read with `docker image inspect` from the images pulled in this session. `docker images` reports sizes for the local image store, so they are not the compressed download sizes.
 
@@ -184,7 +184,7 @@ Digests were read with `docker image inspect` from the images pulled in this ses
 | 17 | `docker restart matriz-ex02-app`, then `GET /auth/me` with the old cookie, sign in again, `GET /projects` | Old cookie: 401 `session_expired`. New sign-in 200; 3 projects. |
 | 18 | Run without `MATRIZ_DB_PASSWORD` (variable removed from the env file) | Exit 1: "FATAL: password authentication failed for user "matriz"". |
 | 19 | `git status --short`, `git diff --stat` | Before this section: only `.dockerignore` and `Dockerfile` modified. |
-| 20 | Read `compose.yaml` and `.github/workflows/ci.yml` | Compose uses `build: .` and `image: matriz:local`; CI runs `docker build -t matriz:ci .`; neither depends on the changed lines. Not run (see Limitations). |
+| 20 | Read `compose.yaml` and `.github/workflows/ci.yml` | Compose uses `build: .` and `image: matriz:local`; CI runs `docker build -t matriz:ci .`; neither depended on the first-pass changes (read as of the first pass; the hardening later changed both files, see [Hardening after the security audit](#hardening-after-the-security-audit)). Not run (see Limitations). |
 
 ### Checks
 
@@ -234,7 +234,7 @@ Digests were read with `docker image inspect` from the images pulled in this ses
 
 ### Hardening after the security audit
 
-The `security-auditor` agent audited the image on 2026-11-18 and found no Critical, High or Medium issue and 7 Low ones. The project decision-maker approved fixing S-01 to S-05; S-06 and S-07 depend on pending decisions (TD-02, TD-05) and were not changed.
+The `security-auditor` agent audited the image on 2026-11-18 and found no Critical, High or Medium issue and 7 Low ones. Its IDs S-01 to S-07 are numbered by that audit only (they are not the findings of the same name in [review.md](review.md)). The project decision-maker approved fixing S-01 to S-05. S-06 (database and demo passwords are passed to the containers as environment variables, acceptable for local use only) and S-07 (nothing says how the digest pins are refreshed) depend on pending decisions (TD-02, TD-05) and were not changed. A re-audit of the fixes found no Critical, High or Medium issue and 5 more Low items (S-08 to S-12): the `db` service is not hardened (S-08), GitHub Actions are pinned by tag (S-09), everything new under `src/main` enters the build context (S-10), and two documentation points (S-11, S-12). S-11 and S-12 were corrected; S-08 to S-10 were not changed.
 
 | ID | Change | Check | Result |
 |---|---|---|---|
@@ -242,6 +242,6 @@ The `security-auditor` agent audited the image on 2026-11-18 and found no Critic
 | S-02 | `compose.yaml` (`app` and `seed`): `security_opt: no-new-privileges:true` and `cap_drop: [ALL]`. | `docker compose config` shows both settings. The same options were applied with `docker run --cap-drop ALL --security-opt no-new-privileges:true`: the seed inserted 37 rows, the application started in 5.5 s, sign-in as Ana returned 200 and 3 projects, the in-container healthcheck command exited 0. `docker compose up` itself was not run (Exercise 03). | Pass (Compose run Not verified) |
 | S-03 | `compose.yaml` and `.github/workflows/ci.yml`: `postgres:16-bookworm` is pinned by digest (`@sha256:a49f7438…ebca`, read from the pulled image). | `docker compose config` shows the pinned image; the database started from the pinned reference in the run above. The CI file was not run. | Pass (CI Not verified) |
 | S-04 | No file change. The local `matriz` images were built with a verification-only build stage and are for verification only; their runtime truststore is unchanged from the base image (the auditor compared the hashes). The plain build is to be confirmed by the first CI run. | Rebuilt the image again with the same workaround. | Open until the first CI run |
-| S-05 | `.dockerignore` is now an allow-list (`*`, then `!pom.xml` and `!src/main/**`), with key, credential, `.env`, log and database patterns excluded even inside `src/main`. | The context probe lists only `pom.xml`, the application sources and the `V1`–`V4` migrations. With a temporary `.pem` file and a `.env` file placed under `src/main/resources`, neither reached the context (0 matches); both were deleted afterwards. | Pass |
+| S-05 | `.dockerignore` is now an allow-list (`*`, then `!pom.xml`, `!src/main/` and `!src/main/**`), with key, credential, `.env`, log and database patterns excluded even inside `src/main`. | The context probe lists only `pom.xml`, the application sources and the `V1`–`V4` migrations. With a temporary `.pem` file and a `.env` file placed under `src/main/resources`, neither reached the context (0 matches); both were deleted afterwards. | Pass |
 
-The image was rebuilt after S-01 (build exit 0, same workaround as above). After this pass `git status` showed only `Dockerfile`, `.dockerignore`, `compose.yaml`, `.github/workflows/ci.yml` and this file as changed by this exercise.
+The image was rebuilt after S-01 (build exit 0, same workaround as above). At that moment `git status` listed only `Dockerfile`, `.dockerignore`, `compose.yaml`, `.github/workflows/ci.yml` and this file as uncommitted changes; `README.md` and `CHANGELOG.md` had been changed and committed earlier (see the Checks table).

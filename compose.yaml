@@ -69,7 +69,7 @@ services:
       # Empty when unset so that "docker compose up" works without it; the seed command stops with an error if it is blank.
       MATRIZ_DEMO_PASSWORD: ${MATRIZ_DEMO_PASSWORD:-}
     restart: "no"
-    # The application needs no extra privileges: it listens on 8080 as a non-root user.
+    # The seed command needs no extra privileges; it runs as a non-root user and exits when done.
     security_opt:
       - no-new-privileges:true
     cap_drop:
