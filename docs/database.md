@@ -276,7 +276,7 @@ These are confirmed by the documentation. Not enforced in this delivery, because
 | BR-06 | An invitation needs a valid email address (containing "@") and a role. | AC-03.2, AC-03.3 |
 | BR-07 | Deactivated members cannot access the workspace. Their tasks are not deleted and keep their comments; they stay in task lists and the progress count. | FR-03, SP-04, EC-04 |
 | BR-08 | Any workspace member, including a Viewer, can be a project member. Project members belong to the project's workspace. | FR-07, NFR-01, decision log 2026-10-29 |
-| BR-09 | Each task has exactly one owner, who must be a member of the task's project when assigned. A Viewer can be a task owner. | FR-10, AC-10.3, AC-10.4 |
+| BR-09 | Each task has exactly one owner, who must be an active member of the task's project when assigned. A Viewer can be a task owner. | FR-10, AC-10.3, AC-10.4 |
 | BR-10 | A task's title is required. It is trimmed and must be 3 to 150 characters long, so a title of only spaces is refused. | FR-09, AC-10.2, AC-10.5, decision log 2026-11-12 |
 | BR-11 | A task has exactly one of three statuses (To do, In progress, Done). A new task starts as To do. | FR-12, AC-10.1, AC-11.2 |
 | BR-12 | A member can delete the tasks they created, but not tasks created by others. Project Managers and Team Members can create tasks. | FR-09, decision log 2026-10-29 |

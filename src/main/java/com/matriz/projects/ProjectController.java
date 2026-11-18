@@ -47,8 +47,8 @@ class ProjectController {
             workspace = Optional.of(Ids.parse(workspaceId).orElseThrow(() -> ApiException.validation(
                     "The projects could not be listed.", "workspace_id", "The workspace id is not valid.")));
         }
-        int p = PageParams.page(page, "The projects could not be listed.");
         int s = PageParams.size(size, "The projects could not be listed.");
+        int p = PageParams.page(page, s, "The projects could not be listed.");
         return service.list(caller.accountId(), q, workspace, p, s);
     }
 
