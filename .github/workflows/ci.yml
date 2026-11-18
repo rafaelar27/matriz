@@ -36,6 +36,8 @@ jobs:
       MATRIZ_DB_PASSWORD: ci-only-password
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -57,6 +59,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Build image (not pushed)
         run: docker build -t matriz:ci .
 
@@ -73,6 +77,8 @@ jobs:
       E2E_USER_PASSWORD: ci-only-demo-password
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Start the stack and load demo data
         run: |
           printf 'MATRIZ_DB_USER=%s\nMATRIZ_DB_PASSWORD=%s\nMATRIZ_DEMO_PASSWORD=%s\n' \

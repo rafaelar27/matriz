@@ -189,7 +189,8 @@ docker compose up -d --build --wait
 docker compose run --rm seed
 ```
 
-- The application is at <http://localhost:8080> (or your `MATRIZ_PORT`). Flyway applies pending migrations at startup. `MATRIZ_DB_URL` in `.env` is ignored by Compose, which connects to its own `db` service; the database is not published on the host.
+- The application is at <http://localhost:8080> (or your `MATRIZ_PORT`), reachable from this computer only (the port is bound to `127.0.0.1`). The session cookie is not marked Secure (`MATRIZ_COOKIE_SECURE=false`), which is safe only over localhost; do not expose this stack on a network without HTTPS (TD-02, TD-03). Flyway applies pending migrations at startup. `MATRIZ_DB_URL` in `.env` is ignored by Compose, which connects to its own `db` service; the database is not published on the host.
+- Changing `MATRIZ_DB_PASSWORD` after the first start does not change the role in the existing database volume, and the application then cannot sign in to the database. To reset it, run `docker compose down -v`, which **deletes the database and cannot be undone**.
 - `docker compose run --rm seed` loads the demo data. It is idempotent and never deletes data, so it can be run again.
 - `docker compose down` stops the containers and keeps the data (named volume `matriz-db`). `docker compose down -v` also **deletes the database and cannot be undone**.
 - The healthcheck of `app` calls `GET /config.js`, which needs no session.

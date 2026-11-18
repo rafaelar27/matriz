@@ -39,7 +39,8 @@ services:
       MATRIZ_COOKIE_SECURE: ${MATRIZ_COOKIE_SECURE:-false}
       MATRIZ_API_BASE_URL: ${MATRIZ_API_BASE_URL:-}
     ports:
-      - "${MATRIZ_PORT:-8080}:8080"
+      # Loopback only: this stack uses plain HTTP and a non-Secure session cookie (TD-02, TD-03).
+      - "127.0.0.1:${MATRIZ_PORT:-8080}:8080"
     healthcheck:
       # /config.js is open (no session) and the application has no Actuator.
       test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8080/config.js"]
@@ -51,6 +52,7 @@ services:
 
   # One-shot demo data. Not started by "up"; run it with: docker compose run --rm seed
   seed:
+    build: .
     image: matriz:local
     profiles: ["seed"]
     depends_on:
@@ -59,7 +61,8 @@ services:
     environment:
       <<: *app-env
       SPRING_PROFILES_ACTIVE: seed
-      MATRIZ_DEMO_PASSWORD: ${MATRIZ_DEMO_PASSWORD:?set MATRIZ_DEMO_PASSWORD in .env}
+      # Empty when unset so that "docker compose up" works without it; the seed command stops with an error if it is blank.
+      MATRIZ_DEMO_PASSWORD: ${MATRIZ_DEMO_PASSWORD:-}
     restart: "no"
 
 volumes:
