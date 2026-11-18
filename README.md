@@ -159,6 +159,26 @@ export MATRIZ_DB_PASSWORD="<role password>"
 mvn test -Dtest=TaskIntegrationTest
 ```
 
+### End-to-end test
+
+One browser test, in the separate folder `e2e/` (Playwright), signs in as the demo user Ana, opens the project "Website redesign", creates a task, checks that it is in the list and still there after a reload, and then deletes its own task through the interface. It is not part of `mvn verify`.
+
+Prerequisites: Node 22 and a Chromium browser. Set up the browser in one of three ways: from `e2e/` run `npm install`, then `npx playwright install chromium` once (not verified in the project's container, where the download is blocked; on Linux `npx playwright install-deps chromium` may also be needed); or set `PLAYWRIGHT_BROWSERS_PATH` to a folder that already has the Chromium of Playwright 1.63.0; or set `E2E_CHROMIUM_PATH` to a Chromium executable. The test adds `--no-sandbox` automatically only when it runs as root.
+
+1. Create a fresh `matriz_test` database (step 6) and set `MATRIZ_DB_URL` (the test database), `MATRIZ_DB_USER`, `MATRIZ_DB_PASSWORD` and `MATRIZ_DEMO_PASSWORD` in the shell.
+2. Seed it once (step 5), then start the application (step 4) and leave it running.
+3. In another terminal:
+
+```bash
+cd e2e
+npm install
+E2E_USER_EMAIL=ana@example.com E2E_USER_PASSWORD="<demo password>" npx playwright test
+```
+
+`<demo password>` is the `MATRIZ_DEMO_PASSWORD` given to the seed command. `E2E_BASE_URL` (optional, default `http://localhost:8080`): the address of the running application. The end-to-end test creates and then deletes a task, so it refuses to run when the host is anything other than `localhost` or `127.0.0.1`. `E2E_ALLOW_NON_LOCAL` (optional): set it to `1` to allow another host. The check looks only at the host name; it cannot tell which database the application uses, so start the application against `matriz_test` before running the test. `E2E_CHROMIUM_PATH` (optional) overrides the browser executable.
+
+Warning: `mvn verify` overwrites the demo accounts' passwords with its own test password, and seeding again inserts nothing and does not restore them. Use a fresh database, and do not run `mvn verify` between seeding and the end-to-end run.
+
 ### Authentication
 
 Matriz uses a **server-side session cookie** (TD-03, decided 2026-11-12). The API contract is in [openapi.yaml](openapi.yaml).

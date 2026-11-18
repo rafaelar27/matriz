@@ -1,6 +1,6 @@
 # Matriz — Test Plan: Tasks and Permissions
 
-> **Status:** reviewed plan, written on 2026-11-17. Expected results come only from the documentation ([requirements.md](requirements.md), [user-stories.md](user-stories.md), [constraints.md](constraints.md), [database.md](database.md) and [openapi.yaml](../openapi.yaml)), never from the behavior of the implementation. No code was read to write this plan. Part of the plan was later automated and run on 2026-11-17 (see [Integration test results](#integration-test-results)). Rules marked **prov.** are provisional until their pending decisions (PD-01, PD-03, PD-17, PD-20) are made, and the matching scenarios must change with them.
+> **Status:** reviewed plan, written on 2026-11-17. Expected results come only from the documentation ([requirements.md](requirements.md), [user-stories.md](user-stories.md), [constraints.md](constraints.md), [database.md](database.md) and [openapi.yaml](../openapi.yaml)), never from the behavior of the implementation. No code was read to write this plan. Part of the plan was later automated and run on 2026-11-17 (see [Integration test results](#integration-test-results)). One end-to-end flow (create a task, AC-10.1) was automated and run on 2026-11-18 (see [End-to-end test results](#end-to-end-test-results)). Rules marked **prov.** are provisional until their pending decisions (PD-01, PD-03, PD-17, PD-20) are made, and the matching scenarios must change with them.
 
 ## Purpose and scope
 
@@ -16,7 +16,7 @@
 |---|---|
 | **Unit** | An isolated rule without database or authentication, for example title validation. Used only where the rule is isolated in code (Q-10, resolved 2026-11-17). Unit classes that exist (2026-11-17): `TaskTitleRuleTest`, `AccessPolicyTest`, `RoleTest`, `TaskStatusRuleTest`, `TaskDescriptionRuleTest`, `TaskEntityTest`, `ApiExceptionTest`, `ApiExceptionHandlerTest` and `IdsTest`; added 2026-11-18 (INC-10): `ProjectNameRuleTest`, `ProjectDescriptionRuleTest`, `ProjectDateOrderRuleTest`, `ProjectOwnerRuleTest`, `CommentBodyRuleTest`, `AssignmentRuleTest` and `TaskOwnerRuleTest` (see [Unit tests and coverage](#unit-tests-and-coverage-2026-11-17)). |
 | **API** (Integration/API) | An HTTP request to the application with authentication and the database. Verifies status codes, bodies, persistence and permissions. |
-| **E2E** (End-to-end) | Through the user interface. Used only where the acceptance criterion is about what the interface offers or says. |
+| **E2E** (End-to-end) | Through the user interface. Used only where the acceptance criterion is about what the interface offers or says. One flow (TE-04) is automated with Playwright in `e2e/` (see [End-to-end test results](#end-to-end-test-results)); the rest (TE-01 to TE-03) are not. |
 
 The lowest level that verifies the behavior reliably is chosen for each scenario. 4xx checks assert the HTTP status, `code` and `details[].field`, not message text (A7).
 
@@ -48,7 +48,7 @@ Deactivating Eli and demoting a task creator need direct database setup, because
 
 ★ marks an essential scenario. "Unchanged" means the test re-reads the task and checks that nothing changed.
 
-**Automation status (2026-11-17):** the matrix has 45 active scenarios (47 IDs minus the dropped TU-09 and TA-06). The scenarios checked in the Coverage increment are covered by the tests listed in [Coverage increment (2026-11-17)](#coverage-increment-2026-11-17), in `TaskIntegrationTest` (real HTTP, real sign-in), `TaskApiTest`, `TaskAccessTest` and `TaskTitleRuleTest` (TV-09, unit level). Scenarios not named in that list were not re-checked in the increment and rely on the existing test classes, whose coverage this plan does not state. TU-06 (invalid titles, description, owner on edit) and TA-05 (`PATCH` and `DELETE`, both directions) are covered by four tests added in the second coverage run (see [Coverage increment (2026-11-17)](#coverage-increment-2026-11-17)). Exceptions: TA-07 and TC-08 assert only "refused, no data" while Q-03 is open; TE-01 to TE-03 are browser-only and not automated (no browser-test tool in the project). Cases deliberately untested: Q-07 to Q-09 (see the open questions). No per-status count is given because the existing test classes were not mapped scenario by scenario.
+**Automation status (2026-11-17):** the matrix has 45 active scenarios (47 IDs minus the dropped TU-09 and TA-06). The scenarios checked in the Coverage increment are covered by the tests listed in [Coverage increment (2026-11-17)](#coverage-increment-2026-11-17), in `TaskIntegrationTest` (real HTTP, real sign-in), `TaskApiTest`, `TaskAccessTest` and `TaskTitleRuleTest` (TV-09, unit level). Scenarios not named in that list were not re-checked in the increment and rely on the existing test classes, whose coverage this plan does not state. TU-06 (invalid titles, description, owner on edit) and TA-05 (`PATCH` and `DELETE`, both directions) are covered by four tests added in the second coverage run (see [Coverage increment (2026-11-17)](#coverage-increment-2026-11-17)). Exceptions: TA-07 and TC-08 assert only "refused, no data" while Q-03 is open; TE-01 to TE-03 are browser-only and remain unautomated. One other end-to-end flow (create a task, AC-10.1) is automated with Playwright in `e2e/` (see [End-to-end test results](#end-to-end-test-results)); it is scenario TE-04, added on 2026-11-18 and not counted in the 45 above. Cases deliberately untested: Q-07 to Q-09 (see the open questions). No per-status count is given because the existing test classes were not mapped scenario by scenario.
 
 | ID | Scenario | Preconditions | Input | Expected result | Level | Source |
 |---|---|---|---|---|---|---|
@@ -97,6 +97,7 @@ Deactivating Eli and demoting a task creator need direct database setup, because
 | TE-01 | No controls for denied roles | Vera on a task page; Ben on T1 (created by Ana) | Open the project and task | Vera sees no create, edit, delete or status control. Ben sees no Delete on T1 | E2E | AC-19.2; AC-11.3; AC-26.2 |
 | TE-02 | Delete confirmation | Ben, T2 with 2 comments | Delete, cancel; delete, confirm | A prompt says it cannot be undone. Cancel keeps the task; confirm removes it | E2E | AC-26.3 |
 | TE-03 | Title error in the form | Ana | Save with an empty title; with spaces only | No task created; a message states the rule (wording open, A7) | E2E | AC-10.2; AC-10.5 |
+| TE-04 | Create a task through the interface | Ana signed in; demo data loaded | Sign in, open Website redesign, create a task with unique title, owner Ben Demo, due date, default status; reload | The task appears in the project's task list with that title, owner, due date and status shown as 'Por fazer' (To do); success message, no error; still listed after reload | E2E | AC-10.1; FR-01; FR-08; FR-09 to FR-13; NFR-03 |
 
 ## Essential scenarios
 
@@ -148,6 +149,7 @@ These stay open until the project decision-maker answers them (KC-01). No scenar
 | Q-15 | `TaskAccessTest.viewerCannotCreateTasks` asserts message text, against A7 (tests assert status, `code` and `details[].field`, never message text). Keep, change or accept as an exception? | A7; NFR-09; PD-13 | Left as is; outside the Coverage increment |
 | Q-16 | Existing tests without a scenario ID in their name stay unnamed. Should they be renamed or mapped to scenario IDs? | — | Coverage of those scenarios cannot be stated per scenario |
 | Q-17 | `openapi.yaml` does not state whether a project mismatch (404, "task must belong to project_id") is checked before the permission check (403). `TaskApiTest.veraCannotChangeOrDeleteANorthwindTaskThroughHerOwnProject` asserts 404. This order is the tester's reading, not a documented rule. Confirm. | updateTask; deleteTask; NFR-01; API-A3 | Expected result of the TA-05 reverse case is an unconfirmed reading |
+| Q-18 | US-01 (sign in, FR-01) and US-12 (see a project's tasks, FR-13) have no acceptance criteria. The sign-in and project-detail expectations of the E2E test rest on FR-01, FR-08, FR-13, UI-A1 and README.md, not on criteria. Writing criteria is a product decision for the project decision-maker (KC-01). | US-01; US-12; FR-01; FR-08; FR-13; UI-A1 | E2E steps 1 and 2 are traced to FR and UI-A1 only |
 
 Resolved: Q-01 (no positive priority scenarios) and Q-06 (provisional rules are tested now and marked prov.), approved by the programmer on 2026-11-17. Q-02 (404 for outsiders), Q-04 (AC-10.3 reworded: the backend refuses a non-project owner) and Q-05 (`updateTaskStatus` removed from the contract; TU-09 and TA-06 dropped) were decided by the project decision-maker on 2026-11-17 and are in the [decision log](constraints.md#decision-log).
 
@@ -305,7 +307,7 @@ Four of the TU-06 title values were already partly asserted by `VerificationApiT
 - Persistence across an application restart (A10) was checked manually on 2026-11-17, not automated, on a scratch database `matriz_verify` (not `matriz_test`). API level: Ben changed a task status through the project-scoped `PATCH` and a task was created; after an application restart the old session got 401 `session_expired`, and after signing in again the status and the created task were still there, the database read-back matched, and the removed `PATCH /tasks/{id}` returned 404. Interface level: a headless-browser script (Playwright, throwaway, not a committed test; a stand-in, not a person using a browser) changed a status to "Em curso"; it survived a page reload and an application restart, and the database read-back matched. There is still no automated restart test.
 - Deliberately untested (Q-07 to Q-09): titles of tabs, newlines or non-breaking spaces; wrong JSON types; past due dates; malformed path ids.
 - Sign-out and idle expiry for tasks.
-- TE-01 to TE-03: browser-only; not automatable with the project's tools (a browser-test dependency would need approval).
+- TE-01 to TE-03: browser-only; still not automated. A browser-test tool now exists for one other flow (create task, see [End-to-end test results](#end-to-end-test-results)), but TE-01 to TE-03 have no E2E test.
 - TA-07 and TC-08 assert "refused, no data" only (Q-03).
 - INC-08 steps are done: reviewer review, security audit, `docs/verification.md` Cases 05 and 08 re-verified, and the manual restart check; see INC-08 in [implementation-plan.md](implementation-plan.md) and [verification.md](verification.md). The restart check was a headless-browser script on a scratch database, not a human browser session and not an automated test. The INC-08 open follow-ups (Q-03, audit S-02 to S-04, INC-08 R-01 and R-03 optional minors) are not done and remain open. Q-11 and audit S-01 were resolved on 2026-11-18 (see [Location header fix (2026-11-18)](#location-header-fix-2026-11-18)).
 
@@ -464,3 +466,89 @@ None found in INC-10. Production code WAS changed in INC-10 (a behaviour-preserv
 - No person has reviewed the JaCoCo HTML report.
 - The effect of the JaCoCo agent on build time was measured only as total time (the baseline includes a one-off download).
 - The Q-03 and Q-13 cells (see above): their expected results are unconfirmed.
+
+## End-to-end test results
+
+Observed on 2026-11-18. One end-to-end flow, create a task through the user interface, is automated. TE-01 to TE-03 remain unautomated. No production code was changed.
+
+### Tool and environment
+
+| Item | Value |
+|---|---|
+| Tool | `@playwright/test` 1.63.0 (Node 22.23.5, npm 10.9.9) in the isolated folder `e2e/`, with `@types/node` 22.20.5 (typings only, a dev dependency) and `e2e/tsconfig.json`; `npx --no-install tsc --noEmit -p .` from `e2e/` type-checks with no errors (observed 2026-11-18, using a TypeScript 6.0.2 `tsc` already on the machine; `typescript` is not a dependency of `e2e/`). It is not part of `mvn verify` |
+| Browser | Playwright's own Chromium (in the container, the preinstalled `chromium_headless_shell-1243` found through `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`). There is no default `executablePath`; `E2E_CHROMIUM_PATH` is an optional override (tested with `/opt/pw-browsers/chromium-1243/chrome-linux64/chrome`). `--no-sandbox` is added only when the process runs as root, as in the container |
+| Configuration | `e2e/playwright.config.ts`: 1 worker, no retries, `baseURL` from `E2E_BASE_URL` (default `http://localhost:8080`; refused if not local unless `E2E_ALLOW_NON_LOCAL=1`), trace `retain-on-failure`; no default `executablePath`; `E2E_CHROMIUM_PATH` optional; `--no-sandbox` only as root |
+| Test | `e2e/tests/create-task.spec.ts`, named "AC-10.1 · sign in, open a project, create a task and see it in the list" |
+| Environment variables | `E2E_USER_EMAIL` (`ana@example.com`), `E2E_USER_PASSWORD` (the `MATRIZ_DEMO_PASSWORD` given to the seeder), `E2E_BASE_URL`, `E2E_ALLOW_NON_LOCAL` (set to `1` to allow a non-local base URL) |
+| Database | Local PostgreSQL 16, database `matriz_test` owned by role `matriz`. Passwords are fictitious and set in the shell only |
+| Start | Set `MATRIZ_DB_URL` (test database), `MATRIZ_DB_USER`, `MATRIZ_DB_PASSWORD` and `MATRIZ_DEMO_PASSWORD`; seed once on a fresh test database with `mvn spring-boot:run "-Dspring-boot.run.profiles=seed"` (37 new rows inserted); start `mvn spring-boot:run`; in `e2e/` run `npm install`, then `npx playwright test` |
+| Warning | Do not run `mvn verify` between seeding and the E2E run. The Java tests overwrite the demo accounts' passwords with their own test password, and seeding again inserts 0 rows and does not restore them |
+| Data | Demo user Ana (Project Manager, Acme Studio); project "Website redesign"; owner Ben Demo (Team Member); fixed due date 2026-12-01; status left at the default; unique title `E2E task <timestamp>-<random>`. Cleanup deletes only that task through the UI Delete button and its confirmation |
+| Assertions | Status "Por fazer" (the UI label of To do, mapped in README.md). Priority is not asserted (F17 is out of scope) |
+| Guard | The test refuses to run when the host of `E2E_BASE_URL` is not `localhost` or `127.0.0.1`, unless `E2E_ALLOW_NON_LOCAL=1`. It checks the host name only; it cannot identify the database (no UI or API contract exposes it) |
+
+Selector strategy: roles, labels and visible text only; no `data-testid`, no CSS classes, no `waitForTimeout`; web-first auto-waiting assertions. Selectors used: labels Email and Password and button "Sign in"; heading level 1 "Dashboard"; button `/^Ana Demo/` (account menu); the banner with Acme Studio and Northwind Lab; link "Website redesign"; the project name as heading 1; heading 2 `/^Tasks/`; button "+ New task"; the form named "New task" with labels "Title (required)", "Owner", "Due date" and "Status"; button "Create task"; role `status` with `“<title>” was created.`; role `alert` count 0; the table row found by its title button, cells 0 to 3; button `Delete “<title>”`, dialog button "Delete task", and status `“<title>” was deleted.`.
+
+### Flow results
+
+| Step | Expected result | Observed | Status | Source |
+|---|---|---|---|---|
+| 1. Sign in as Ana | URL `#/dashboard`; heading "Dashboard"; "Ana Demo" in the account menu; Acme Studio and Northwind Lab in the top bar | As expected | Pass | FR-01; US-01; UI-A1; E-01; E-07 |
+| 2. Open "Website redesign" | Project heading, Tasks section and "+ New task" visible | As expected | Pass | FR-08; FR-13; US-12; FR-05 |
+| 3. Create the task | `“<title>” was created.` shown; no alert | As expected | Pass | AC-10.1; FR-09 to FR-12 |
+| 4. Task in the list | Exact title, owner Ben Demo, due 2026-12-01, status Por fazer | As expected | Pass | AC-10.1; BR-11 |
+| 5. Reload the page | The task is still listed | As expected | Pass | NFR-03 |
+| 6. Cleanup through Delete | `“<title>” was deleted.` and the row is gone | As expected | Pass | — (test cleanup) |
+
+### Runs
+
+| Run | Command | Result | Database state after the run |
+|---|---|---|---|
+| Baseline (tester) | `mvn verify -q` with `MATRIZ_DB_URL` and `MATRIZ_TEST_DB_URL` set to `matriz_test` | Surefire reports: 323 tests, 0 failures, 0 errors, 0 skipped | 5 tasks |
+| Development run (not counted) | `npx playwright test` | 1 passed | Not recorded |
+| Tester run 1 | `npx playwright test` | 1 passed | 5 tasks; 0 stray (`task_id` not like `e0000000-%`) |
+| Tester run 2 | `npx playwright test` | 1 passed (1.2 s) | 5 tasks; 0 stray |
+| Independent run 1 (main session, freshly recreated `matriz_test`; seed inserted 37 new rows; `GET /` returned 200) | `npx playwright test` | 1 passed (1.6 s) | 5 tasks; 0 stray |
+| Independent run 2 (main session) | `npx playwright test` | 1 passed (1.0 s) | 5 tasks; 0 stray |
+| Tester, after the config change, run 1 (observed 2026-11-18) | `npx playwright test` with `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`, `E2E_CHROMIUM_PATH` unset | 1 passed (2.7 s), using the preinstalled `chromium_headless_shell-1243` | 5 tasks; 0 stray |
+| Tester, after the config change, run 2 (observed 2026-11-18) | Same as run 1 | 1 passed (1.6 s) | 5 tasks; 0 stray |
+| Tester, after the config change, run 3 (observed 2026-11-18) | `npx playwright test` with `E2E_CHROMIUM_PATH=/opt/pw-browsers/chromium-1243/chrome-linux64/chrome` | 1 passed (2.4 s) | 5 tasks; 0 stray |
+| Tester, after the config change, run 4 (observed 2026-11-18; expected failure) | `npx playwright test` with neither `PLAYWRIGHT_BROWSERS_PATH` nor `E2E_CHROMIUM_PATH` set | Failed as expected: `browserType.launch: Executable doesn't exist at /root/.cache/ms-playwright/chromium_headless_shell-1243/...`. Environment limitation, not an application defect | 5 tasks; 0 stray |
+| Tester, after the config change, install attempt (observed 2026-11-18) | `npx playwright install chromium` | Failed in this container: `Failed to download Chrome for Testing 153.0.8010.12 ... Download failure, code=1` (download blocked). Environment limitation evidence | Not applicable |
+| Tester, failure check (a) (observed 2026-11-18; fresh `matriz_test`, seed 37 rows, `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`) | `npx playwright test` with the spec temporarily expecting due date 2026-12-02 | Failed as expected: `Expect "toHaveText"` on the due-date cell, unexpected value "2026-12-01". `trace.zip` written (430224 bytes). Cleanup deleted the task | 5 tasks; 0 stray |
+| Tester, failure check (b) (observed 2026-11-18; same environment) | `npx playwright test` with the spec temporarily expecting status "Em curso" | Failed as expected, unexpected value "Por fazer". `trace.zip` written (424915 bytes) | 5 tasks; 0 stray |
+| Tester, guard: default run (observed 2026-11-18) | `npx playwright test` | Passed | 5 tasks; 0 stray |
+| Tester, guard: `E2E_BASE_URL=http://example.invalid:8080` (observed 2026-11-18) | `npx playwright test` | Failed fast with `E2E_BASE_URL host "example.invalid" is not localhost or 127.0.0.1; this test creates and deletes data. Set E2E_ALLOW_NON_LOCAL=1 to allow it.` and no navigation | Not recorded |
+| Tester, guard: same with `E2E_ALLOW_NON_LOCAL=1` (observed 2026-11-18) | `npx playwright test` | Got past the guard and failed at `page.goto` with `net::ERR_NAME_NOT_RESOLVED` | Not recorded |
+| Tester, two further normal runs (observed 2026-11-18) | `npx playwright test` | Both passed | 5 tasks; 0 stray |
+| Tester, after R-02/R-03, run 1 (observed 2026-11-18; fresh `matriz_test`, seed 37 rows, `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`; spec after the review fixes: columns located by header text, project link scoped to the Projects region without `.first()`, `afterEach` re-opens the project and fails with `created task not found for cleanup: <title>` if the row is missing) | `npx playwright test` | 1 passed (2.0 s) | 5 tasks; 0 stray |
+| Tester, after R-02/R-03, run 2 (observed 2026-11-18; same environment) | `npx playwright test` | 1 passed (1.4 s) | 5 tasks; 0 stray |
+| Tester, after R-02/R-03, negative check (observed 2026-11-18; same environment; the due-date assertion was temporarily set to the literal `'2026-12-02'`, then reverted by hand and verified with `diff`) | `npx playwright test` | Failed as expected: Expected "2026-12-02", Received "2026-12-01". Cleanup still ran | 5 tasks; 0 stray |
+| Type check after R-02/R-03 (observed 2026-11-18; run by the tester and by the main session) | `npx --no-install tsc --noEmit -p .` from `e2e/` | Exit code 0 | Not applicable |
+
+A first negative attempt that changed the shared `DUE_DATE` constant still passed, because the form fill used the same constant. It was not a valid check and was reverted.
+
+The temporary breaks in failure checks (a) and (b) were reverted (the spec was restored) and not committed.
+
+The main session did not re-run `mvn verify`.
+
+### Failures
+
+No application defect and no test problem. Before the config change, none occurred. After it, two environment limitations were observed on 2026-11-18: run 4 (no browser configured) failed as expected, and `npx playwright install chromium` could not download the browser in this container (see Runs). `npm install` (with `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`) and the Maven downloads worked.
+
+### Not verified
+
+- The `retain-on-failure` trace was triggered and a `trace.zip` was produced, but its content was not opened or inspected.
+- A hostname guard cannot prove which database the application uses.
+- Browsers other than Chromium, and Windows.
+- A run as a non-root user (the `--no-sandbox` branch for non-root is not exercised), and macOS.
+- `npx playwright install chromium`: the download is blocked in this container, so the standard install route is not confirmed here.
+- A type check of the spec with `@types/node`. A standalone `tsc` shows only the missing `@types/node` for `process`; it was not added.
+- The `created task not found for cleanup` failure path of the `afterEach` was not triggered.
+- A column reorder in the UI was not exercised.
+
+### Documentation updates
+
+- Applied (Edit A, 2026-11-18): the AC-10.1 wording in `docs/user-stories.md` now carries a clarification that the interface shows "Por fazer" for "To do", as in README.md.
+- Recorded as [Q-18](#open-questions-and-documentation-gaps): US-01 and US-12 have no acceptance criteria, so the sign-in and project-detail expectations rest on FR-01, FR-08, FR-13, UI-A1 and README.md. Writing criteria remains a decision for the project decision-maker (KC-01).
+- Still open: TE-01 to TE-03 remain unautomated.
