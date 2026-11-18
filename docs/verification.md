@@ -325,7 +325,7 @@ All three services use the dedicated network `matriz-net` (added in this task) a
 
 ## Continuous Integration
 
-> **Status:** in progress, 2026-11-18. The workflow `.github/workflows/ci.yml` was updated and pushed to branch `claude/compassionate-planck-mhv9wh` (commit `d26a386`) with the approval of the project decision-maker (plan "yes"; "yes, commit and push ci.yml"). Run #30 passed (see "Successful run"). The controlled failure test is **Pending** and is not recorded as done. Only fictitious values are used; no repository secret is used.
+> **Status:** done, 2026-11-18, except the proposals at the end, which are not applied. The workflow `.github/workflows/ci.yml` was updated and pushed to branch `claude/compassionate-planck-mhv9wh` (commit `d26a386`) with the approval of the project decision-maker (plan "yes"; "yes, commit and push ci.yml"). Run #30 passed (see "Successful run"). The controlled failure test was done on branch `ci/controlled-failure` (see "Controlled failure"). Only fictitious values are used; no repository secret is used.
 
 ### Pipeline overview
 
