@@ -1,24 +1,28 @@
-# Keep secrets and local files out of the build context (AGENTS.md C2).
-.env
-.env.*
-!.env.example
+# Allow-list: the image build needs only pom.xml and src/main (see the Dockerfile). Everything else is excluded,
+# so a new file (a key, a .env, a dump) is kept out of the build context unless it is added here (AGENTS.md C2).
+*
 
-.git
-.gitignore
-.claude
+!pom.xml
+!src/main/
+!src/main/**
 
-# Build output and tooling that the image does not need
-target/
-e2e/
-docs/
-*.md
-openapi.yaml
-Dockerfile
-.dockerignore
-compose.yaml
-
-# Editor and OS files
-.idea/
-.vscode/
-.DS_Store
-Thumbs.db
+# Even inside src/main, never send secrets or local files. Do NOT exclude *.sql: the Flyway migrations are .sql files.
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/*.jks
+**/id_rsa*
+**/.npmrc
+**/settings.xml
+**/.m2/
+**/*.log
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+**/*.dump
+**/.DS_Store
+**/*.swp
+**/*~

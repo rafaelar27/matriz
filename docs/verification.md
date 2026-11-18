@@ -143,3 +143,105 @@ Three examples of how AI suggestions were handled. The AI tools named are those 
 3. **Locked jar:** PID 33068 locks `target/matriz-0.1.0-SNAPSHOT.jar`. Once it is stopped, a plain `mvn verify`, as written in the README, should be run again.
 4. **O-3:** ~~should the security-auditor agent review the CSRF cookie behaviour?~~ Answered 2026-11-16: reviewed, see O-3.
 5. **FR-19 and the other unbuilt FRs (O-1):** what is decided for FR-19 overdue marking, and for FR-03, FR-04, FR-14, FR-17, FR-20 and FR-21, which have no API operations yet?
+
+## Docker images
+
+Verification of the container image of 2026-11-18 (Exercise 02). Basis: the decision of 2026-11-18 in the [decision log](constraints.md#decision-log) (Docker, Docker Compose and GitHub Actions; images are not published) and [Technology stack](architecture.md#technology-stack). Regression checks: FR-01, FR-08, SP-01, NFR-01, NFR-03, TD-03. There is one application image: a single Spring Boot application serves the API and the static user interface. PostgreSQL uses the official image and has no Dockerfile of its own. All passwords, accounts and data named here are fictitious; no secret is recorded in this file. Passwords appear as `<fictitious>`.
+
+**Environment:** Linux cloud session, Docker Engine 29.10.0 (daemon started by hand), Docker Compose v5.7.1. Branch `claude/sweet-turing-bxl17d`. Changes made in the first pass: `Dockerfile` (base images pinned by tag and digest) and `.dockerignore` (extended). Changes made afterwards for the security audit are in [Hardening after the security audit](#hardening-after-the-security-audit). No application code or `pom.xml` was changed.
+
+### Images
+
+| Image | Tag | Base image | Size |
+|---|---|---|---|
+| `matriz` | `0.1.0-SNAPSHOT`, `local` | Runtime: `eclipse-temurin:21-jre-jammy@sha256:dff6eb46…059d2c` (JRE 21.0.13). Build stage (not shipped): `maven:3.9.11-eclipse-temurin-21@sha256:6fdc855a…c83d237` (JDK 21.0.9) | 519 MB (`docker images`; 519,418,889 bytes) |
+| `eclipse-temurin` | `21-jre-jammy` | Official base (runtime) | 408 MB |
+| `maven` | `3.9.11-eclipse-temurin-21` | Official base (build) | 801 MB |
+| `postgres` | `16-bookworm` | Official image, used as is for the temporary database; same tag and digest as `compose.yaml` and CI | 648 MB |
+
+Digests were read with `docker image inspect` from the images pulled in this session. `docker images` reports sizes for the local image store, so they are not the compressed download sizes.
+
+### Commands and results
+
+| # | Command (summarized) | Result |
+|---|---|---|
+| 1 | `docker pull` of the three base images | Failed first: `429 Too Many Requests` from Docker Hub (anonymous pull limit on the session's shared address); repeated after 5 s with the same result. See Problems. |
+| 2 | Daemon restarted with `registry-mirrors: ["https://mirror.gcr.io"]`, then the three `docker pull` commands | All three pulled. |
+| 3 | Build-context probe: `docker build -f <probe Dockerfile> --no-cache .` (copies the context to `/ctx` and lists it) | First pass (the earlier deny-list `.dockerignore`; the allow-list is checked under [Hardening after the security audit](#hardening-after-the-security-audit)): context 225 kB; contains only `pom.xml` and `src/main`. `db/migration` holds `V1` to `V4` (`.sql` kept). No `.env*`, `.git*` or `*.log` file (count 0). |
+| 4 | `docker build -t matriz:0.1.0-SNAPSHOT -t matriz:local .` | Failed at `mvn dependency:go-offline`: `PKIX path building failed` for `repo.maven.apache.org`. See Problems. |
+| 5 | Same build with a verification-only build stage: the pinned maven image plus the session's Java truststore, substituted with `--build-context` | Built (74 s, exit 0). Dependency layer built once; a second build showed every layer `CACHED`. |
+| 6 | `docker images` and `docker image inspect matriz:local` | 519 MB; `User=matriz`; `ExposedPorts={"8080/tcp":{}}`; `Entrypoint=["java","-jar","/app/app.jar"]`. |
+| 7 | `docker network create matriz-ex02`; `docker run -d --name matriz-ex02-db --network matriz-ex02 --env-file <fictitious> postgres:16-bookworm` (no `-p`) | `pg_isready`: accepting connections. |
+| 8 | Seed with a blank `MATRIZ_DEMO_PASSWORD` (`docker run --rm … -e SPRING_PROFILES_ACTIVE=seed -e MATRIZ_DEMO_PASSWORD=`) | Exit 1: `MATRIZ_DEMO_PASSWORD is not set; see .env.example.` Migrations were applied before it stopped: "Successfully applied 4 migrations to schema "public", now at version v4". |
+| 9 | Seed twice with the fictitious demo password | Run 1: exit 0, "Demo data: 37 new rows inserted" (Flyway "up to date", because step 8 had applied the migrations). Run 2: exit 0, "Demo data: 0 new rows inserted". |
+| 10 | `docker run -d --name matriz-ex02-app --network matriz-ex02 --env-file <fictitious> -p 127.0.0.1:8080:8080 matriz:0.1.0-SNAPSHOT` | `docker ps`: `Up`, `127.0.0.1:8080->8080/tcp`; database `5432/tcp` (not published). |
+| 11 | `docker logs matriz-ex02-app` | "Schema "public" is up to date", "Tomcat started on port 8080", "Started MatrizApplication in 5.47 seconds". 0 lines at ERROR level. Neither fictitious password appears in the logs. |
+| 12 | `curl` from the host: `GET /config.js`, `GET /`; `docker exec … curl -fsS http://localhost:8080/config.js` | 200 and 200; the in-container command exits 0 (the command the Compose healthcheck uses). |
+| 13 | `GET /projects` without a session | 401 `not_authenticated`. |
+| 14 | Sign in as `ana@example.com` (CSRF flow of the README), `GET /auth/me`, `GET /projects`, sign out; then the same for `dan@example.com` | Ana: 200, `/auth/me` 200, 3 projects (Lab inventory, Trade fair stand, Website redesign), sign-out 204. Dan: 200, 1 project (Lab inventory). |
+| 15 | `docker exec … id`; `docker top`; `docker port` | `uid=10001(matriz) gid=10001(matriz)`; java process UID 10001; app `8080/tcp -> 127.0.0.1:8080`; database port: nothing published. |
+| 16 | Secret checks: `docker image inspect` (Config), `docker history --no-trunc`, `ls -la /app`, `find / -xdev -name ".env*"`, `command -v mvn javac`, `docker cp` of `app.jar` and a listing, `docker save` searched for the fictitious passwords | Config env: only `PATH`, `JAVA_HOME`, `LANG`, `LANGUAGE`, `LC_ALL`, `JAVA_VERSION` (no `MATRIZ_*`, no password or token). History: only the base image's `ENV` and `ARG` lines (`LAUNCHPAD_BUILD_ARCH`, `RELEASE`), no secret. `/app` holds only `app.jar`. No `.env*` file (0); `no-build-tools`; no `/build`. The jar (306 entries) holds no `.env`, `application-test` or `src/test` entry, and has the `V1`–`V4` migrations and `static/index.html`. 0 matches in `docker save`. |
+| 17 | `docker restart matriz-ex02-app`, then `GET /auth/me` with the old cookie, sign in again, `GET /projects` | Old cookie: 401 `session_expired`. New sign-in 200; 3 projects. |
+| 18 | Run without `MATRIZ_DB_PASSWORD` (variable removed from the env file) | Exit 1: "FATAL: password authentication failed for user "matriz"". |
+| 19 | `git status --short`, `git diff --stat` | Before this section: only `.dockerignore` and `Dockerfile` modified. |
+| 20 | Read `compose.yaml` and `.github/workflows/ci.yml` | Compose uses `build: .` and `image: matriz:local`; CI runs `docker build -t matriz:ci .`; neither depended on the first-pass changes (read as of the first pass; the hardening later changed both files, see [Hardening after the security audit](#hardening-after-the-security-audit)). Not run (see Limitations). |
+
+### Checks
+
+| Check | Expected | Observed | Status |
+|---|---|---|---|
+| Base images official and pinned | Tag plus digest in both `FROM` lines | Both `FROM` lines have tag and `@sha256` digest | Pass |
+| Multi-stage; runtime image has no build tools | No Maven, `javac` or sources in the final image | `no-build-tools`; `/app` holds only `app.jar` | Pass |
+| Dependencies resolved from the pinned `pom.xml`, before the sources | Separate layer before `COPY src`; cached on rebuild | Layer order as expected; second build all `CACHED` | Pass (see Limitations: no Maven lock file) |
+| Build context | No secrets, `.git`, `target`, logs, tests, docs, IDE files; `pom.xml` and migrations present | As expected (step 3; re-checked with the allow-list in the hardening section) | Pass |
+| Image builds with clear names and tags | `matriz:0.1.0-SNAPSHOT` and `matriz:local` | Built; sizes in the table above | Pass (with the build-stage workaround, see Problems) |
+| No secret in the image | No `MATRIZ_*`, password, token or `.env` in config, history, filesystem or jar | None found (step 16) | Pass |
+| Non-root | `uid=10001(matriz)` | `uid=10001(matriz) gid=10001(matriz)` | Pass |
+| Ports | Only 8080 exposed; app published on `127.0.0.1`; database not published | As expected (step 15) | Pass |
+| Seed refuses a blank password | Non-zero exit and message | Exit 1, `MATRIZ_DEMO_PASSWORD is not set` | Pass |
+| Seed is idempotent | First run inserts, second inserts 0 | 37, then 0 | Pass |
+| Container starts, connects to the database | "Started MatrizApplication", no errors | Started in 5.47 s; 0 ERROR lines | Pass |
+| Application responds | `/config.js` 200; `/` 200; in-container `curl` 0 | 200, 200, exit 0 | Pass |
+| Sign-in required (SP-01) | `GET /projects` without a session gives 401 | 401 `not_authenticated` | Pass |
+| FR-01, FR-08: sign in and list projects | Ana: 200 and 3 projects | 200; 3 projects | Pass |
+| NFR-01: other workspace not visible | Dan: 1 project, no Acme Studio project | 1 project (Lab inventory) | Pass |
+| Restart ends sessions (TD-03); data kept while the database lives (NFR-03) | Old cookie 401 `session_expired`; 3 projects after sign-in | As expected | Pass |
+| Configuration only from the environment | Start without the password stops | Exit 1 (authentication failure) | Pass |
+| Logs free of secrets | Fictitious passwords not found | 0 matches | Pass |
+| Only allowed files changed | First pass: `Dockerfile`, `.dockerignore`, this file | As expected | Pass |
+| Files changed after approval | `README.md` and `CHANGELOG.md` (documentation updates, commit `21fb403`); `compose.yaml` and `.github/workflows/ci.yml` (S-02, S-03 hardening, see the hardening section) | As expected | Pass |
+
+### Problems and fixes
+
+| Problem | Cause | Fix | Status |
+|---|---|---|---|
+| `docker pull` returned 429 | Docker Hub's anonymous pull limit on the session's shared egress address | With approval (2026-11-18), the daemon was configured with the public mirror `https://mirror.gcr.io`. No repository file changed. The digests recorded above are content addresses, so they are the same on Docker Hub. | Worked around |
+| Build failed with `PKIX path building failed` for `repo.maven.apache.org` | The JDK 21.0.9 in the pinned maven image does not trust the certificate chain this session reaches Maven Central through (a newer Let's Encrypt chain). Not a Dockerfile defect. | With approval, a local verification-only image (the pinned maven image with the session's Java truststore copied in) was substituted for the build stage with `docker build --build-context`. The repository `Dockerfile` is unchanged by this workaround and the runtime image is built from the same instructions. | Worked around in the sandbox. Confirmed not to affect the repository `Dockerfile`: the plain `docker build -t matriz:ci .` of the CI `docker` job passed on GitHub Actions (CI run #11, commit `f9a6183`, 2026-11-18). |
+| The first seed run reported "up to date" instead of "applied 4 migrations" | The blank-password check (step 8) runs after Flyway, so it had already applied the migrations | None needed; recorded in step 8. | Explained |
+| Starting without `MATRIZ_DB_PASSWORD` gives an authentication failure, not a "missing variable" message | `spring.datasource.password=${MATRIZ_DB_PASSWORD}` has no default; Spring leaves the unresolved `${…}` text as the value and PostgreSQL refuses it | None (the application stops, which is the required result). Proposed: say so in the README if a clearer message is wanted. | Not a defect |
+
+### Limitations
+
+- **Docker Compose is not run here.** `docker compose up --wait`, the healthcheck status, the `seed` service and volume persistence are deferred to Exercise 03. Steps 19–20 only read `compose.yaml` and `ci.yml`.
+- **The build used a verification-only workaround** (mirror for pulls, a build stage with the session's truststore). A plain `docker build .` was not shown to succeed in this sandbox (step 4 failed); it did succeed on GitHub Actions (see S-04). Both the base images and the application layers are otherwise those of the repository `Dockerfile`.
+- **No Maven lock file exists.** "Install from lock files" is met only as resolution from the pinned `pom.xml` (Spring Boot parent 3.5.7, JaCoCo 0.8.14, no version ranges) in a separate cached layer; `dependency:go-offline` is not a true lock. No lock-file plugin was added (W2).
+- **`curl` is installed in the runtime image without a pinned version.** It is there only for the Compose healthcheck.
+- **No vulnerability scan** was run, because no scanner has been approved.
+- **`docker inspect` of a running container shows its run-time environment.** Only fictitious values were used for that reason.
+- **The temporary database was not durable** (removed after the checks), so NFR-03 was checked only across an application restart.
+- **Not run:** the Playwright test, browser checks, the README's Windows and PowerShell steps, and a build on a different machine.
+- **Documentation updates applied after approval:** the last bullet of "Run with Docker" in `README.md` and the "Changed" entries in `CHANGELOG.md` (commit `21fb403`). The hardening of 2026-11-18 is noted in `CHANGELOG.md` as well.
+
+### Hardening after the security audit
+
+The `security-auditor` agent audited the image on 2026-11-18 and found no Critical, High or Medium issue and 7 Low ones. Its IDs S-01 to S-07 are numbered by that audit only (they are not the findings of the same name in [review.md](review.md)). The project decision-maker approved fixing S-01 to S-05. S-06 (database and demo passwords are passed to the containers as environment variables, acceptable for local use only) and S-07 (nothing says how the digest pins are refreshed) depend on pending decisions (TD-02, TD-05) and were not changed. A re-audit of the fixes found no Critical, High or Medium issue and 5 more Low items (S-08 to S-12): the `db` service is not hardened (S-08), GitHub Actions are pinned by tag (S-09), everything new under `src/main` enters the build context (S-10), and two documentation points (S-11, S-12). S-11 and S-12 were corrected; S-08 to S-10 were not changed.
+
+| ID | Change | Check | Result |
+|---|---|---|---|
+| S-01 | `Dockerfile`: the jar is copied without `--chown`, so root owns `/app/app.jar` (mode 0644). | `ls -la /app` shows `root root`; `test -w /app/app.jar` as uid 10001 reports not writable. | Pass |
+| S-02 | `compose.yaml` (`app` and `seed`): `security_opt: no-new-privileges:true` and `cap_drop: [ALL]`. | `docker compose config` shows both settings. The same options were applied with `docker run --cap-drop ALL --security-opt no-new-privileges:true`: the seed inserted 37 rows, the application started in 5.5 s, sign-in as Ana returned 200 and 3 projects, the in-container healthcheck command exited 0. `docker compose up` itself was not run (Exercise 03). | Pass (Compose run Not verified) |
+| S-03 | `compose.yaml` and `.github/workflows/ci.yml`: `postgres:16-bookworm` is pinned by digest (`@sha256:a49f7438…ebca`, read from the pulled image). | `docker compose config` shows the pinned image; the database started from the pinned reference in the run above. The CI file was not run. | Pass (CI Not verified) |
+| S-04 | No file change. The local `matriz` images were built with a verification-only build stage and are for verification only; their runtime truststore is unchanged from the base image (the auditor compared the hashes). The plain build was to be confirmed by CI. | Rebuilt the image again with the same workaround. Then, on GitHub Actions, CI run #11 (push of commit `f9a6183`, 2026-11-18) concluded `success` for all three jobs: `Tests (mvn verify)`, `Docker image build` (the plain `docker build -t matriz:ci .`, 71 s) and `End-to-end (Playwright)` (the Compose stack, seed and Playwright test, per `.github/workflows/ci.yml`). Runs #9 and #10 on the two earlier commits also passed. | Closed (CI run #11) |
+| S-05 | `.dockerignore` is now an allow-list (`*`, then `!pom.xml`, `!src/main/` and `!src/main/**`), with key, credential, `.env`, log and database patterns excluded even inside `src/main`. | The context probe lists only `pom.xml`, the application sources and the `V1`–`V4` migrations. With a temporary `.pem` file and a `.env` file placed under `src/main/resources`, neither reached the context (0 matches); both were deleted afterwards. | Pass |
+
+The image was rebuilt after S-01 (build exit 0, same workaround as above). At that moment `git status` listed only `Dockerfile`, `.dockerignore`, `compose.yaml`, `.github/workflows/ci.yml` and this file as uncommitted changes; `README.md` and `CHANGELOG.md` had been changed and committed earlier (see the Checks table).
