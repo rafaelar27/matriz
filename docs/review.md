@@ -1,6 +1,6 @@
 # Matriz — Code Review and Access-Control Review
 
-> **Date:** 2026-11-18. **Status:** review done; findings S-01, S-05, R-01 and R-02 fixed; the rest deferred or accepted as listed below. Review IDs (R-xx, S-xx) belong to this review only. Older audit IDs in [verification.md](verification.md) and [test-plan.md](test-plan.md) are separate.
+> **Date:** 2026-11-18. **Status:** review done; findings S-01, S-05, S-07, R-01 and R-02 fixed; the rest deferred or accepted as listed below. Review IDs (R-xx, S-xx) belong to this review only. Older audit IDs in [verification.md](verification.md) and [test-plan.md](test-plan.md) are separate.
 
 ## Scope and environment
 
@@ -22,7 +22,7 @@ No Critical, High or Medium finding. Status: Confirmed (evidence in code or outp
 | S-03 | Validation order | `ApiExceptionHandler` | A foreign user sending an unknown field to `PATCH /projects/{id}` gets 422, not 404; same answer as for a missing id | Status differs from API-A3 for bad bodies; existence not revealed | Low | Confirmed, already known (INC-08 audit S-02) | **Accepted risk**, unchanged |
 | S-04 | Hardening | `SecurityConfig` | No `Content-Security-Policy` header; no XSS sink found in `app.js` | Defence in depth only | Low | Confirmed, already known | **Deferred**: a security setting change needs approval (C1) |
 | S-06 | Hardening | `SecurityConfig` | `XSRF-TOKEN` cookie has no `Secure` flag tied to `MATRIZ_COOKIE_SECURE`; not tested over HTTPS | Matters only behind HTTPS-terminating hosting | Low | Suspected | **Deferred** until hosting is decided (TD-02) |
-| S-07 | Validation | `TaskService.owner`, `ProjectRepository.isProjectMember` | A task owner is checked as a project member without checking that the member is active; project owners and assignees require active members. Code read; not run, because no demo member is deactivated | A deactivated member could become a task owner (BR-09, SP-04) | Low | Suspected | **Deferred**: the rule needs a product decision, then a fix and test |
+| S-07 | Validation | `TaskService.owner`, `ProjectRepository.isProjectMember` | A task owner was checked as a project member without checking that the member is active; project owners and assignees require active members. Reproduced by tests: with Ben deactivated, creating and editing a task with him as owner answered 201 and 200 | A deactivated member could become a task owner (BR-09, SP-04) | Low | Confirmed | **Fixed** (project decision-maker's decision of 2026-11-18, taken on the recommendation: the owner must be an active member of the project; 422 on `owner_member_id` otherwise; `openapi.yaml` text updated) |
 | R-03 | Validation | `ProjectService`, `TaskService` (description) | Descriptions are not trimmed; the documentation does not decide it | A whitespace-only description is stored as is | Low | Suspected | **Deferred**: needs a product decision (W2) |
 | F-1 | CSRF | audit request 178 | "Bad token" `PATCH` returned 200 because the script also sent the valid token; retests with only a bad or empty token gave 403 | None | — | False positive (test error) | **Rejected**. The accidental rename it caused was reverted. |
 
@@ -58,8 +58,9 @@ No static-analysis tool is configured (`pom.xml` has JaCoCo, which measures cove
 | S-05 | `AuthController.signIn` rethrows `InternalAuthenticationServiceException` | `AuthControllerSignInTest` (3 tests) | `internalAuthenticationServiceExceptionPropagates` failed | Pass |
 | R-01 | None | `PageParamsTest` (8 tests) | Pass (tests of existing behaviour) | Pass |
 | R-02 | None | Exact Location assertion in the createProject test | Pass (the code was already correct) | Pass |
+| S-07 | `TaskService.owner` also requires an active workspace member; `openapi.yaml` (`createTask` description and 422 example) says "active member" | `TaskApiTest.deactivatedMemberIsRefusedAsOwnerOnCreate`, `…OnEdit`, and the guard `activeMemberIsStillAcceptedAsOwner` | The two deactivated-owner tests failed (201 and 200 instead of 422); the other 36 passed | Pass |
 
-Full suite after the fixes: `mvn verify` on `matriz_test`, 338 tests, 0 failures, `BUILD SUCCESS` (323 before, plus 15 new).
+Full suite after the fixes: `mvn verify` on `matriz_test`, 341 tests, 0 failures, `BUILD SUCCESS` (323 before, plus 18 new).
 
 ## Verifications executed
 
@@ -72,18 +73,16 @@ Full suite after the fixes: `mvn verify` on `matriz_test`, 338 tests, 0 failures
 
 - A re-read of the data after the attacks to prove that refused requests changed nothing: the database stopped during the audit, so this rests on the 4xx answers and the code. The one known change (the accidental rename) was reverted and re-read.
 - Whether spoofed fields are ignored on a request that succeeds, and a Project Manager who is not a project member editing or assigning (PD-01, PD-20): not run live.
-- A deactivated member as a task owner (S-07), idle session expiry, session fixation and sign-in timing, `Secure` cookie flags over HTTPS, a browser XSS test, and a dependency vulnerability scan.
+- Idle session expiry, session fixation and sign-in timing, `Secure` cookie flags over HTTPS, a browser XSS test, and a dependency vulnerability scan.
 - The Playwright end-to-end test (not run; the browser download is blocked in this environment).
 - Static analysis (no tool configured).
 - The `docs/` pages were not re-read in full by the reviewing agents, so documentation drift beyond the items above was not checked.
 
 ## Open questions and proposed documentation updates
 
-- **Q1 (S-07, BR-09, SP-04):** must a task owner be an active project member, as project owners and assignees must be?
+- **Proposed (database.md BR-09):** say that a task owner must be an active member of the project, as now enforced (S-07). Not edited.
 - **Q2 (R-03):** are project and task descriptions trimmed, or cleared when they hold only spaces?
 - **Q3 (PD-01, PD-20):** may a Project Manager who is not a project member edit tasks, change owners and assign members?
-- **Proposed (README, "Run the verification check"):** the expected result "Tests run: 323" is now 338.
-- **Proposed (README, documentation table and status):** add a row for this file.
 
 ## Appendix: API requests and responses
 
