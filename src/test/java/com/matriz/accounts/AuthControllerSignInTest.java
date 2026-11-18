@@ -7,10 +7,14 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.any;
 
+import java.time.Duration;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.InternalAuthenticationServiceException;
@@ -35,8 +39,12 @@ class AuthControllerSignInTest {
     void setUp() {
         manager = mock(AuthenticationManager.class);
         controller = new AuthController(manager, mock(SecurityContextRepository.class),
-                mock(CookieCsrfTokenRepository.class), mock(MembershipProvider.class));
+                mock(CookieCsrfTokenRepository.class), mock(MembershipProvider.class), mock(SignUpService.class),
+                new AttemptLimiter(), 5, Duration.ofHours(1), 10, 50, Duration.ofMinutes(15));
     }
+
+    private final MockHttpServletRequest request = new MockHttpServletRequest();
+    private final MockHttpServletResponse response = new MockHttpServletResponse();
 
     private static void assertInvalidCredentials(Throwable t) {
         assertThat(t).isInstanceOfSatisfying(ApiException.class, e -> {
@@ -53,7 +61,7 @@ class AuthControllerSignInTest {
         when(manager.authenticate(any(Authentication.class))).thenThrow(failure);
 
         assertThatThrownBy(() -> controller.signIn(
-                new AuthController.SignInRequest("ana@example.test", "any-password"), null, null))
+                new AuthController.SignInRequest("ana@example.test", "any-password"), request, response))
                 .isInstanceOf(InternalAuthenticationServiceException.class)
                 .isNotInstanceOf(ApiException.class)
                 .isSameAs(failure);
@@ -65,18 +73,18 @@ class AuthControllerSignInTest {
         when(manager.authenticate(any(Authentication.class))).thenThrow(new BadCredentialsException("bad"));
 
         assertThatThrownBy(() -> controller.signIn(
-                new AuthController.SignInRequest("ana@example.test", "wrong-password"), null, null))
+                new AuthController.SignInRequest("ana@example.test", "wrong-password"), request, response))
                 .satisfies(AuthControllerSignInTest::assertInvalidCredentials);
     }
 
     @Test
     @DisplayName("S-05 · FR-01, SP-01 · blank email or empty password give 401 invalid_credentials without calling the manager")
     void emptyCredentialsGiveGeneric401WithoutCallingManager() {
-        assertThatThrownBy(() -> controller.signIn(new AuthController.SignInRequest("   ", ""), null, null))
+        assertThatThrownBy(() -> controller.signIn(new AuthController.SignInRequest("   ", ""), request, response))
                 .satisfies(AuthControllerSignInTest::assertInvalidCredentials);
-        assertThatThrownBy(() -> controller.signIn(new AuthController.SignInRequest("ana@example.test", ""), null, null))
+        assertThatThrownBy(() -> controller.signIn(new AuthController.SignInRequest("ana@example.test", ""), request, response))
                 .satisfies(AuthControllerSignInTest::assertInvalidCredentials);
-        assertThatThrownBy(() -> controller.signIn(new AuthController.SignInRequest("   ", "pw"), null, null))
+        assertThatThrownBy(() -> controller.signIn(new AuthController.SignInRequest("   ", "pw"), request, response))
                 .satisfies(AuthControllerSignInTest::assertInvalidCredentials);
 
         verifyNoInteractions(manager);
