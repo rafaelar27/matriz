@@ -233,7 +233,7 @@ flowchart TB
 | Database | **PostgreSQL** (relational), installed on the developer's computer or run as the PostgreSQL 16 container of `compose.yaml` |
 | Supporting tools | **Maven** (build), **Hibernate** through Spring Data JPA (data access), **Flyway** (schema migrations), **JUnit 5 with Spring Boot Test and MockMvc** (tests) |
 | Code coverage measurement | **JaCoCo** (Maven plugin 0.8.14, added 2026-11-17); the report is written to `target/site/jacoco` at `mvn verify`; no coverage thresholds |
-| Packaging and continuous integration | **Docker** (one image of the application, Eclipse Temurin 21), **Docker Compose** (PostgreSQL 16 and the application on one machine) and **GitHub Actions** (tests, image build, end-to-end test); added 2026-11-18, see the [decision log](constraints.md#decision-log). Not a hosting decision: images are not published (TD-02, TD-05, TD-06 stay pending). |
+| Packaging and continuous integration | **Docker** (one image of the application, Eclipse Temurin 21), **Docker Compose** (PostgreSQL 16 and the application on one machine, on the dedicated network `matriz-net`) and **GitHub Actions** (tests, image build, end-to-end test); added 2026-11-18, see the [decision log](constraints.md#decision-log). Not a hosting decision: images are not published (TD-02, TD-05, TD-06 stay pending). |
 
 ### Inputs specific to this decision
 
