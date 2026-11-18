@@ -20,6 +20,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 
 import com.jayway.jsonpath.JsonPath;
@@ -72,16 +73,17 @@ class ProjectApiTest extends ApiTestSupport {
         MockHttpSession ana = signIn("ana@example.com");
         String json = "{\"workspace_id\":\"" + ACME + "\",\"name\":\"  Customer survey  \","
                 + "\"description\":\"Short survey.\",\"start_date\":\"2026-11-16\",\"due_date\":\"2026-12-18\"}";
-        String body = create(ana, json)
+        MvcResult created = create(ana, json)
                 .andExpect(status().isCreated())
-                .andExpect(header().exists("Location"))
                 .andExpect(jsonPath("$.name").value("Customer survey"))
                 .andExpect(jsonPath("$.owner_member_id").value(ACME_ANA))
                 .andExpect(jsonPath("$.owner_name").value("Ana Demo"))
                 .andExpect(jsonPath("$.workspace_name").value("Acme Studio"))
                 .andExpect(jsonPath("$.is_archived").value(false))
-                .andReturn().getResponse().getContentAsString();
-        String id = JsonPath.read(body, "$.project_id");
+                .andReturn();
+        String id = JsonPath.read(created.getResponse().getContentAsString(), "$.project_id");
+        // R-02: createProject (openapi.yaml) answers with Location "/projects/{project_id}".
+        assertThat(created.getResponse().getHeader("Location")).isEqualTo("/projects/" + id);
 
         mvc.perform(get("/projects/" + id).session(ana))
                 .andExpect(status().isOk())
@@ -618,6 +620,29 @@ class ProjectApiTest extends ApiTestSupport {
             mvc.perform(get("/projects").param(bad[0], bad[1]).session(ana))
                     .andExpect(status().isUnprocessableEntity());
         }
+    }
+
+    @Test
+    @DisplayName("S-01 · FR-08, listProjects · page*size above 2147483647 is refused with 422 on field page, never 500")
+    void hugePageIsRefusedWithValidationFailed() throws Exception {
+        MockHttpSession ana = signIn("ana@example.com");
+        mvc.perform(get("/projects").param("page", "2147483647").param("size", "100").session(ana))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("validation_failed"))
+                .andExpect(jsonPath("$.details[0].field").value("page"));
+    }
+
+    @Test
+    @DisplayName("S-01 · FR-08, listProjects · guard: a large but valid page is 200 with no items, page 0 still works")
+    void largeValidPageStillAnswersWithEmptyItems() throws Exception {
+        MockHttpSession ana = signIn("ana@example.com");
+        mvc.perform(get("/projects").param("page", "21474836").param("size", "100").session(ana))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", hasSize(0)))
+                .andExpect(jsonPath("$.total").value(3));
+        mvc.perform(get("/projects").param("page", "0").param("size", "20").session(ana))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", hasSize(3)));
     }
 
     // --- Project list for INC-06 screen 3a -----------------------------------------------------------------------

@@ -185,12 +185,17 @@ class TaskService {
                 .orElseThrow(() -> ApiException.validation(message, TaskFields.STATUS, BAD_STATUS));
     }
 
-    /** A member of this project (FR-10, BR-09, AC-10.3); members of other workspaces never are (NFR-01). */
+    /**
+     * An active member of this project (FR-10, BR-09, AC-10.3, review S-07); members of other workspaces and
+     * deactivated members never are (NFR-01, SP-04).
+     */
     private UUID owner(UUID projectId, String value, String message) {
         requireOwner(value, message);
-        return Ids.parse(value).filter(id -> projects.isProjectMember(projectId, id))
+        UUID workspaceId = projects.workspaceOf(projectId).orElse(null);
+        return Ids.parse(value)
+                .filter(id -> projects.isProjectMember(projectId, id) && members.isActiveMemberOf(id, workspaceId))
                 .orElseThrow(() -> ApiException.validation(message, TaskFields.OWNER,
-                        "The owner must be a member of this project."));
+                        "The owner must be an active member of this project."));
     }
 
     /** An owner must be named (FR-10, BR-09); a missing or empty value is refused. */

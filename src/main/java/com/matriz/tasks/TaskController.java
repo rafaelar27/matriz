@@ -52,8 +52,8 @@ class TaskController {
             ownerFilter = Optional.of(Ids.parse(ownerMemberId).orElseThrow(() -> ApiException.validation(
                     NOT_LISTED, "owner_member_id", "The owner id is not valid.")));
         }
-        int p = PageParams.page(page, NOT_LISTED);
         int s = PageParams.size(size, NOT_LISTED);
+        int p = PageParams.page(page, s, NOT_LISTED);
         return service.list(caller.accountId(), project, statusFilter, ownerFilter, p, s);
     }
 
