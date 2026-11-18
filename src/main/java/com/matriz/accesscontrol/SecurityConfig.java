@@ -36,9 +36,8 @@ import com.matriz.shared.ApiError;
 /**
  * Authentication for every request (FR-01, SP-01; TD-03 decided 2026-11-12): a server-side session identified by an
  * HttpOnly, SameSite=Lax cookie, with CSRF protection for every state-changing request. Only sign-up (INC-12),
- * sign-in, the CSRF
- * endpoint, the static user interface files and its configuration (/config.js) are open; everything else requires a
- * valid session. Sign-in and sign-out are handled by
+ * sign-in, the CSRF endpoint, the static user interface files and its configuration (/config.js) are open; everything
+ * else requires a valid session. Sign-up, sign-in and sign-out are handled by
  * {@code com.matriz.accounts.AuthController}.
  */
 @Configuration

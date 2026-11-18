@@ -64,6 +64,19 @@ public class AttemptLimiter {
         add(key, window);
     }
 
+    /** Gives back one attempt counted earlier for {@code key} (for example a sign-in that turned out to succeed). */
+    public synchronized void release(String key) {
+        Window w = windows.get(key);
+        if (w == null) {
+            return;
+        }
+        if (w.count() <= 1) {
+            windows.remove(key);
+        } else {
+            windows.put(key, new Window(w.startMillis(), w.count() - 1, w.lengthMillis()));
+        }
+    }
+
     /** Forgets every counter. Used by tests; the application never calls it. */
     public synchronized void clear() {
         windows.clear();

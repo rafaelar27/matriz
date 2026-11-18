@@ -540,7 +540,7 @@ function signUpScreen() {
     return !nameError && !emailError && !passwordError;
   };
 
-  const form = h('form', { class: 'panel', novalidate: true, onsubmit: e => {
+  const form = h('form', { class: 'panel', novalidate: true, 'aria-describedby': 'signup-privacy', onsubmit: e => {
     e.preventDefault();
     banner.replaceChildren();
     kit.clear();

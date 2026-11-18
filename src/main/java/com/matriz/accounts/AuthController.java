@@ -37,8 +37,8 @@ import com.matriz.shared.ApiException;
  * Sign-up, sign-in, current profile and sign-out (FR-01, SP-01, CMP-01). Sign-up and failed sign-ins are limited
  * per client address (NFR-11, SP-08).
  *
- * <p>Session lifecycle: created by a successful sign-in (always a new session id, so an earlier session cannot be
- * reused); kept on the server, in memory; expires after the idle timeout ({@code MATRIZ_SESSION_TIMEOUT}, default
+ * <p>Session lifecycle: created by a successful sign-in or sign-up (always a new session id, so an earlier session
+ * cannot be reused); kept on the server, in memory; expires after the idle timeout ({@code MATRIZ_SESSION_TIMEOUT}, default
  * 8h); ended by sign-out or by restarting the application. Any request with an ended session gets 401.
  */
 @RestController
@@ -118,14 +118,23 @@ class AuthController {
     Profile signIn(@RequestBody SignInRequest body, HttpServletRequest request, HttpServletResponse response) {
         String address = request.getRemoteAddr();
         String email = SignUpService.normalizeEmail(body.email());
-        String perIpAndEmail = "sign-in:" + address + "|" + (email.length() > 254 ? email.substring(0, 254) : email);
+        String perIpAndEmail = "sign-in:" + address + "|"
+                + (email.length() > SignUpService.EMAIL_MAX ? email.substring(0, SignUpService.EMAIL_MAX) : email);
         String perIp = "sign-in:" + address;
-        // Over a limit, even a correct password is refused until the window ends (decision log 2026-11-18).
-        long wait = Math.max(limiter.retryAfter(perIpAndEmail, signInMaxPerIpAndEmail, signInWindow),
-                limiter.retryAfter(perIp, signInMaxPerIp, signInWindow));
+        // The attempt is counted before the password is checked, so parallel guesses cannot all pass the check; it is
+        // given back when the attempt is not a credentials failure. Over a limit, even a correct password is refused
+        // until the window ends (decision log 2026-11-18).
+        long wait = limiter.acquire(perIpAndEmail, signInMaxPerIpAndEmail, signInWindow);
+        if (wait == 0) {
+            wait = limiter.acquire(perIp, signInMaxPerIp, signInWindow);
+            if (wait > 0) {
+                limiter.release(perIpAndEmail);
+            }
+        }
         if (wait > 0) {
             throw ApiException.tooManyRequests(wait);
         }
+        boolean credentialsFailure = false;
         try {
             if (body.email() == null || body.email().isBlank() || body.password() == null
                     || body.password().isEmpty()) {
@@ -144,11 +153,13 @@ class AuthController {
             startSession(result, request, response);
             return profileOf((SignedInAccount) result.getPrincipal());
         } catch (ApiException e) {
-            if ("invalid_credentials".equals(e.error().code())) {
-                limiter.record(perIpAndEmail, signInWindow);
-                limiter.record(perIp, signInWindow);
-            }
+            credentialsFailure = "invalid_credentials".equals(e.error().code());
             throw e;
+        } finally {
+            if (!credentialsFailure) {
+                limiter.release(perIpAndEmail);
+                limiter.release(perIp);
+            }
         }
     }
 
