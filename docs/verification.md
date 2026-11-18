@@ -148,7 +148,7 @@ Three examples of how AI suggestions were handled. The AI tools named are those 
 
 Verification of the container image of 2026-11-18 (Exercise 02). Basis: the decision of 2026-11-18 in the [decision log](constraints.md#decision-log) (Docker, Docker Compose and GitHub Actions; images are not published) and [Technology stack](architecture.md#technology-stack). Regression checks: FR-01, FR-08, SP-01, NFR-01, NFR-03, TD-03. There is one application image: a single Spring Boot application serves the API and the static user interface. PostgreSQL uses the official image and has no Dockerfile of its own. All passwords, accounts and data named here are fictitious; no secret is recorded in this file. Passwords appear as `<fictitious>`.
 
-**Environment:** Linux cloud session, Docker Engine 29.10.0 (daemon started by hand), Docker Compose v5.7.1. Branch `claude/sweet-turing-bxl17d`. Changes made: `Dockerfile` (base images pinned by tag and digest) and `.dockerignore` (extended). No application code, `pom.xml`, `compose.yaml` or CI file was changed.
+**Environment:** Linux cloud session, Docker Engine 29.10.0 (daemon started by hand), Docker Compose v5.7.1. Branch `claude/sweet-turing-bxl17d`. Changes made in the first pass: `Dockerfile` (base images pinned by tag and digest) and `.dockerignore` (extended). Changes made afterwards for the security audit are in [Hardening after the security audit](#hardening-after-the-security-audit). No application code or `pom.xml` was changed.
 
 ### Images
 
@@ -230,3 +230,17 @@ Digests were read with `docker image inspect` from the images pulled in this ses
 - **The temporary database was not durable** (removed after the checks), so NFR-03 was checked only across an application restart.
 - **Not run:** the Playwright test, browser checks, the README's Windows and PowerShell steps, and a build on a different machine.
 - **Proposed documentation updates (not applied; outside the files allowed for this exercise):** the last bullet of "Run with Docker" in `README.md` says the image build is not verified, which is out of date; and `CHANGELOG.md` could note the `.dockerignore` extension and the base-image pinning.
+
+### Hardening after the security audit
+
+The `security-auditor` agent audited the image on 2026-11-18 and found no Critical, High or Medium issue and 7 Low ones. The project decision-maker approved fixing S-01 to S-05; S-06 and S-07 depend on pending decisions (TD-02, TD-05) and were not changed.
+
+| ID | Change | Check | Result |
+|---|---|---|---|
+| S-01 | `Dockerfile`: the jar is copied without `--chown`, so root owns `/app/app.jar` (mode 0644). | `ls -la /app` shows `root root`; `test -w /app/app.jar` as uid 10001 reports not writable. | Pass |
+| S-02 | `compose.yaml` (`app` and `seed`): `security_opt: no-new-privileges:true` and `cap_drop: [ALL]`. | `docker compose config` shows both settings. The same options were applied with `docker run --cap-drop ALL --security-opt no-new-privileges:true`: the seed inserted 37 rows, the application started in 5.5 s, sign-in as Ana returned 200 and 3 projects, the in-container healthcheck command exited 0. `docker compose up` itself was not run (Exercise 03). | Pass (Compose run Not verified) |
+| S-03 | `compose.yaml` and `.github/workflows/ci.yml`: `postgres:16-bookworm` is pinned by digest (`@sha256:a49f7438…ebca`, read from the pulled image). | `docker compose config` shows the pinned image; the database started from the pinned reference in the run above. The CI file was not run. | Pass (CI Not verified) |
+| S-04 | No file change. The local `matriz` images were built with a verification-only build stage and are for verification only; their runtime truststore is unchanged from the base image (the auditor compared the hashes). The plain build is to be confirmed by the first CI run. | Rebuilt the image again with the same workaround. | Open until the first CI run |
+| S-05 | `.dockerignore` is now an allow-list (`*`, then `!pom.xml` and `!src/main/**`), with key, credential, `.env`, log and database patterns excluded even inside `src/main`. | The context probe lists only `pom.xml`, the application sources and the `V1`–`V4` migrations. With a temporary `.pem` file and a `.env` file placed under `src/main/resources`, neither reached the context (0 matches); both were deleted afterwards. | Pass |
+
+The image was rebuilt after S-01 (build exit 0, same workaround as above). After this pass `git status` showed only `Dockerfile`, `.dockerignore`, `compose.yaml`, `.github/workflows/ci.yml` and this file as changed by this exercise.

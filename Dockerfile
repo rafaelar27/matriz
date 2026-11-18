@@ -27,7 +27,9 @@ RUN apt-get update \
 RUN groupadd --system --gid 10001 matriz \
     && useradd --system --uid 10001 --gid matriz --no-create-home --shell /usr/sbin/nologin matriz
 WORKDIR /app
-COPY --from=build --chown=matriz:matriz /build/app.jar /app/app.jar
+# The jar stays owned by root (read-only for the app user), so a compromised process cannot rewrite its own code.
+COPY --from=build /build/app.jar /app/app.jar
+RUN chmod 0644 /app/app.jar
 
 USER matriz
 # Default port; change it with MATRIZ_PORT (and publish that port).

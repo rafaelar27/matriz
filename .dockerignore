@@ -1,59 +1,28 @@
-# Keep secrets and local files out of the build context (AGENTS.md C2).
-# The image needs only pom.xml and src/main; everything else is excluded.
+# Allow-list: the image build needs only pom.xml and src/main (see the Dockerfile). Everything else is excluded,
+# so a new file (a key, a .env, a dump) is kept out of the build context unless it is added here (AGENTS.md C2).
+*
 
-# Secrets and local configuration (nested paths too). .env.example is not needed in the image.
-.env
-.env.*
+!pom.xml
+!src/main/
+!src/main/**
+
+# Even inside src/main, never send secrets or local files. Do NOT exclude *.sql: the Flyway migrations are .sql files.
 **/.env
 **/.env.*
-
-# Version control
-.git
-**/.git
-.gitignore
-.gitattributes
-.github/
-.claude
-
-# Build output
-target/
-**/target/
-
-# Logs
-*.log
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/*.jks
+**/id_rsa*
+**/.npmrc
+**/settings.xml
+**/.m2/
 **/*.log
-logs/
-**/logs/
-
-# Local database files and dumps. Do NOT exclude *.sql: the Flyway migrations in src/main/resources/db/migration are .sql files.
-*.db
-*.sqlite
-*.sqlite3
-*.dump
-pgdata/
-
-# Test artifacts and dependencies of the end-to-end test; unit and API tests run in CI, not in the image build
-e2e/
-**/node_modules/
-**/test-results/
-**/playwright-report/
-src/test/
-
-# Documentation and packaging files the image does not need
-docs/
-*.md
-openapi.yaml
-Dockerfile
-.dockerignore
-compose.yaml
-
-# Editor and OS files
-.idea/
-**/.idea/
-.vscode/
-*.iml
-*.swp
-*~
-.DS_Store
-Thumbs.db
-desktop.ini
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+**/*.dump
+**/.DS_Store
+**/*.swp
+**/*~
