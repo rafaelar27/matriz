@@ -794,7 +794,7 @@ paths:
             - `status` is not exactly one of `To do`, `In progress`, `Done`
               (including `null`).
             - `owner_member_id` is missing (BR-09).
-            - `owner_member_id` does not refer to a member of this project,
+            - `owner_member_id` does not refer to an active member of this project,
               including a member of the workspace who is not in the project
               (AC-10.3, BR-09) or a member of another workspace (NFR-01).
             - `due_date` is not a valid calendar date.
@@ -863,7 +863,7 @@ paths:
         - `title`, `description`, `due_date`: any active Project Manager of the
           project's workspace, or the task's owner when the owner is a Team Member.
         - `owner_member_id`: Project Managers only (AC-10.4). The new owner
-          must be a member of the project (BR-09, AC-10.3).
+          must be an active member of the project (BR-09, AC-10.3).
         - `status`: the task's owner only (AC-11.1).
         - Viewers and Workspace Administrators cannot change tasks.
 
@@ -1408,7 +1408,7 @@ components:
         than 3 or longer than 150 characters after trimming (including spaces
         only or `null`); `description` longer than 2000 characters; `status`
         not exactly one of `To do`, `In progress`, `Done` (including `null`);
-        `owner_member_id` `null` or not a member of the task's project; an invalid date; or a
+        `owner_member_id` `null` or not an active member of the task's project; an invalid date; or a
         field that cannot be sent.
       content:
         application/json:
