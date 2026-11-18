@@ -381,6 +381,25 @@ class TaskApiTest extends ApiTestSupport {
         }
     }
 
+    @Test
+    @DisplayName("S-01 · FR-13, listTasks · page*size above 2147483647 is refused with 422 on field page, never 500")
+    void hugePageIsRefusedWithValidationFailed() throws Exception {
+        MockHttpSession ana = signIn("ana@example.com");
+        list(ana, WEBSITE, "page", "2147483647", "size", "100").andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("validation_failed"))
+                .andExpect(jsonPath("$.details[0].field").value("page"));
+    }
+
+    @Test
+    @DisplayName("S-01 · FR-13, listTasks · guard: a large but valid page is 200 with no items, page 0 still works")
+    void largeValidPageStillAnswersWithEmptyItems() throws Exception {
+        MockHttpSession ana = signIn("ana@example.com");
+        list(ana, WEBSITE, "page", "21474836", "size", "100").andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", hasSize(0))).andExpect(jsonPath("$.total").value(3));
+        list(ana, WEBSITE, "page", "0", "size", "20").andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", hasSize(3)));
+    }
+
     // --- Workspace isolation and project/task id mismatch ---------------------------------------------------------
 
     @Test

@@ -17,6 +17,19 @@ public final class PageParams {
         return intParam("page", value, 0, 0, Integer.MAX_VALUE, failureMessage);
     }
 
+    /**
+     * The page number for a known page size: a page whose first item would lie beyond {@code Integer.MAX_VALUE} is
+     * refused with the same 422, instead of failing later inside the database query.
+     */
+    public static int page(String value, int size, String failureMessage) {
+        int page = page(value, failureMessage);
+        if ((long) page * size > Integer.MAX_VALUE) {
+            throw ApiException.validation(failureMessage, "page",
+                    "The page is too high for a size of " + size + ".");
+        }
+        return page;
+    }
+
     /** The page size; {@code failureMessage} is the top-level message of the 422 response. */
     public static int size(String value, String failureMessage) {
         return intParam("size", value, DEFAULT_SIZE, 1, MAX_SIZE, failureMessage);
