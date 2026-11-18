@@ -54,13 +54,22 @@ class AuthBodyLimitFilter extends OncePerRequestFilter {
 
     private static final class LimitedRequest extends HttpServletRequestWrapper {
 
+        private ServletInputStream limited;
+
         LimitedRequest(HttpServletRequest request) {
             super(request);
         }
 
+        /** One counting stream per request, so repeated calls cannot start the count again. */
         @Override
         public ServletInputStream getInputStream() throws IOException {
-            ServletInputStream in = super.getInputStream();
+            if (limited == null) {
+                limited = limit(super.getInputStream());
+            }
+            return limited;
+        }
+
+        private static ServletInputStream limit(ServletInputStream in) {
             return new ServletInputStream() {
                 private long total;
 

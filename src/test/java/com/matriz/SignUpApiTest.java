@@ -345,6 +345,34 @@ class SignUpApiTest extends ApiTestSupport {
         }
     }
 
+    @Test
+    @DisplayName("AC-22.2 · EC-13 · an email with a character outside printable ASCII (zero-width, fullwidth, dotless i, no-break space) is refused at the email field")
+    void nonAsciiEmailsRefused() throws Exception {
+        int count = accounts();
+        for (String email : new String[] {"nia\u200b@example.com", "\uff4eia@example.com", "n\u0131a@example.com",
+                "n\u0130a@example.com", "nia@exa\u00e4mple.com", "\u00a0nia@example.com", "nia@example.com\u00a0"}) {
+            assertRefused(signUp("Nia", email, NIA_PASSWORD), "email");
+        }
+        assertThat(accounts()).isEqualTo(count);
+    }
+
+    @Test
+    @DisplayName("AC-22.2 · printable ASCII punctuation (0x21 to 0x7E) is accepted in an email")
+    void printableAsciiEmailAccepted() throws Exception {
+        signUp("Nia", "n.i+a_!#$%&'*-/=?^`{|}~@example.com", NIA_PASSWORD).andExpect(status().isCreated());
+    }
+
+    @Test
+    @DisplayName("AC-22.5 · EC-13 · sign-in with a non-ASCII email gets the generic 401 invalid_credentials")
+    void nonAsciiSignInEmailGetsGeneric401() throws Exception {
+        for (String email : new String[] {"ana\u200b@example.com", "\uff41na@example.com", "\u0430na@example.com",
+                "ana@example.com\u00a0"}) {
+            signInAs(email, TEST_PASSWORD)
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value("invalid_credentials"));
+        }
+    }
+
     // --- Unknown fields, malformed bodies, identity spoofing ----------------------------------------------------
 
     @Test

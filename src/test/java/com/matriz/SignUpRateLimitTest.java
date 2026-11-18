@@ -215,4 +215,53 @@ class SignUpRateLimitTest extends ApiTestSupport {
         }
         assertTooMany(signIn("ben@example.com", TEST_PASSWORD, "10.0.6.2"));
     }
+
+    @Test
+    @DisplayName("AC-22.6 · SP-08 · TD-13 · X-Forwarded-For, X-Real-IP and Forwarded headers do not change the sign-up rate-limit key")
+    void forwardingHeadersDoNotChangeTheKey() throws Exception {
+        for (int i = 1; i <= 5; i++) {
+            int n = i;
+            mvc.perform(post("/auth/sign-up").with(csrf()).with(r -> {
+                r.setRemoteAddr("10.0.7.1");
+                r.addHeader("X-Forwarded-For", "203.0.113." + n);
+                r.addHeader("X-Real-IP", "203.0.114." + n);
+                r.addHeader("Forwarded", "for=203.0.115." + n);
+                return r;
+            }).contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"name\":\"Nia\",\"email\":\"fwd" + n
+                            + "@example.com\",\"password\":\"fictitious-nia-pw-1\"}"))
+                    .andExpect(status().isCreated());
+        }
+        assertTooMany(mvc.perform(post("/auth/sign-up").with(csrf()).with(r -> {
+            r.setRemoteAddr("10.0.7.1");
+            r.addHeader("X-Forwarded-For", "198.51.100.77");
+            r.addHeader("X-Real-IP", "198.51.100.78");
+            r.addHeader("Forwarded", "for=198.51.100.79");
+            return r;
+        }).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Nia\",\"email\":\"fwd6@example.com\",\"password\":\"fictitious-nia-pw-1\"}")));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM account WHERE email = 'fwd6@example.com'",
+                Integer.class)).isZero();
+    }
+
+    @Test
+    @DisplayName("AC-22.6 · SP-08 · TD-13 · a forwarded address cannot be used to avoid the sign-in failure limit")
+    void forwardingHeadersDoNotEvadeSignInLimit() throws Exception {
+        for (int i = 0; i < 3; i++) {
+            int n = i;
+            mvc.perform(post("/auth/sign-in").with(csrf()).with(r -> {
+                r.setRemoteAddr("10.0.7.2");
+                r.addHeader("X-Forwarded-For", "203.0.113." + n);
+                return r;
+            }).contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"email\":\"ana@example.com\",\"password\":\"wrong-password-1\"}"))
+                    .andExpect(status().isUnauthorized());
+        }
+        assertTooMany(mvc.perform(post("/auth/sign-in").with(csrf()).with(r -> {
+            r.setRemoteAddr("10.0.7.2");
+            r.addHeader("X-Forwarded-For", "198.51.100.1");
+            return r;
+        }).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"ana@example.com\",\"password\":\"" + TEST_PASSWORD + "\"}")));
+    }
 }
