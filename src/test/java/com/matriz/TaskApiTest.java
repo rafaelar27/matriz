@@ -737,6 +737,55 @@ class TaskApiTest extends ApiTestSupport {
         }
     }
 
+    @Test
+    @DisplayName("S-07 security review · BR-09, FR-10, createTask · a deactivated member of the project is refused as owner: "
+            + "422 validation_failed on owner_member_id and no task is created")
+    void deactivatedMemberIsRefusedAsOwnerOnCreate() throws Exception {
+        MockHttpSession ana = signIn("ana@example.com");
+        long before = taskCount();
+        // Only inside this test's rolled-back transaction.
+        jdbc.update("UPDATE member SET status = 'DEACTIVATED' WHERE member_id = ?::uuid", ACME_BEN);
+        entityManager.clear();
+
+        create(ana, WEBSITE, "{\"title\":\"Fictitious deactivated owner\",\"owner_member_id\":\"" + ACME_BEN + "\"}")
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("validation_failed"))
+                .andExpect(jsonPath("$.details[0].field").value("owner_member_id"));
+
+        assertThat(taskCount()).isEqualTo(before);
+        assertThat(count("SELECT count(*) FROM task WHERE project_id = ?::uuid", WEBSITE)).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("S-07 security review · BR-09, FR-10, updateTask · a deactivated member of the project is refused as the new owner: "
+            + "422 validation_failed on owner_member_id and the task is unchanged")
+    void deactivatedMemberIsRefusedAsOwnerOnEdit() throws Exception {
+        MockHttpSession ana = signIn("ana@example.com");
+        Map<String, Object> before = snapshot(T_LAYOUT);
+        jdbc.update("UPDATE member SET status = 'DEACTIVATED' WHERE member_id = ?::uuid", ACME_BEN);
+        entityManager.clear();
+
+        update(ana, WEBSITE, T_LAYOUT, "{\"owner_member_id\":\"" + ACME_BEN + "\"}")
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("validation_failed"))
+                .andExpect(jsonPath("$.details[0].field").value("owner_member_id"));
+
+        assertThat(snapshot(T_LAYOUT)).isEqualTo(before);
+    }
+
+    @Test
+    @DisplayName("S-07 security review · BR-09, FR-10 · guard: an active member of the project is still accepted as owner on create and on edit")
+    void activeMemberIsStillAcceptedAsOwner() throws Exception {
+        MockHttpSession ana = signIn("ana@example.com");
+        create(ana, WEBSITE, "{\"title\":\"Fictitious active owner\",\"owner_member_id\":\"" + ACME_BEN + "\"}")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.owner_member_id").value(ACME_BEN));
+        update(ana, WEBSITE, T_LAYOUT, "{\"owner_member_id\":\"" + ACME_BEN + "\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.owner_member_id").value(ACME_BEN));
+        assertThat(snapshot(T_LAYOUT).get("owner")).isEqualTo(ACME_BEN);
+    }
+
     /** PATCH and DELETE of a task of another workspace through the caller's own project: 404, nothing changed. */
     private void assertForeignTaskUntouched(String email, String ownProject, String foreignTask) throws Exception {
         MockHttpSession session = signIn(email);

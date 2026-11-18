@@ -712,7 +712,7 @@ paths:
           result must be 3 to 150 characters long, so a title of spaces only is
           refused (BR-10, AC-10.2; PD-04 and PD-21 decided 2026-11-12).
         - `description`, when sent, is at most 2000 characters (decided 2026-11-12).
-        - `owner_member_id` must be a member of this project (FR-10, BR-09, AC-10.3).
+        - `owner_member_id` must be an active member of this project (FR-10, BR-09, AC-10.3).
           A Viewer who is a project member may be the owner (FR-10).
         - All referenced records belong to the project's workspace (NFR-01, BR-18).
 
@@ -819,7 +819,7 @@ paths:
                     message: The task could not be created.
                     details:
                       - field: owner_member_id
-                        issue: The owner must be a member of this project.
+                        issue: The owner must be an active member of this project.
 
   /projects/{project_id}/tasks/{task_id}:
     parameters:
