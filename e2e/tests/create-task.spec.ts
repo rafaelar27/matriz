@@ -6,7 +6,9 @@
 //   E2E_USER_EMAIL     demo account to sign in with; the test expects the demo user Ana
 //                      (ana@example.com, Project Manager of Acme Studio)
 //   E2E_USER_PASSWORD  its password (the MATRIZ_DEMO_PASSWORD given to the seed command)
-//   E2E_BASE_URL       optional, default http://localhost:8080
+//   E2E_BASE_URL       optional, default http://localhost:8080; the test refuses any host other than
+//                      localhost or 127.0.0.1 unless E2E_ALLOW_NON_LOCAL=1 is set (it creates and deletes a task)
+//   E2E_ALLOW_NON_LOCAL optional, set to 1 to allow a non-local E2E_BASE_URL
 // The task created by the test is deleted afterwards through the interface.
 import { expect, test, type Page } from '@playwright/test';
 
@@ -26,6 +28,11 @@ function taskRow(page: Page) {
 }
 
 test.beforeEach(() => {
+  const host = new URL(process.env.E2E_BASE_URL ?? 'http://localhost:8080').hostname;
+  expect(
+    ['localhost', '127.0.0.1'].includes(host) || process.env.E2E_ALLOW_NON_LOCAL === '1',
+    `E2E_BASE_URL host "${host}" is not localhost or 127.0.0.1; this test creates and deletes data. Set E2E_ALLOW_NON_LOCAL=1 to allow it.`,
+  ).toBe(true);
   expect(email, 'E2E_USER_EMAIL must be set').toBeTruthy();
   expect(password, 'E2E_USER_PASSWORD must be set').toBeTruthy();
   title = `E2E task ${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
