@@ -19,7 +19,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(ApiException.class)
     ResponseEntity<ApiError> handle(ApiException e) {
-        return ResponseEntity.status(e.status()).body(e.error());
+        return ResponseEntity.status(e.status()).headers(e.headers()).body(e.error());
     }
 
     /**
