@@ -26,6 +26,7 @@ The documentation is the source of truth for what Matriz must do. Consult it as 
 - **W2.** Do not invent features, behaviors, business rules or decisions. That includes choosing any technology, external service or third-party component. When something you need is missing, unclear or still pending, stop and ask one question per gap, naming the related ID. While the client is unavailable, questions go to the project decision-maker (KC-01). Do not fill the gap with a default.
 - **W3.** Trace every behavior you implement to at least one FR or NFR. For each user story you touch, satisfy all of its acceptance criteria and edge cases.
 - **W4.** Change only the files the current task requires. Do not reformat, rename or tidy anything else. Report problems you notice elsewhere instead of fixing them.
+- **W5.** Give every branch you create a meaningful name that describes its task: lowercase words separated by hyphens, with a short type prefix and a slash, for example `docs/update-readme-compose` or `fix/task-assignee-validation`. Prefix: `feat`, `fix`, `docs`, `test`, `chore` or `refactor`. Do not use random or generic names such as `claude/quirky-fermat-o517cj`, `test`, or `wip`. Keep it to about 50 characters. If the environment or the human fixes the branch name, use that name and say so in the task report.
 
 ## Planning and approval
 
