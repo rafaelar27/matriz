@@ -484,6 +484,7 @@ Observed on 2026-11-18. One end-to-end flow, create a task through the user inte
 | Warning | Do not run `mvn verify` between seeding and the E2E run. The Java tests overwrite the demo accounts' passwords with their own test password, and seeding again inserts 0 rows and does not restore them |
 | Data | Demo user Ana (Project Manager, Acme Studio); project "Website redesign"; owner Ben Demo (Team Member); fixed due date 2026-12-01; status left at the default; unique title `E2E task <timestamp>-<random>`. Cleanup deletes only that task through the UI Delete button and its confirmation |
 | Assertions | Status "Por fazer" (the UI label of To do, mapped in README.md). Priority is not asserted (F17 is out of scope) |
+| Guard | The test refuses to run when the host of `E2E_BASE_URL` is not `localhost` or `127.0.0.1`, unless `E2E_ALLOW_NON_LOCAL=1`. It checks the host name only; it cannot identify the database (no UI or API contract exposes it) |
 
 Selector strategy: roles, labels and visible text only; no `data-testid`, no CSS classes, no `waitForTimeout`; web-first auto-waiting assertions. Selectors used: labels Email and Password and button "Sign in"; heading level 1 "Dashboard"; button `/^Ana Demo/` (account menu); the banner with Acme Studio and Northwind Lab; link "Website redesign"; the project name as heading 1; heading 2 `/^Tasks/`; button "+ New task"; the form named "New task" with labels "Title (required)", "Owner", "Due date" and "Status"; button "Create task"; role `status` with `“<title>” was created.`; role `alert` count 0; the table row found by its title button, cells 0 to 3; button `Delete “<title>”`, dialog button "Delete task", and status `“<title>” was deleted.`.
 
@@ -513,6 +514,14 @@ Selector strategy: roles, labels and visible text only; no `data-testid`, no CSS
 | Tester, after the config change, run 3 (observed 2026-11-18) | `npx playwright test` with `E2E_CHROMIUM_PATH=/opt/pw-browsers/chromium-1243/chrome-linux64/chrome` | 1 passed (2.4 s) | 5 tasks; 0 stray |
 | Tester, after the config change, run 4 (observed 2026-11-18; expected failure) | `npx playwright test` with neither `PLAYWRIGHT_BROWSERS_PATH` nor `E2E_CHROMIUM_PATH` set | Failed as expected: `browserType.launch: Executable doesn't exist at /root/.cache/ms-playwright/chromium_headless_shell-1243/...`. Environment limitation, not an application defect | 5 tasks; 0 stray |
 | Tester, after the config change, install attempt (observed 2026-11-18) | `npx playwright install chromium` | Failed in this container: `Failed to download Chrome for Testing 153.0.8010.12 ... Download failure, code=1` (download blocked). Environment limitation evidence | Not applicable |
+| Tester, failure check (a) (observed 2026-11-18; fresh `matriz_test`, seed 37 rows, `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`) | `npx playwright test` with the spec temporarily expecting due date 2026-12-02 | Failed as expected: `Expect "toHaveText"` on the due-date cell, unexpected value "2026-12-01". `trace.zip` written (430224 bytes). Cleanup deleted the task | 5 tasks; 0 stray |
+| Tester, failure check (b) (observed 2026-11-18; same environment) | `npx playwright test` with the spec temporarily expecting status "Em curso" | Failed as expected, unexpected value "Por fazer". `trace.zip` written (424915 bytes) | 5 tasks; 0 stray |
+| Tester, guard: default run (observed 2026-11-18) | `npx playwright test` | Passed | 5 tasks; 0 stray |
+| Tester, guard: `E2E_BASE_URL=http://example.invalid:8080` (observed 2026-11-18) | `npx playwright test` | Failed fast with `E2E_BASE_URL host "example.invalid" is not localhost or 127.0.0.1; this test creates and deletes data. Set E2E_ALLOW_NON_LOCAL=1 to allow it.` and no navigation | Not recorded |
+| Tester, guard: same with `E2E_ALLOW_NON_LOCAL=1` (observed 2026-11-18) | `npx playwright test` | Got past the guard and failed at `page.goto` with `net::ERR_NAME_NOT_RESOLVED` | Not recorded |
+| Tester, two further normal runs (observed 2026-11-18) | `npx playwright test` | Both passed | 5 tasks; 0 stray |
+
+The temporary breaks in failure checks (a) and (b) were reverted (the spec was restored) and not committed.
 
 The main session did not re-run `mvn verify`.
 
@@ -522,7 +531,8 @@ No application defect and no test problem. Before the config change, none occurr
 
 ### Not verified
 
-- The `retain-on-failure` trace was never triggered.
+- The `retain-on-failure` trace was triggered and a `trace.zip` was produced, but its content was not opened or inspected.
+- A hostname guard cannot prove which database the application uses.
 - Browsers other than Chromium, and Windows.
 - A run as a non-root user (the `--no-sandbox` branch for non-root is not exercised), and macOS.
 - `npx playwright install chromium`: the download is blocked in this container, so the standard install route is not confirmed here.
