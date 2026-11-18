@@ -16,7 +16,7 @@
 | INC-08 | Remove the unscoped task status route | Done (2026-11-17) |
 | INC-09 | Coverage measurement and unit tests | Done (2026-11-17) |
 | INC-10 | Unit tests for the INC-09 refactoring candidates | Done (2026-11-18) |
-| INC-11 | English task status labels | In progress (code changed 2026-11-18; verification pending) |
+| INC-11 | English task status labels | Done |
 
 **Not built in this delivery** (release review 2026-11-16): sign-up (FR-01, US-22); FR-02 (US-02); invitations and member management (FR-03; US-03, US-05, US-23) and role assignment and changes (FR-04; US-03, US-04) apart from reading active members (the FR-04 permissions are enforced by `AccessPolicy`, CMP-03); archiving (FR-06, US-07); choosing project members (FR-07, US-08) apart from the creator; FR-14 (US-13); FR-17 (US-16); FR-19 (US-18); FR-20 (US-20); FR-21 (US-21). Decided as left out: filtering by due date (FR-15, 2026-11-12) and task priority (F17).
 
@@ -373,18 +373,18 @@ All runs were on the isolated database `matriz_test` (local PostgreSQL 16), with
 
 | ID | Acceptance criterion | Verification method | Result |
 |---|---|---|---|
-| AC-INC11.1 | Task list cells show the English names To do, In progress and Done. | Browser | |
-| AC-INC11.2 | The owner's status list offers exactly the three English names, with option values equal to the API values. | Browser (option values) | |
-| AC-INC11.3 | A new task's default status shows "To do", and the response has `"status":"To do"`. | Browser (network body); Playwright test | |
-| AC-INC11.4 | The status filter, the counts (project page and dashboard), the task details and the status-change message use the English names. | Browser | |
-| AC-INC11.5 | No Portuguese status text remains in `static/` or `e2e/`. | Search (grep) of `src/main/resources/static` and `e2e` for Por fazer, Em curso and Concluída: none found | |
-| AC-INC11.6 | The API still refuses `Por fazer`, `Em curso`, `Concluída`, `DONE`, `done` and an empty string with 422 on `status`. | API request or `TaskApiTest` | |
-| AC-INC11.7 | Access rules are unchanged: 401 without a session, 403 for a Viewer, 404 for another workspace, 404 for a mismatched project. | `TaskApiTest`; `mvn verify` | |
-| AC-INC11.8 | A status change shows the English name after a reload and after a restart. | Browser | |
-| AC-INC11.9 | No change to migrations, `openapi.yaml`, Java code or access rules. | `git diff --stat` | |
-| AC-INC11.10 | `mvn verify` gives 0 failures and the Playwright test passes. | `mvn verify` on `matriz_test`; `npx playwright test` | |
+| AC-INC11.1 | Task list cells show the English names To do, In progress and Done. | Browser | Pass |
+| AC-INC11.2 | The owner's status list offers exactly the three English names, with option values equal to the API values. | Browser (option values) | Pass |
+| AC-INC11.3 | A new task's default status shows "To do", and the response has `"status":"To do"`. | Browser (network body); Playwright test | Pass |
+| AC-INC11.4 | The status filter, the counts (project page and dashboard), the task details and the status-change message use the English names. | Browser | Pass |
+| AC-INC11.5 | No Portuguese status text remains in `static/` or `e2e/`. | Search (grep) of `src/main/resources/static` and `e2e` for Por fazer, Em curso and Concluída: none found | Pass |
+| AC-INC11.6 | The API still refuses `Por fazer`, `Em curso`, `Concluída`, `DONE`, `done` and an empty string with 422 on `status`. | API request or `TaskApiTest` | Pass |
+| AC-INC11.7 | Access rules are unchanged: 401 without a session, 403 for a Viewer, 404 for another workspace, 404 for a mismatched project. | `TaskApiTest`; `mvn verify` | Pass |
+| AC-INC11.8 | A status change shows the English name after a reload and after a restart. | Browser | Pass |
+| AC-INC11.9 | No change to migrations, `openapi.yaml`, Java code or access rules. | `git diff --stat` | Pass |
+| AC-INC11.10 | `mvn verify` gives 0 failures and the Playwright test passes. | `mvn verify` on `matriz_test`; `npx playwright test` | Pass |
 
-**Not verified yet:** every criterion in the table. Criterion AC-INC11.5 was checked by search only (no Portuguese status text found); its Result stays empty until the other checks are run and the increment is reviewed.
+**Not verified yet:** nothing in AC-INC11.1 to AC-INC11.10. Results of 2026-11-18: the browser checks (AC-INC11.1 to AC-INC11.4 and AC-INC11.8) were run by Claude in a headless Chromium browser, signed in as ana@example.com (Project Manager), on the local development instance, not by a human; AC-INC11.6, AC-INC11.7 and AC-INC11.10 come from `mvn verify` on `matriz_test` (341 tests, 0 failures, 0 errors) and the Playwright test (1 of 1 passed); AC-INC11.9 from `git diff` (no change under `src/main/java`, `src/main/resources/db` or `src/test`, and none to `openapi.yaml`). No new access-rule test was written for INC-11. The check created one extra demo task titled "INC-11 status check" in the local development database; it was not deleted. [verification.md](verification.md) lines 44, 45 and 127 still show Portuguese status text and were not reviewed (proposal pending).
 
 ### Verification campaign (2026-11-16)
 
@@ -435,4 +435,4 @@ All runs were on the isolated database `matriz_test` (local PostgreSQL 16), with
 | 2026-11-17 | INC-09 | Reviewer review done: approve with changes, 0 Blocker, 0 Major, 5 Minor (INC-09 R-01 to R-05, all handled as recommended; INC-09 R-03 left as is until Q-03 is decided). Changes: `pom.xml` comment on `@{argLine}`; `AccessPolicyTest` display name "test-plan TD-03"; six refusal rows added to `AccessPolicyTest` (77 tests); `null` status rule stated in `openapi.yaml` (`TaskValidationFailed`, `createTask` 422; version not changed). `mvn verify` on `matriz_test`: 282 tests, 0 failures, 0 errors, 0 skipped, BUILD SUCCESS, in three runs; coverage unchanged. AC-INC09.5 to AC-INC09.7 set to Pass; AC-INC09.15 stays N/A. Status set to Done. | Project decision-maker (decision); programmer (plan and doc updates) |
 | 2026-11-18 | INC-10 | Plan approved (option A-narrow; "yes with your recommendations"). Behaviour-preserving refactor of four service files (`b92e516`; `mvn verify` 282 tests, 0 failures before any new test); 7 Spring-free unit-test classes added (41 tests, `1d1b0ac` and a review follow-up). `mvn verify` on `matriz_test`: 323 tests, 0 failures, 0 errors, 0 skipped, BUILD SUCCESS, in three runs; coverage overall 97.4 / 88.0 / 98.3 to 97.4 / 88.3 / 98.3. Reviewer review done: approve with changes, 0 Blocker, 0 Major, 7 Minor (INC-10 R-01 to R-04 fixed; R-05 to R-07 not applied, with reasons). No security-auditor run (no access code changed, PQ9). Status set to Done. Details in the INC-10 section and [test-plan.md](test-plan.md). | Project decision-maker (decision); programmer (plan and doc updates) |
 | 2026-11-18 | INC-08 | Follow-up after a Codex finding on PR #6: createTask `Location` header now project-scoped (`/projects/{project_id}/tasks/{task_id}`, as in `openapi.yaml`); `TaskController.create` changed (commit `e098c70`), tests assert the exact value and follow the link (commit `7f76876`). `mvn verify`: 323 tests, 0 failures, 0 errors, 0 skipped, BUILD SUCCESS (tester twice, and an independent run). Reviewer: approve, 0 Blocker, 0 Major, 2 Minor. Resolves Q-11 and audit S-01; decision-log row added; INC-08 status unchanged (Done). | Project decision-maker (decision); programmer (plan and doc updates) |
-| 2026-11-18 | INC-11 | Decision recorded in the decision log (task statuses shown in English, superseding the Portuguese labels of 2026-11-12; PD-13 stays pending). `STATUS_LABELS` in `static/js/app.js` and `e2e/tests/create-task.spec.ts` changed; README.md, constraints.md, user-stories.md (AC-10.1 clarification removed), test-plan.md (TE-04) and CHANGELOG.md updated. AC-INC04.11 and AC-INC06.13 marked superseded. Search found no Portuguese status text in `static/` or `e2e/`; no other criterion verified yet (`mvn verify`, Playwright and browser checks pending). Status In progress. | Project decision-maker (decision, approved by the user in the session); programmer (doc updates) |
+| 2026-11-18 | INC-11 | Decision recorded in the decision log (task statuses shown in English, superseding the Portuguese labels of 2026-11-12; PD-13 stays pending). `STATUS_LABELS` in `static/js/app.js` and `e2e/tests/create-task.spec.ts` changed; README.md, constraints.md, user-stories.md (AC-10.1 clarification removed), test-plan.md (TE-04) and CHANGELOG.md updated. AC-INC04.11 and AC-INC06.13 marked superseded. All ten criteria AC-INC11.1 to AC-INC11.10 verified Pass on 2026-11-18 (browser checks run by Claude in a headless browser; `mvn verify` 341 tests, 0 failures; Playwright 1 of 1). Status Done. | Project decision-maker (decision, approved by the user in the session); programmer (doc updates) |
