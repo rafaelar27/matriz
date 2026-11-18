@@ -385,7 +385,30 @@ All three services use the dedicated network `matriz-net` (added in this task) a
 
 ### Controlled failure
 
-**Pending.** Planned, each step needing separate approval: create the branch `ci/controlled-failure`; break one assertion in `TaskTitleRuleTest`; confirm the `test` job fails and `docker` and `e2e` are skipped; revert with `git revert` (no force push); confirm the run passes; never merge the broken change. Whether to delete the branch afterwards is still undecided. No failing run link exists yet.
+Done on 2026-11-18 on a separate branch, `ci/controlled-failure`, with the approval of the project decision-maker ("yes, go ahead with the failure test"; "yes, revert and push"). No pull request was opened and the broken change was never merged.
+
+- **What was changed:** in `src/test/java/com/matriz/tasks/TaskTitleRuleTest.java`, line 30, helper `assertAccepted`: `isEqualTo(trimmed)` became `isEqualTo(trimmed + "-BROKEN")`. Locally, `mvn -Dtest=TaskTitleRuleTest test` then failed 2 of 5 tests (`threeCharacterTitleIsAccepted`, `hundredFiftyCharacterTitleIsAccepted`).
+- **Failing run:** #34, https://github.com/rafaelar27/matriz/actions/runs/44338837819, commit `b9ee67c`, `push`, 2026-11-18T15:43:04Z to 15:44:29Z, conclusion **failure**.
+
+| Job | Result in run #34 |
+|---|---|
+| Tests (mvn verify) | **failure**, at the step "Migrate and run all tests" |
+| Build (mvn package) | success (it does not depend on `test`) |
+| Docker image build | **skipped** |
+| End-to-end (Playwright) | **skipped** |
+
+  The Docker job did not run because it needs `test` and `build`. The test names were not read from the CI logs; the two names above come from the local run.
+- **Revert:** commit `22cb49d`, made with `git revert` (a new commit, no force push). The tree is identical to the commit before the break (`cb4f34d`), checked with `git diff`.
+- **Passing run after the revert:** #40, https://github.com/rafaelar27/matriz/actions/runs/44340079787, commit `22cb49d`, `push`, 2026-11-18T15:49:35Z to 15:54:01Z, conclusion **success**.
+
+| Job | Result in run #40 |
+|---|---|
+| Tests (mvn verify) | success |
+| Build (mvn package) | success |
+| Docker image build | success |
+| End-to-end (Playwright) | success |
+
+- **Branch:** `ci/controlled-failure` still exists on the remote as evidence; whether to delete it is not decided (Q7).
 
 ### Limitations and problems
 
