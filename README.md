@@ -248,7 +248,7 @@ The interface finds the API through `GET /config.js`, which the application gene
 **Dashboard** (`#/dashboard`; FR-08, FR-13, FR-18; [docs/ui/README.md](docs/ui/README.md#dashboard)) is the first screen after signing in, and the screen an unknown address opens (UI-A1):
 
 - The top bar shows the names of every workspace you belong to, as text (no workspace switcher, PD-16), and the main menu **Dashboard** and **Projects**.
-- The **Projects** section shows the first 10 of your projects with workspace, owner, due date, progress ("3 of 12 tasks done") and the number of tasks per status (Por fazer, Em curso, Concluída), the total number of projects, "Showing N of total" and **See all projects**. There is no total across projects (F41 is outside the initial scope).
+- The **Projects** section shows the first 10 of your projects with workspace, owner, due date, progress ("3 of 12 tasks done") and the number of tasks per status (To do, In progress, Done), the total number of projects, "Showing N of total" and **See all projects**. There is no total across projects (F41 is outside the initial scope).
 - With no projects it shows "No projects yet."; Project Managers also see **+ New project** there, once. Workspace Administrators do not see it (provisional, PD-03).
 - A section that cannot be loaded shows "This section could not be loaded." and **Try again**; a project whose task counts cannot be loaded shows "—" in its row.
 - My tasks, notifications, members, feedback and personal-data requests are not on the dashboard yet, because they have no API operations.
@@ -256,7 +256,7 @@ The interface finds the API through `GET /config.js`, which the application gene
 **Projects** (`#/projects`; FR-08, FR-13, FR-18, US-28) opens from **Projects** in the main menu and from **See all projects** on the dashboard:
 
 - It lists every project in your workspaces, 20 per page with **Previous** and **Next**; each project appears on exactly one page. The dashboard keeps showing 10.
-- Each row shows workspace, owner, due date, progress and the number of tasks per status (Por fazer, Em curso, Concluída); a project without tasks shows "0 of 0 tasks done". There is no total across projects (F41 is outside the initial scope).
+- Each row shows workspace, owner, due date, progress and the number of tasks per status (To do, In progress, Done); a project without tasks shows "0 of 0 tasks done". There is no total across projects (F41 is outside the initial scope).
 - Search by part of the project name, ignoring case; a search with no match shows a message that no projects match, and a search of only spaces lists every project. The search field takes at most 100 characters.
 - An address with a page past the last opens the last page that has projects, keeping the search; **Back** does not return to the empty page.
 - With no projects it shows "No projects yet."; Project Managers also see **+ New project** there, once. Workspace Administrators do not see it (provisional, PD-03).
@@ -284,14 +284,14 @@ Open a project from the project list. Its **Tasks** section lists the project's 
 |---|---|---|
 | Filter | Choose a **Status** and/or an **Owner**; both combine with the pages, and the choice stays in the address after a reload | Every member |
 | View | Click a task's title | Every member |
-| + New task | Title (3 to 150 characters, not only spaces), description (up to 2000), owner (Project Managers choose from the workspace's active members, and an owner outside the project is refused with 422; editing offers only project members), due date, status (Por fazer by default) | Project Managers and Team Members who are members of the project; Team Members own the tasks they create |
+| + New task | Title (3 to 150 characters, not only spaces), description (up to 2000), owner (Project Managers choose from the workspace's active members, and an owner outside the project is refused with 422; editing offers only project members), due date, status (To do by default) | Project Managers and Team Members who are members of the project; Team Members own the tasks they create |
 | Edit | **Edit** on the row | Project Managers, or the owner if a Team Member; only Project Managers change the owner |
 | Change status | The status list on the row | The task's owner |
 | Delete | **Delete** on the row, then confirm; the task's comments and notifications are deleted with it | The member who created the task |
 
-Statuses are shown as **Por fazer**, **Em curso** and **Concluída**, but the API always uses `To do`, `In progress` and `Done`. After every change the list, the counts and the project's progress update without reloading the page. Task priority is not part of the MVP (F17).
+Statuses are shown as **To do**, **In progress** and **Done**, the same names the API uses (`To do`, `In progress`, `Done`). After every change the list, the counts and the project's progress update without reloading the page. Task priority is not part of the MVP (F17).
 
-**Try it:** sign in as `ana@example.com`, open "Website redesign", create a task without choosing a status (it shows Por fazer), change "Approve page layout" to Em curso, filter by Em curso, reload the page, then restart the application and sign in again: the change is still there. Sign in as `dan@example.com` and open `#/projects/d0000000-0000-0000-0000-000000000001`: the project is not found. The same operations through the API: `GET` and `POST /projects/{project_id}/tasks?status=&owner_member_id=&page=&size=`, and `GET`, `PATCH`, `DELETE /projects/{project_id}/tasks/{task_id}`.
+**Try it:** sign in as `ana@example.com`, open "Website redesign", create a task without choosing a status (it shows To do), change "Approve page layout" to In progress, filter by In progress, reload the page, then restart the application and sign in again: the change is still there. Sign in as `dan@example.com` and open `#/projects/d0000000-0000-0000-0000-000000000001`: the project is not found. The same operations through the API: `GET` and `POST /projects/{project_id}/tasks?status=&owner_member_id=&page=&size=`, and `GET`, `PATCH`, `DELETE /projects/{project_id}/tasks/{task_id}`.
 
 ### Assignees and comments
 
