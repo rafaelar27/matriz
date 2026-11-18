@@ -320,3 +320,86 @@ All three services use the dedicated network `matriz-net` (added in this task) a
 - **README.md, "Run with Docker":** replace the last bullet, "Not verified in this repository's container: building the image and running Compose need a Docker daemon", with a pointer to this section. Add that the stack uses the network `matriz-net`, that assigning a user needs that user to be an active project member, and that Docker Hub's pull limit or a TLS-intercepting proxy can make the first build fail.
 - **docs/architecture.md, "Technology stack":** mention the explicit network `matriz-net` in the Docker Compose row.
 - **CHANGELOG.md:** add a line for the `matriz-net` network.
+
+## Continuous Integration
+
+> **Status:** in progress, 2026-11-18. The workflow `.github/workflows/ci.yml` was updated and pushed to branch `claude/compassionate-planck-mhv9wh` (commit `d26a386`) with the approval of the project decision-maker (plan "yes"; "yes, commit and push ci.yml"). Run #30 passed (see "Successful run"). The controlled failure test is **Pending** and is not recorded as done. Only fictitious values are used; no repository secret is used.
+
+### Pipeline overview
+
+| Job | Purpose | Depends on | Commands |
+|---|---|---|---|
+| `test` | Apply the Flyway migrations to `matriz_test` and run every automated test (service container `postgres:16-bookworm`, pinned by digest) | none | `mvn -B verify`; upload surefire and JaCoCo reports |
+| `build` | Check that the application builds. The user interface is static and packaged in the jar, so no separate front-end build exists | none (parallel with `test`) | `mvn -B -DskipTests package` |
+| `docker` | Validate `compose.yaml` and build the image; nothing is pushed | `test`, `build` | `docker compose config -q`; `docker build -t matriz:ci .` |
+| `e2e` | Compose stack, demo data, Playwright create-task flow (TE-04) | `test`, `build` | `docker compose up -d --build --wait`; `docker compose run --rm seed`; `npm ci`; `npx playwright install --with-deps chromium`; `npx playwright test`; `docker compose logs`; `docker compose down -v` |
+
+- **Triggers:** `push` and `pull_request`, on all branches (no filter).
+- **Mandatory tests:** all of `mvn verify` and the Playwright test. No step uses `continue-on-error` or `|| true`.
+- **Caching:** Maven (`setup-java`, keyed on `pom.xml`) and npm (`setup-node`, keyed on `e2e/package-lock.json`). Docker layers are not cached.
+- **Concurrency:** a newer push to the same ref cancels the run in progress.
+
+### Permissions used and justification
+
+- Workflow level: `permissions: contents: read`. No job adds permissions. The workflow only reads the code; it does not publish images, write comments or create releases.
+- `actions/checkout` runs with `persist-credentials: false`, so the token is not left in `.git/config`.
+- Actions are pinned to full commit SHAs, with the version in a comment: `actions/checkout` v4.4.0, `actions/setup-java` v4.9.1, `actions/setup-node` v4.4.0, `actions/upload-artifact` v4.6.2. This addresses audit item S-09.
+- Environment values are fictitious (`MATRIZ_DB_USER=matriz`, `MATRIZ_DB_PASSWORD=ci-only-password`, `MATRIZ_DEMO_PASSWORD=ci-only-demo-password`); the throwaway database exists only for the run.
+
+### Changes made to `ci.yml` in this task
+
+- Added the `build` job.
+- `docker` and `e2e` now use `needs: [test, build]` (before, only `test`).
+- Added `docker compose config -q` to the `docker` job.
+- Removed `|| true` from the e2e cleanup, by splitting it into two `if: always()` steps ("Show app logs" and "Stop the stack").
+- Pinned the four actions by commit SHA (before, major tags such as `@v4`).
+- Added comments for the non-obvious choices.
+
+### Local validation (2026-11-18, cloud container)
+
+| Check | Result |
+|---|---|
+| YAML parse with PyYAML | Pass. Jobs `test`, `build`, `docker`, `e2e`; `needs` as intended. |
+| Search for `continue-on-error` and `\|\| true` | Pass. None found. |
+| Every `uses:` pinned to a 40-character SHA | Pass |
+| `docker compose config -q` with fictitious `MATRIZ_DB_USER` and `MATRIZ_DB_PASSWORD` | Pass. No error output (the exit code seen was that of a pipe, so the empty output is the evidence). |
+| `mvn -B -DskipTests package` | Pass. No error output. |
+| `mvn -B verify` | Not verified. No local PostgreSQL with `matriz_test` was running. |
+| `docker build` | Not verified. It is known to fail in this sandbox (Docker Hub 429, Maven PKIX); CI is its normal path. |
+| Playwright | Not verified locally. |
+| actionlint | Not used (no tool was approved). |
+
+### Successful run
+
+- **Run:** #30, https://github.com/rafaelar27/matriz/actions/runs/44335837918, event `push`, commit `d26a386`, started 2026-11-18T15:27:26Z.
+- **Result:** completed, **success**, finished 2026-11-18T15:31:37Z. Job results were read from the GitHub Actions run and job data; the job logs were not read, so the test count and cache-hit lines are not recorded here.
+
+| Job | Result | Time (UTC) |
+|---|---|---|
+| Tests (mvn verify) | success | 15:27:28 to 15:29:06 |
+| Build (mvn package) | success | 15:27:28 to 15:27:46 |
+| Docker image build (`docker compose config -q`, `docker build`, not pushed) | success | 15:29:07 to 15:30:20 |
+| End-to-end (Playwright) | success (failure-only report upload skipped, as expected) | 15:29:07 to 15:31:36 |
+
+`test` and `build` ran in parallel; `docker` and `e2e` started right after `test` finished, as `needs: [test, build]` requires.
+
+### Controlled failure
+
+**Pending.** Planned, each step needing separate approval: create the branch `ci/controlled-failure`; break one assertion in `TaskTitleRuleTest`; confirm the `test` job fails and `docker` and `e2e` are skipped; revert with `git revert` (no force push); confirm the run passes; never merge the broken change. Whether to delete the branch afterwards is still undecided. No failing run link exists yet.
+
+### Limitations and problems
+
+- No Maven lock file: dependencies come from the pinned `pom.xml` and are cached by `setup-java`.
+- Docker layers are not cached; adding `docker/setup-buildx-action` and `docker/build-push-action` would introduce new actions and was not approved.
+- The image is neither scanned nor published (decision of 2026-11-18; TD-02).
+- `e2e` builds the image a second time through Compose.
+- With triggers on both `push` and `pull_request`, a pull request branch can run CI twice per commit.
+- Docker Hub rate limits (429) can make a run flaky; a re-run would be recorded.
+- No `timeout-minutes` was set and no workflow linter was used (not decided).
+- Problems found and fixed: `|| true` in the e2e cleanup, `docker` not waiting for a build job, and actions pinned only by major tag.
+
+### Proposed documentation updates for Exercise 05 (not applied)
+
+- **README.md:** add a CI status badge (`![CI](https://github.com/rafaelar27/matriz/actions/workflows/ci.yml/badge.svg)`) and update the "Continuous integration" paragraph to name the `build` job and `needs: [test, build]`.
+- **CHANGELOG.md:** add a "Changed" line for the `build` job, `compose config -q` and SHA-pinned actions.
+- **AGENTS.md, "Docker and CI":** mention the `build` job and `docker compose config -q`.
