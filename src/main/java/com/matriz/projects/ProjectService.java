@@ -1,5 +1,6 @@
 package com.matriz.projects;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -124,32 +125,18 @@ class ProjectService {
     /** Validates and applies the fields that were sent. */
     private void apply(Project project, ProjectFields body) {
         if (body.has("name")) {
-            String name = body.name() == null ? "" : body.name().trim();
-            int length = name.codePointCount(0, name.length());
-            if (length < NAME_MIN || length > NAME_MAX) {
-                throw ApiException.validation(NOT_SAVED, "name", "The name must be 3 to 100 characters long.");
-            }
-            project.setName(name);
+            project.setName(name(body.name()));
         }
         if (body.has("description")) {
-            String d = body.description();
-            if (d != null && d.codePointCount(0, d.length()) > DESCRIPTION_MAX) {
-                throw ApiException.validation(NOT_SAVED, "description",
-                        "The description can be at most 1000 characters long.");
-            }
-            project.setDescription(d == null || d.isEmpty() ? null : d);
+            project.setDescription(description(body.description()));
         }
         if (body.has("owner_member_id")) {
-            if (body.ownerMemberId() == null) {
-                // A project always has an owner (decided 2026-11-12; DA-03 owner part rejected; FR-06).
-                throw ApiException.validation(NOT_SAVED, "owner_member_id", "An owner is required.");
-            } else {
-                UUID owner = Ids.parse(body.ownerMemberId())
-                        .filter(id -> members.isActiveMemberOf(id, project.getWorkspaceId()))
-                        .orElseThrow(() -> ApiException.validation(NOT_SAVED, "owner_member_id",
-                                "The owner must be an active member of this workspace."));
-                project.setOwnerMemberId(owner);
-            }
+            requireOwner(body.ownerMemberId());
+            UUID owner = Ids.parse(body.ownerMemberId())
+                    .filter(id -> members.isActiveMemberOf(id, project.getWorkspaceId()))
+                    .orElseThrow(() -> ApiException.validation(NOT_SAVED, "owner_member_id",
+                            "The owner must be an active member of this workspace."));
+            project.setOwnerMemberId(owner);
         }
         if (body.has("start_date")) {
             project.setStartDate(body.startDate());
@@ -159,8 +146,40 @@ class ProjectService {
         }
         // Checked on the project as it is after the change, so sending one date can be refused (decided 2026-11-12,
         // FR-06). The exception rolls the transaction back, so nothing is saved.
-        if (project.getStartDate() != null && project.getDueDate() != null
-                && project.getStartDate().isAfter(project.getDueDate())) {
+        requireDateOrder(project.getStartDate(), project.getDueDate());
+    }
+
+    // --- Pure rules (FR-06, BR-21, BR-23), unit-tested without Spring ------------------------------------------
+
+    /** Trimmed, 3 to 100 characters; a null name is refused like an empty one. */
+    static String name(String value) {
+        String name = value == null ? "" : value.trim();
+        int length = name.codePointCount(0, name.length());
+        if (length < NAME_MIN || length > NAME_MAX) {
+            throw ApiException.validation(NOT_SAVED, "name", "The name must be 3 to 100 characters long.");
+        }
+        return name;
+    }
+
+    /** At most 1000 characters; empty or null clears it. */
+    static String description(String value) {
+        if (value != null && value.codePointCount(0, value.length()) > DESCRIPTION_MAX) {
+            throw ApiException.validation(NOT_SAVED, "description",
+                    "The description can be at most 1000 characters long.");
+        }
+        return value == null || value.isEmpty() ? null : value;
+    }
+
+    /** A project always has an owner (decided 2026-11-12; DA-03 owner part rejected; FR-06). */
+    static void requireOwner(String value) {
+        if (value == null) {
+            throw ApiException.validation(NOT_SAVED, "owner_member_id", "An owner is required.");
+        }
+    }
+
+    /** When both dates are given, the start date is not after the due date (decided 2026-11-12, FR-06, BR-21). */
+    static void requireDateOrder(LocalDate start, LocalDate due) {
+        if (start != null && due != null && start.isAfter(due)) {
             throw ApiException.validation(NOT_SAVED, "due_date", "The due date cannot be before the start date.");
         }
     }

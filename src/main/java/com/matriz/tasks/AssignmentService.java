@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.dao.DataIntegrityViolationException;
@@ -71,21 +72,14 @@ class AssignmentService {
         tasks.load(projectId, taskId);
         policy.checkAssign(caller);
 
-        if (memberIds == null || memberIds.isEmpty() || memberIds.size() > MAX_PER_REQUEST) {
-            throw ApiException.validation(NOT_ASSIGNED, FIELD, "Send 1 to 20 member ids.");
-        }
+        requireCount(memberIds);
         Map<UUID, WorkspaceMember> eligible = eligibleMembers(projectId).stream()
                 .collect(Collectors.toMap(WorkspaceMember::memberId, m -> m));
         List<UUID> ids = memberIds.stream().map(value -> Ids.parse(value).filter(eligible::containsKey)
                         .orElseThrow(() -> ApiException.validation(NOT_ASSIGNED, FIELD,
                                 "Only active members of this project can be assigned.")))
                 .toList();
-        Set<UUID> seen = new HashSet<>();
-        for (UUID id : ids) {
-            if (!seen.add(id)) {
-                throw ApiException.conflict(eligible.get(id).name() + " appears more than once in the request.", FIELD);
-            }
-        }
+        requireNoRepeats(ids, id -> eligible.get(id).name());
         Set<UUID> current = assignees.findAllByTaskId(taskId).stream().map(TaskAssignee::getMemberId)
                 .collect(Collectors.toSet());
         for (UUID id : ids) {
@@ -101,6 +95,23 @@ class AssignmentService {
             throw ApiException.conflict("A member is already assigned to this task.", FIELD);
         }
         return views(taskId);
+    }
+
+    /** 1 to 20 member ids per request; a missing or empty list is refused (FR-22, BR-22). */
+    static void requireCount(List<String> memberIds) {
+        if (memberIds == null || memberIds.isEmpty() || memberIds.size() > MAX_PER_REQUEST) {
+            throw ApiException.validation(NOT_ASSIGNED, FIELD, "Send 1 to 20 member ids.");
+        }
+    }
+
+    /** No member appears twice in one request; the first repeat, in list order, is named (FR-22, BR-22). */
+    static void requireNoRepeats(List<UUID> ids, Function<UUID, String> nameOf) {
+        Set<UUID> seen = new HashSet<>();
+        for (UUID id : ids) {
+            if (!seen.add(id)) {
+                throw ApiException.conflict(nameOf.apply(id) + " appears more than once in the request.", FIELD);
+            }
+        }
     }
 
     /** unassignTask: removes one assignment; the others and the owner stay. */
