@@ -21,7 +21,7 @@ import com.matriz.shared.Ids;
 import com.matriz.shared.PageParams;
 
 /**
- * listTasks, createTask, getTask, updateTask, deleteTask and updateTaskStatus (openapi.yaml 0.4.0-draft). Request
+ * listTasks, createTask, getTask, updateTask and deleteTask (openapi.yaml 0.7.0-draft). A task's status changes through updateTask. Request
  * bodies accept only the fields the contract defines; any other field, such as {@code created_by_member_id}, is
  * refused with 422.
  */
@@ -61,7 +61,8 @@ class TaskController {
     ResponseEntity<TaskView> create(@AuthenticationPrincipal SignedInAccount caller, @PathVariable String projectId,
                                     @RequestBody TaskFields body) {
         TaskView task = service.create(caller.accountId(), id(projectId, TaskService.PROJECT_NOT_FOUND), body);
-        return ResponseEntity.created(URI.create("/tasks/" + task.taskId())).body(task);
+        return ResponseEntity.created(URI.create("/projects/" + task.projectId() + "/tasks/" + task.taskId()))
+                .body(task);
     }
 
     @GetMapping("/projects/{projectId}/tasks/{taskId}")
@@ -86,17 +87,8 @@ class TaskController {
         return ResponseEntity.noContent().build();
     }
 
-    @PatchMapping("/tasks/{taskId}")
-    TaskView changeStatus(@AuthenticationPrincipal SignedInAccount caller, @PathVariable String taskId,
-                          @RequestBody TaskStatusUpdateRequest body) {
-        return service.changeStatus(caller.accountId(), id(taskId, TaskService.TASK_NOT_FOUND), body.status());
-    }
-
     /** An identifier that is not a valid id cannot exist, so it is reported like any unknown id (404). */
     private static UUID id(String value, String message) {
         return Ids.parse(value).orElseThrow(() -> ApiException.notFound(message));
-    }
-
-    record TaskStatusUpdateRequest(String status) {
     }
 }

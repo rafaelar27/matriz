@@ -141,21 +141,6 @@ class TaskService {
         tasks.flush();
     }
 
-    /** updateTaskStatus (US-11; FR-12), reached by task id alone. */
-    @Transactional
-    TaskView changeStatus(UUID callerAccountId, UUID taskId, String status) {
-        Task task = tasks.findById(taskId).orElseThrow(() -> ApiException.notFound(TASK_NOT_FOUND));
-        Actor caller = accessToProject(callerAccountId, task.getProjectId(), TASK_NOT_FOUND);
-        policy.checkChangeStatus(caller, task.getOwnerMemberId());
-
-        if (status == null) {
-            throw ApiException.validation("The status could not be changed.", "status", "A status is required.");
-        }
-        task.changeStatus(TaskStatus.fromLabel(status).orElseThrow(() -> ApiException.validation(
-                "The status could not be changed.", "status", BAD_STATUS)));
-        return view(task);
-    }
-
     // --- Access -----------------------------------------------------------------------------------------------------
 
     /** The caller as an active member of the project's workspace; 404 if the project is unknown or elsewhere. */
@@ -202,12 +187,17 @@ class TaskService {
 
     /** A member of this project (FR-10, BR-09, AC-10.3); members of other workspaces never are (NFR-01). */
     private UUID owner(UUID projectId, String value, String message) {
-        if (value == null || value.isEmpty()) {
-            throw ApiException.validation(message, TaskFields.OWNER, "An owner is required.");
-        }
+        requireOwner(value, message);
         return Ids.parse(value).filter(id -> projects.isProjectMember(projectId, id))
                 .orElseThrow(() -> ApiException.validation(message, TaskFields.OWNER,
                         "The owner must be a member of this project."));
+    }
+
+    /** An owner must be named (FR-10, BR-09); a missing or empty value is refused. */
+    static void requireOwner(String value, String message) {
+        if (value == null || value.isEmpty()) {
+            throw ApiException.validation(message, TaskFields.OWNER, "An owner is required.");
+        }
     }
 
     // --- Responses --------------------------------------------------------------------------------------------------

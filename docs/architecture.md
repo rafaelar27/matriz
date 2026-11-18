@@ -222,7 +222,7 @@ flowchart TB
 
 ## Technology stack
 
-> **Status:** proposed on 2026-11-05 and **confirmed on 2026-11-12 by the project decision-maker** (KC-01). It resolves TD-10 and TD-11 and narrows TD-01. It does **not** decide TD-02, TD-03, TD-04, TD-05, TD-06, TD-07, TD-08, TD-09 or TD-12.
+> **Status:** proposed on 2026-11-05 and **confirmed on 2026-11-12 by the project decision-maker** (KC-01). It resolves TD-10 and TD-11 and narrows TD-01. It does **not** decide TD-02, TD-03, TD-04, TD-05, TD-06, TD-07, TD-08, TD-09 or TD-12. The JaCoCo row was added on 2026-11-17 (see the [decision log](constraints.md#decision-log)).
 
 ### Summary
 
@@ -232,6 +232,7 @@ flowchart TB
 | Front-end approach | **Static HTML, CSS and plain JavaScript**, served by the same Spring Boot application and calling the REST API in [openapi.yaml](../openapi.yaml) |
 | Database | **PostgreSQL** (relational), installed on the developer's computer |
 | Supporting tools | **Maven** (build), **Hibernate** through Spring Data JPA (data access), **Flyway** (schema migrations), **JUnit 5 with Spring Boot Test and MockMvc** (tests) |
+| Code coverage measurement | **JaCoCo** (Maven plugin 0.8.14, added 2026-11-17); the report is written to `target/site/jacoco` at `mvn verify`; no coverage thresholds |
 
 ### Inputs specific to this decision
 
@@ -351,7 +352,7 @@ Only tools needed to build, store data and test are chosen. Each is compared wit
 | Modular monolith (decision rules 1–3) | One Spring Boot application. One Java package per module (CMP-01 to CMP-10) exposing a public service interface. In-process events for "task assigned" and "comment added". How boundaries are checked stays pending (TD-12); the stack allows automated checks or code review. |
 | Workspace scoping (rule 4, NFR-01, SP-02) | Every repository query is limited to the signed-in member's workspace, in the data-access layer (CMP-12). Whether every table carries workspace_id directly is still open (database.md, DA-09). |
 | Data model (database.md) | 11 entities become 11 tables created by Flyway migrations, with primary keys, foreign keys for R-01 to R-18, composite keys and the unique constraints listed above. Rules that span rows, such as keeping at least one Workspace Administrator (SP-07, R-02), are enforced in CMP-02 inside a transaction. |
-| API (openapi.yaml) | `createTask` and `updateTaskStatus` become REST controller methods in CMP-05, with request validation and one shared error handler for 400/401/403/404/422. |
+| API (openapi.yaml) | `createTask` and `updateTask` become REST controller methods in CMP-05, with request validation and one shared error handler for 400/401/403/404/422. |
 | Security (SP-01 to SP-07) | Spring Security requires sign-in for every request (SP-01) and rejects deactivated members (SP-04). Permission rules are checked in CMP-03 (SP-03). Password hashing (BCrypt) is available if TD-03 chooses passwords. No payment data is stored (SP-06). |
 | No loss of saved work (NFR-03) | Each action runs in one database transaction. Backup and recovery remain pending (TD-05). |
 

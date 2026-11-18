@@ -63,7 +63,7 @@ Every story is in the MVP. The seven stories US-03, US-10, US-11, US-13, US-17, 
 
 - **AC-10.1 (success):** **Given** I am a Project Manager and a member of project P, and Ana is a member of P, **when** I create a task in P titled "Draft homepage text" with owner Ana and due date 2026-11-06, **then** the task appears in P's task list with that title, owner Ana, due date 2026-11-06 and status "To do".
 - **AC-10.2 (validation):** **Given** I am creating a task in P, **when** I leave the title empty and try to save, **then** the task is not created and a message states that a title is required.
-- **AC-10.3 (validation):** **Given** Ben is a member of workspace W but not of project P, **when** I choose an owner for a task in P, **then** Ben is not offered as an owner.
+- **AC-10.3 (validation):** **Given** Ben is a member of workspace W but not of project P, **when** a task in P is created or edited with Ben as its owner, **then** the request is refused and Ben does not become the owner (reworded 2026-11-17, see the decision log).
 - **AC-10.4 (single owner):** **Given** a task in P has owner Ana, **when** I change its owner to Carla, who is a member of P, **then** Carla is shown as the task's only owner and Ana is no longer shown as its owner.
 - **AC-10.5 (title rule):** **Given** I am creating a task in P, **when** I enter a title of only spaces, or a title shorter than 3 or longer than 150 characters after removing leading and trailing spaces, **then** the task is not created and a message states the rule. A title of exactly 3 or 150 characters is accepted (decided 2026-11-12).
 - **Pending:** whether due date and description are required (PD-04). Whether Team Members may assign tasks to others (PD-01).

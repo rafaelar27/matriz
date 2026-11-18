@@ -56,15 +56,21 @@ class CommentService {
         Actor caller = access(callerAccountId, projectId, taskId);
         policy.checkComment(caller, projects.isProjectMember(projectId, caller.memberId()));
 
-        String text = body == null ? "" : body.trim();
+        String text = body(body);
+        Comment saved = comments.save(new Comment(taskId, caller.memberId(), text, Instant.now()));
+        return views(List.of(saved)).get(0);
+    }
+
+    /** Trimmed, 1 to 2000 characters; a null or spaces-only body is refused (BR-13, FR-16, EC-08). */
+    static String body(String value) {
+        String text = value == null ? "" : value.trim();
         if (text.isEmpty()) {
             throw ApiException.validation(NOT_POSTED, "body", "A comment cannot be empty.");
         }
         if (text.codePointCount(0, text.length()) > BODY_MAX) {
             throw ApiException.validation(NOT_POSTED, "body", "A comment can be at most 2000 characters long.");
         }
-        Comment saved = comments.save(new Comment(taskId, caller.memberId(), text, Instant.now()));
-        return views(List.of(saved)).get(0);
+        return text;
     }
 
     private Actor access(UUID callerAccountId, UUID projectId, UUID taskId) {

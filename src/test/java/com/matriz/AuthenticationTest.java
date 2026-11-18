@@ -79,9 +79,10 @@ class AuthenticationTest extends ApiTestSupport {
         mvc.perform(post("/projects/" + WEBSITE + "/tasks").with(csrf()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"title\":\"x\",\"owner_member_id\":\"" + ACME_ANA + "\"}"))
                 .andExpect(status().isUnauthorized());
-        mvc.perform(patch("/tasks/" + T_IMAGES)
+        mvc.perform(patch("/projects/" + WEBSITE + "/tasks/" + T_IMAGES)
                         .with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"Done\"}"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("not_authenticated"));
     }
 
     @Test

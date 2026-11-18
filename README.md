@@ -143,11 +143,21 @@ Remove-Item Env:MATRIZ_DB_URL
 
 In Git Bash, `MATRIZ_DB_URL=jdbc:postgresql://localhost:5432/matriz_test mvn verify` sets it for that command only. If you changed `MATRIZ_TEST_DB_URL`, use the same value. Without this, `DatabaseSetupTest` connects to the development database from `.env` and applies any pending migration there.
 
-Runs all automated tests. Expected result: `Tests run: 140, Failures: 0` and `BUILD SUCCESS`. If another process holds `target/matriz-0.1.0-SNAPSHOT.jar` (for example `java -jar`), the last packaging step fails; `mvn verify -Dspring-boot.repackage.skip=true` runs the same tests without it.
+Runs all automated tests. Expected result: `Tests run: 323, Failures: 0` and `BUILD SUCCESS`. The coverage report (JaCoCo) is written to `target/site/jacoco/index.html` after `mvn verify`; `mvn test` does not write it, and no coverage threshold is set. If another process holds `target/matriz-0.1.0-SNAPSHOT.jar` (for example `java -jar`), the last packaging step fails; `mvn verify -Dspring-boot.repackage.skip=true` runs the same tests without it.
 
 - `DatabaseSetupTest` checks the database in `MATRIZ_DB_URL`: it answers queries, every migration succeeded, and 11 of the 12 tables from [docs/database.md](docs/database.md) exist (`task_assignee` is not checked). It changes no data, but starting it applies any pending migration to that database.
 - `AuthenticationTest`, `CsrfCookieTest`, `TaskAccessTest`, `ProjectApiTest`, `TaskApiTest`, `AssignmentApiTest`, `CommentApiTest`, `ClientConfigApiTest` and `VerificationApiTest` check sign-in, sign-out, the project, task, assignee and comment operations, the open `GET /config.js` and every access rule through API requests; `VerificationApiTest` holds the API checks of the QA verification campaign ([docs/verification.md](docs/verification.md)). They use the test database in `MATRIZ_TEST_DB_URL`, load the demo data there with a fixed test password, and roll back every change.
 - `ClientConfigControllerTest` is a unit test without a database: it checks which `MATRIZ_API_BASE_URL` values are accepted or stop startup, and that an accepted value is safely encoded in `/config.js`.
+- `TaskTitleRuleTest` is a unit test of the task title rule, with no Spring and no database; it lives in `src/test/java/com/matriz/tasks`.
+- `AccessPolicyTest`, `RoleTest`, `TaskStatusRuleTest`, `TaskDescriptionRuleTest`, `TaskEntityTest`, `ApiExceptionTest`, `ApiExceptionHandlerTest`, `IdsTest`, `ProjectNameRuleTest`, `ProjectDescriptionRuleTest`, `ProjectDateOrderRuleTest`, `ProjectOwnerRuleTest`, `CommentBodyRuleTest`, `AssignmentRuleTest` and `TaskOwnerRuleTest` are also unit tests, with no Spring and no database.
+- `TaskIntegrationTest` sends real HTTP requests with a real sign-in, using the CSRF cookie and header; nothing is mocked. It commits its data in the `matriz_test` database, deletes the tasks it creates after each test, and leaves the demo data seeded. Run it alone with the variables below set in the environment (fictitious placeholders):
+
+```bash
+export MATRIZ_TEST_DB_URL="jdbc:postgresql://localhost:5432/matriz_test"
+export MATRIZ_DB_USER="matriz"
+export MATRIZ_DB_PASSWORD="<role password>"
+mvn test -Dtest=TaskIntegrationTest
+```
 
 ### Authentication
 
@@ -261,9 +271,9 @@ All demo data is fictitious. Every demo account uses the password you set in `MA
 |---|---|---|---|
 | Create a task for a project member | `ana@example.com` | `POST /projects/d0000000-0000-0000-0000-000000000001/tasks` with owner `c0000000-0000-0000-0000-000000000003` (Ben) | 201 |
 | Project in another workspace | `ben@example.com` | `POST /projects/d0000000-0000-0000-0000-000000000003/tasks` ("Lab inventory") | 404 |
-| Task in another workspace | `vera@example.com` | `PATCH /tasks/e0000000-0000-0000-0000-000000000005` | 404 |
+| Task in another workspace | `vera@example.com` | `PATCH /projects/d0000000-0000-0000-0000-000000000003/tasks/e0000000-0000-0000-0000-000000000005` (Lab inventory, Northwind Lab) | 404 |
 | Viewer is read-only | `vera@example.com` | `POST /projects/d0000000-0000-0000-0000-000000000001/tasks` | 403 |
-| Owner changes status | `ben@example.com` | `PATCH /tasks/e0000000-0000-0000-0000-000000000001` with `{"status":"Done"}` | 200 |
+| Owner changes status | `ben@example.com` | `PATCH /projects/d0000000-0000-0000-0000-000000000001/tasks/e0000000-0000-0000-0000-000000000001` with `{"status":"Done"}` | 200 |
 | Non-owner changes status | `ana@example.com` | the same request | 403 (provisional, PD-01) |
 | Owner not in the project | `ana@example.com` | `POST /projects/d0000000-0000-0000-0000-000000000002/tasks` with owner `c0000000-0000-0000-0000-000000000004` (Vera) | 422 |
 | Spoofed creator | `ben@example.com` | `POST /projects/d0000000-0000-0000-0000-000000000002/tasks` with `created_by_member_id` | 422 |

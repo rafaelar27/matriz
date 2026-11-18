@@ -73,7 +73,7 @@ public class AccessPolicy {
         }
     }
 
-    /** updateTaskStatus: who may change a task's status (FR-12, AC-11.1, AC-11.3, FR-05). */
+    /** updateTask: who may change a task's status (FR-12, AC-11.1, AC-11.3, FR-05). */
     public void checkChangeStatus(Actor actor, UUID taskOwnerMemberId) {
         if (actor.role() == Role.VIEWER) {
             // PROVISIONAL (PD-17): refused even when the Viewer owns the task.
