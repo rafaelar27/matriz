@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpSession;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.InternalAuthenticationServiceException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
@@ -73,6 +74,9 @@ class AuthController {
         try {
             result = authentication.authenticate(
                     UsernamePasswordAuthenticationToken.unauthenticated(body.email().trim(), body.password()));
+        } catch (InternalAuthenticationServiceException e) {
+            // The lookup itself failed (for example the database is down): not a credentials problem.
+            throw e;
         } catch (AuthenticationException e) {
             throw invalidCredentials();
         }
