@@ -245,3 +245,78 @@ The `security-auditor` agent audited the image on 2026-11-18 and found no Critic
 | S-05 | `.dockerignore` is now an allow-list (`*`, then `!pom.xml`, `!src/main/` and `!src/main/**`), with key, credential, `.env`, log and database patterns excluded even inside `src/main`. | The context probe lists only `pom.xml`, the application sources and the `V1`–`V4` migrations. With a temporary `.pem` file and a `.env` file placed under `src/main/resources`, neither reached the context (0 matches); both were deleted afterwards. | Pass |
 
 The image was rebuilt after S-01 (build exit 0, same workaround as above). At that moment `git status` listed only `Dockerfile`, `.dockerignore`, `compose.yaml`, `.github/workflows/ci.yml` and this file as uncommitted changes; `README.md` and `CHANGELOG.md` had been changed and committed earlier (see the Checks table).
+
+## Docker Compose
+
+> **Status:** run on 2026-11-18 in a Linux cloud container (Docker Engine 29.10.0 started by hand with `dockerd`, Compose v5.7.1), approved by the project decision-maker on 2026-11-18 (plan "yes", start `dockerd`, add `matriz-net`, keep `postgres:16-bookworm`). All accounts and data are fictitious; no password is recorded here. `.env` was created from `.env.example` with freshly generated values and is ignored by Git.
+
+### Services overview
+
+| Service | Image/Build | Port | Healthcheck | Volume |
+|---|---|---|---|---|
+| `db` | `postgres:16-bookworm` (official, pinned by tag and digest) | none published (5432 inside `matriz-net` only) | `pg_isready -U $POSTGRES_USER -d $POSTGRES_DB`, every 5 s | `matriz-db` at `/var/lib/postgresql/data` |
+| `app` | `build: .` (`Dockerfile`), image `matriz:local`; API and user interface in one process (AR-06) | `127.0.0.1:${MATRIZ_PORT:-8080}:8080` | `curl -fsS http://localhost:8080/config.js`, every 10 s, 30 s start period; waits for `db` healthy | none |
+| `seed` | same image, profile `seed`, `SPRING_PROFILES_ACTIVE=seed` | none | none (one-shot, `restart: "no"`); waits for `db` healthy | none |
+
+All three services use the dedicated network `matriz-net` (added in this task) and reach each other by service name (`db`). There is no separate frontend or proxy service because the architecture has none. No application change was needed: `GET /config.js` is open and serves as the readiness probe.
+
+### Commands executed and results
+
+| # | Command | Result |
+|---|---|---|
+| 1 | `docker compose config -q` | Exit 0 (valid). |
+| 2 | `docker compose build` (repository `Dockerfile`) | Failed. First, Docker Hub answered `429 Too Many Requests` on pulling the base images; retrying the three `docker pull` commands worked after a few minutes. Then Maven failed in the build stage: `PKIX path building failed`, because this sandbox's HTTPS proxy re-signs certificates and the Maven image does not trust its CA. This is a limit of the sandbox, not of `compose.yaml`. |
+| 3 | `docker compose -f compose.yaml -f <scratch override> build` | Succeeded, "Image matriz:local Built". The override (kept outside the repository, not committed) used a copy of the `Dockerfile` that only adds the sandbox truststore to Maven's options in the build stage. The runtime stage is identical to the repository's. |
+| 4 | `docker compose up -d --wait` | `db` Healthy, then `app` Healthy. Flyway applied 4 migrations (v4) on the empty database; "Started MatrizApplication in 8.734 seconds". |
+| 5 | `docker compose ps` | `app` Up (healthy) `127.0.0.1:8080->8080/tcp`; `db` Up (healthy) `5432/tcp` (not published). |
+| 6 | `docker compose run --rm seed`, run twice | First run: "Demo data: 37 new rows inserted". Second run: "Demo data: 0 new rows inserted". |
+| 7 | `docker compose logs --tail=50`, then a search of the full logs for `ERROR`, `FATAL`, `exception`, `panic` | No critical entry. Only the PostgreSQL `initdb` notice about "trust" authentication for local connections (see Limitations). |
+| 8 | `docker compose down` (no `-v`), then `docker compose up -d --wait` | Containers and network removed, volume `matriz_matriz-db` kept; stack Healthy again. |
+| 9 | `docker compose run --rm seed` after the restart, and once more | "Demo data: 0 new rows inserted" both times. |
+
+### Validation checks
+
+| Check | Expected | Observed | Status |
+|---|---|---|---|
+| `compose.yaml` is valid | `config -q` exits 0 | Exit 0 | Pass |
+| No credentials in `compose.yaml` | Values come from `.env` | Only `${...}` references; a search for password/secret/token found only a comment | Pass |
+| `.env` not versioned | Ignored by Git | `git check-ignore .env` prints `.env`; `git status` shows only `compose.yaml` | Pass |
+| Dedicated network and service names | `matriz-net`, host `db` | Network lists both containers; `getent hosts db` in `app` returns 172.18.0.2; the application connected through `jdbc:postgresql://db:5432/matriz` | Pass |
+| Only needed ports on the host | App only, on loopback | App on `127.0.0.1:8080`; connection to host port 5432 refused | Pass |
+| Healthchecks and start order | `db` healthy before `app`; all healthy | `up --wait` ended with both Healthy | Pass |
+| Non-root runtime | Not root | `id` in `app`: uid 10001 (`matriz`) | Pass |
+| Application reachable | Page and config served | `GET /` 200 `text/html`; `GET /config.js` returns the client configuration | Pass (curl) |
+| Frontend → API → database | Sign-in and data work | See the next four rows | Pass (API) |
+| Sign in with a demo account | Session started | `ana@example.com`: CSRF 204, sign-in 200, `/auth/me` shows her memberships | Pass |
+| Create a project | 201 | Project "Compose check project" created in "Acme Studio" | Pass |
+| Create a task | 201 | "Compose check task" created | Pass |
+| Assign a user | 201 | Assigning "Ben Demo" returned 422 ("Only active members of this project can be assigned", a documented rule: a new project has only its creator). Assigning "Ana Demo", the only eligible member, returned 201. | Pass (with the rule noted) |
+| Add a comment | 201 | Comment created and listed | Pass |
+| Persistence after `down` / `up` | Data remains | The project, assignee and comment were read back after the restart | Pass |
+| Seed does not duplicate | Counts unchanged | Table counts before and after a further seed are identical: account 7, workspace 3, member 9, project 4, project_member 8, task 6, task_assignee 1, comment 4 | Pass |
+| No unresolved critical errors in logs | None | None found | Pass |
+| Use in a real browser | Page renders and works | Not verified: no browser run in this task; the checks above used curl | Not verified |
+
+### Problems found and fixes
+
+| Problem | Fix |
+|---|---|
+| No Docker daemon in the container | Started `dockerd` manually (approved). |
+| Docker Hub unauthenticated pull limit (429) | Pulled the three base images one by one, repeating until each succeeded. |
+| Maven could not verify the sandbox proxy's certificate during the image build | Used a scratch override with the sandbox truststore, outside the repository. The repository's `Dockerfile` was not changed. Not needed on a normal machine or in CI. |
+| Compose used only the implicit default network | Added the named network `matriz-net` to all three services and a comment on the pinned image (`compose.yaml`). |
+| My first helper script wrote two small ID files to `/` of the container (`/pid`, `/ws`) | `/pid` was moved away; `/ws` is still there. Removing it was blocked by a safety check and was not done. It is outside the repository and harmless. |
+
+### Limitations and pending items
+
+- The image was built with the scratch override (row 3), so the repository `Dockerfile` itself was not built successfully in this environment; CI (`.github/workflows/ci.yml`) is its normal build path.
+- The user interface was not driven in a browser, and the Playwright test was not run.
+- The `app` and `seed` services share the tag `matriz:local`; `docker compose build` builds it twice from the same cache.
+- The PostgreSQL image's first start logs the standard `initdb` notice about "trust" authentication for local connections. The database is not published, and the role password comes from `.env`.
+- The `postgres` image is pinned by tag and digest (on `master`, after this run), so it does not follow minor releases. The full validation above ran before the `security_opt` / `cap_drop` hardening from `master` was merged. After the merge only a short re-check was run (`up -d --wait`: both services healthy; reseed: 0 new rows; earlier project and assignee still present; no errors in logs). Hosting, backup and availability remain pending (TD-02, TD-05, TD-06).
+
+### Proposed documentation updates for Exercise 05 (not applied)
+
+- **README.md, "Run with Docker":** replace the last bullet, "Not verified in this repository's container: building the image and running Compose need a Docker daemon", with a pointer to this section. Add that the stack uses the network `matriz-net`, that assigning a user needs that user to be an active project member, and that Docker Hub's pull limit or a TLS-intercepting proxy can make the first build fail.
+- **docs/architecture.md, "Technology stack":** mention the explicit network `matriz-net` in the Docker Compose row.
+- **CHANGELOG.md:** add a line for the `matriz-net` network.
