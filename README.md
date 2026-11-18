@@ -180,6 +180,28 @@ E2E_USER_EMAIL=ana@example.com E2E_USER_PASSWORD="<demo password>" npx playwrigh
 
 Warning: `mvn verify` overwrites the demo accounts' passwords with its own test password, and seeding again inserts nothing and does not restore them. Use a fresh database, and do not run `mvn verify` between seeding and the end-to-end run.
 
+### Run with Docker
+
+Alternative to steps 1 to 5: Docker with the Compose plugin runs PostgreSQL 16 and the application in containers; no local JDK, Maven or PostgreSQL is needed. Commands run from the repository root.
+
+```bash
+cp .env.example .env        # then replace MATRIZ_DB_PASSWORD and MATRIZ_DEMO_PASSWORD (never commit .env)
+docker compose up -d --build --wait
+docker compose run --rm seed
+```
+
+- The application is at <http://localhost:8080> (or your `MATRIZ_PORT`), reachable from this computer only (the port is bound to `127.0.0.1`). The session cookie is not marked Secure (`MATRIZ_COOKIE_SECURE=false`), which is safe only over localhost; do not expose this stack on a network without HTTPS (TD-02, TD-03). Flyway applies pending migrations at startup. `MATRIZ_DB_URL` in `.env` is ignored by Compose, which connects to its own `db` service; the database is not published on the host.
+- Changing `MATRIZ_DB_PASSWORD` after the first start does not change the role in the existing database volume, and the application then cannot sign in to the database. To reset it, run `docker compose down -v`, which **deletes the database and cannot be undone**.
+- `docker compose run --rm seed` loads the demo data. It is idempotent and never deletes data, so it can be run again.
+- `docker compose down` stops the containers and keeps the data (named volume `matriz-db`). `docker compose down -v` also **deletes the database and cannot be undone**.
+- The healthcheck of `app` calls `GET /config.js`, which needs no session.
+- The image is built from the `Dockerfile` (Maven and Eclipse Temurin 21 build stage, JRE runtime stage, non-root user). It contains no `.env` and no secrets; configuration is passed as environment variables at run time.
+- Not verified in this repository's container: building the image and running Compose need a Docker daemon.
+
+### Continuous integration
+
+`.github/workflows/ci.yml` runs on every `push` and `pull_request` with read-only permissions: `test` (`mvn verify` against a PostgreSQL 16 service container, using throwaway credentials), then `docker` (image build, not published) and `e2e` (Compose stack, seed, Playwright), both only after `test` passes.
+
 ### Authentication
 
 Matriz uses a **server-side session cookie** (TD-03, decided 2026-11-12). The API contract is in [openapi.yaml](openapi.yaml).

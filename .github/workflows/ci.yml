@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Tests (mvn verify)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-bookworm
+        env:
+          # Throwaway credentials for a disposable service container; not repository secrets.
+          POSTGRES_USER: matriz
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: matriz_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U matriz -d matriz_test"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      # DatabaseSetupTest reads MATRIZ_DB_URL; the "test" profile reads MATRIZ_TEST_DB_URL. Both: the test database.
+      MATRIZ_DB_URL: jdbc:postgresql://localhost:5432/matriz_test
+      MATRIZ_TEST_DB_URL: jdbc:postgresql://localhost:5432/matriz_test
+      MATRIZ_DB_USER: matriz
+      MATRIZ_DB_PASSWORD: ci-only-password
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - run: mvn -B verify
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: surefire-and-jacoco
+          path: |
+            target/surefire-reports
+            target/site/jacoco
+          if-no-files-found: ignore
+
+  docker:
+    name: Docker image build
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build image (not pushed)
+        run: docker build -t matriz:ci .
+
+  e2e:
+    name: End-to-end (Playwright)
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      # Fictitious values for a disposable stack.
+      MATRIZ_DB_USER: matriz
+      MATRIZ_DB_PASSWORD: ci-only-password
+      MATRIZ_DEMO_PASSWORD: ci-only-demo-password
+      E2E_USER_EMAIL: ana@example.com
+      E2E_USER_PASSWORD: ci-only-demo-password
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Start the stack and load demo data
+        run: |
+          printf 'MATRIZ_DB_USER=%s\nMATRIZ_DB_PASSWORD=%s\nMATRIZ_DEMO_PASSWORD=%s\n' \
+            "$MATRIZ_DB_USER" "$MATRIZ_DB_PASSWORD" "$MATRIZ_DEMO_PASSWORD" > .env
+          docker compose up -d --build --wait
+          docker compose run --rm seed
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+      - name: Run Playwright
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: e2e/playwright-report
+          if-no-files-found: ignore
+      - name: Show logs and stop the stack
+        if: always()
+        run: |
+          docker compose logs --no-color app || true
+          docker compose down -v

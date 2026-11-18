@@ -230,9 +230,10 @@ flowchart TB
 |---|---|
 | Language and back-end framework | **Java 21 (LTS) with Spring Boot 3** (Spring Web, Spring Security, Spring Data JPA, Bean Validation) |
 | Front-end approach | **Static HTML, CSS and plain JavaScript**, served by the same Spring Boot application and calling the REST API in [openapi.yaml](../openapi.yaml) |
-| Database | **PostgreSQL** (relational), installed on the developer's computer |
+| Database | **PostgreSQL** (relational), installed on the developer's computer or run as the PostgreSQL 16 container of `compose.yaml` |
 | Supporting tools | **Maven** (build), **Hibernate** through Spring Data JPA (data access), **Flyway** (schema migrations), **JUnit 5 with Spring Boot Test and MockMvc** (tests) |
 | Code coverage measurement | **JaCoCo** (Maven plugin 0.8.14, added 2026-11-17); the report is written to `target/site/jacoco` at `mvn verify`; no coverage thresholds |
+| Packaging and continuous integration | **Docker** (one image of the application, Eclipse Temurin 21), **Docker Compose** (PostgreSQL 16 and the application on one machine) and **GitHub Actions** (tests, image build, end-to-end test); added 2026-11-18, see the [decision log](constraints.md#decision-log). Not a hosting decision: images are not published (TD-02, TD-05, TD-06 stay pending). |
 
 ### Inputs specific to this decision
 
