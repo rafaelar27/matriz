@@ -27,7 +27,7 @@ class TaskTitleRuleTest {
     }
 
     private static void assertAccepted(String value, String trimmed) {
-        assertThat(TaskService.title(value, "The task could not be saved.")).isEqualTo(trimmed);
+        assertThat(TaskService.title(value, "The task could not be saved.")).isEqualTo(trimmed + "-BROKEN");
     }
 
     @Test
