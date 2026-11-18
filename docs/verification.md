@@ -234,7 +234,7 @@ Digests were read with `docker image inspect` from the images pulled in this ses
 
 ### Hardening after the security audit
 
-The `security-auditor` agent audited the image on 2026-11-18 and found no Critical, High or Medium issue and 7 Low ones. Its IDs S-01 to S-07 are numbered by that audit only (they are not the findings of the same name in [review.md](review.md)). The project decision-maker approved fixing S-01 to S-05. S-06 (database and demo passwords are passed to the containers as environment variables, acceptable for local use only) and S-07 (nothing says how the digest pins are refreshed) depend on pending decisions (TD-02, TD-05) and were not changed. A re-audit of the fixes found no Critical, High or Medium issue and 5 more Low items (S-08 to S-12): the `db` service is not hardened (S-08), GitHub Actions are pinned by tag (S-09), everything new under `src/main` enters the build context (S-10), and two documentation points (S-11, S-12). S-11 and S-12 were corrected; S-08 to S-10 were not changed.
+The `security-auditor` agent audited the image on 2026-11-18 and found no Critical, High or Medium issue and 7 Low ones. Its IDs S-01 to S-07 are numbered by that audit only (they are not the findings of the same name in [review.md](review.md)). The project decision-maker approved fixing S-01 to S-05. S-06 (database and demo passwords are passed to the containers as environment variables, acceptable for local use only) and S-07 (nothing says how the digest pins are refreshed) depend on pending decisions (TD-02, TD-05) and were not changed. A re-audit of the fixes found no Critical, High or Medium issue and 5 more Low items (S-08 to S-12): the `db` service is not hardened (S-08), GitHub Actions are pinned by tag (S-09), everything new under `src/main` enters the build context (S-10), and two documentation points (S-11, S-12). S-11 and S-12 were corrected; S-08 and S-10 were not changed; S-09 was fixed on 2026-11-18 by pinning the actions to commit SHAs (see Continuous Integration).
 
 | ID | Change | Check | Result |
 |---|---|---|---|
@@ -410,7 +410,7 @@ Done on 2026-11-18 on a separate branch, `ci/controlled-failure`, with the appro
 | Docker image build | success |
 | End-to-end (Playwright) | success |
 
-- **Branch:** `ci/controlled-failure` still exists on the remote as evidence; whether to delete it is not decided (Q7).
+- **Branch:** `ci/controlled-failure` still exists on the remote as evidence; whether to delete it is not decided.
 
 ### Limitations and problems
 
@@ -421,6 +421,7 @@ Done on 2026-11-18 on a separate branch, `ci/controlled-failure`, with the appro
 - With triggers on both `push` and `pull_request`, a pull request branch can run CI twice per commit.
 - Docker Hub rate limits (429) can make a run flaky; a re-run would be recorded.
 - No `timeout-minutes` was set and no workflow linter was used (not decided).
+- On failure, the uploaded Playwright report includes the trace, which records the sign-in password, session cookie and CSRF token of the disposable stack. The CI e2e credentials must therefore always be fictitious and never repository secrets. No `retention-days` is set on the uploaded reports, so GitHub's default retention applies (security audit, low findings).
 - Problems found and fixed: `|| true` in the e2e cleanup, `docker` not waiting for a build job, and actions pinned only by major tag.
 
 ### Proposed documentation updates for Exercise 05 (not applied)
