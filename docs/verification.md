@@ -315,7 +315,9 @@ All three services use the dedicated network `matriz-net` (added in this task) a
 - The PostgreSQL image's first start logs the standard `initdb` notice about "trust" authentication for local connections. The database is not published, and the role password comes from `.env`.
 - The `postgres` image is pinned by tag and digest (on `master`, after this run), so it does not follow minor releases. The full validation above ran before the `security_opt` / `cap_drop` hardening from `master` was merged. After the merge only a short re-check was run (`up -d --wait`: both services healthy; reseed: 0 new rows; earlier project and assignee still present; no errors in logs). Hosting, backup and availability remain pending (TD-02, TD-05, TD-06).
 
-### Proposed documentation updates for Exercise 05 (not applied)
+### Proposed documentation updates for Exercise 05 (applied 2026-11-18)
+
+> **Applied on 2026-11-18**, approved by the project decision-maker: README.md ("Run with Docker"), docs/architecture.md (Technology stack) and CHANGELOG.md were updated. The README bullet quoted below had already been rewritten before this update, so the README edit replaced its current last bullet instead. The original proposal is kept below for the record.
 
 - **README.md, "Run with Docker":** replace the last bullet, "Not verified in this repository's container: building the image and running Compose need a Docker daemon", with a pointer to this section. Add that the stack uses the network `matriz-net`, that assigning a user needs that user to be an active project member, and that Docker Hub's pull limit or a TLS-intercepting proxy can make the first build fail.
 - **docs/architecture.md, "Technology stack":** mention the explicit network `matriz-net` in the Docker Compose row.
