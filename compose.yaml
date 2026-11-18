@@ -8,8 +8,8 @@
 
 services:
   db:
-    # Official image, pinned to major version 16 and Debian release (approved: no minor pin).
-    image: postgres:16-bookworm
+    # Official image, pinned by tag and digest.
+    image: postgres:16-bookworm@sha256:a49f7438ba03589f9b1ca062f2da82e899b48ea1dc50d2449fa09a70be83ebca
     environment:
       POSTGRES_USER: ${MATRIZ_DB_USER:?set MATRIZ_DB_USER in .env}
       POSTGRES_PASSWORD: ${MATRIZ_DB_PASSWORD:?set MATRIZ_DB_PASSWORD in .env}
@@ -52,6 +52,11 @@ services:
       start_period: 30s
     networks: [matriz-net]
     restart: unless-stopped
+    # The application needs no extra privileges: it listens on 8080 as a non-root user.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
   # One-shot demo data. Not started by "up"; run it with: docker compose run --rm seed
   seed:
@@ -68,6 +73,11 @@ services:
       MATRIZ_DEMO_PASSWORD: ${MATRIZ_DEMO_PASSWORD:-}
     networks: [matriz-net]
     restart: "no"
+    # The seed command needs no extra privileges; it runs as a non-root user and exits when done.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
 # Dedicated network: services reach each other by service name (db, app).
 networks:
