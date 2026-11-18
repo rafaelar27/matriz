@@ -521,6 +521,12 @@ Selector strategy: roles, labels and visible text only; no `data-testid`, no CSS
 | Tester, guard: `E2E_BASE_URL=http://example.invalid:8080` (observed 2026-11-18) | `npx playwright test` | Failed fast with `E2E_BASE_URL host "example.invalid" is not localhost or 127.0.0.1; this test creates and deletes data. Set E2E_ALLOW_NON_LOCAL=1 to allow it.` and no navigation | Not recorded |
 | Tester, guard: same with `E2E_ALLOW_NON_LOCAL=1` (observed 2026-11-18) | `npx playwright test` | Got past the guard and failed at `page.goto` with `net::ERR_NAME_NOT_RESOLVED` | Not recorded |
 | Tester, two further normal runs (observed 2026-11-18) | `npx playwright test` | Both passed | 5 tasks; 0 stray |
+| Tester, after R-02/R-03, run 1 (observed 2026-11-18; fresh `matriz_test`, seed 37 rows, `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`; spec after the review fixes: columns located by header text, project link scoped to the Projects region without `.first()`, `afterEach` re-opens the project and fails with `created task not found for cleanup: <title>` if the row is missing) | `npx playwright test` | 1 passed (2.0 s) | 5 tasks; 0 stray |
+| Tester, after R-02/R-03, run 2 (observed 2026-11-18; same environment) | `npx playwright test` | 1 passed (1.4 s) | 5 tasks; 0 stray |
+| Tester, after R-02/R-03, negative check (observed 2026-11-18; same environment; the due-date assertion was temporarily set to the literal `'2026-12-02'`, then reverted by hand and verified with `diff`) | `npx playwright test` | Failed as expected: Expected "2026-12-02", Received "2026-12-01". Cleanup still ran | 5 tasks; 0 stray |
+| Type check after R-02/R-03 (observed 2026-11-18; run by the tester and by the main session) | `npx --no-install tsc --noEmit -p .` from `e2e/` | Exit code 0 | Not applicable |
+
+A first negative attempt that changed the shared `DUE_DATE` constant still passed, because the form fill used the same constant. It was not a valid check and was reverted.
 
 The temporary breaks in failure checks (a) and (b) were reverted (the spec was restored) and not committed.
 
@@ -538,6 +544,8 @@ No application defect and no test problem. Before the config change, none occurr
 - A run as a non-root user (the `--no-sandbox` branch for non-root is not exercised), and macOS.
 - `npx playwright install chromium`: the download is blocked in this container, so the standard install route is not confirmed here.
 - A type check of the spec with `@types/node`. A standalone `tsc` shows only the missing `@types/node` for `process`; it was not added.
+- The `created task not found for cleanup` failure path of the `afterEach` was not triggered.
+- A column reorder in the UI was not exercised.
 
 ### Documentation updates
 
