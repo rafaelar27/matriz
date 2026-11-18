@@ -298,7 +298,7 @@ Tests per class (identical in runs 1 and 2): `ClientConfigControllerTest` 16, `A
 
 Four of the TU-06 title values were already partly asserted by `VerificationApiTest.case04UpdateRefusesInvalidTitles`, which checks only the title column; plain `"ab"` on `PATCH` and the full-row check are new.
 
-**Bugs found:** None. Nothing was changed in production code, migrations or the contract in this increment, including the second coverage run.
+**Bugs found (Coverage increment and second coverage run):** None. Nothing was changed in production code, migrations or the contract in this increment, including the second coverage run.
 
 **Not verified / not covered**
 
@@ -313,7 +313,7 @@ Four of the TU-06 title values were already partly asserted by `VerificationApiT
 
 **Environment.** Database `matriz_test` on the local PostgreSQL 16 cluster, with the same environment-variable setup as in [Environment setup](#environment-setup); the variables are set in the shell only and nothing secret is written here. Coverage is measured with JaCoCo (`jacoco-maven-plugin` 0.8.14; goals `prepare-agent` and `report`, no `check` goal, no thresholds, no exclusions). The report is written to `target/site/jacoco` by `mvn verify`. A later Surefire `<argLine>` must contain `@{argLine}`, otherwise the JaCoCo agent is not attached and coverage silently reads 0%. (No `argLine` exists today, so coverage works.)
 
-Expected results of the new unit tests come from `openapi.yaml` (0.7.0-draft), [requirements.md](requirements.md), [user-stories.md](user-stories.md), [database.md](database.md), the [decision log](constraints.md#decision-log) and this plan. Cells that depend on PD-01, PD-03, PD-17 or PD-20 are marked prov. The tests assert status and error code, never message text (A7). They use no Spring, no database and no mocking library, and no dependency or production code was added or changed for them.
+Expected results of the new unit tests come from `openapi.yaml` (0.7.0-draft), [requirements.md](requirements.md), [user-stories.md](user-stories.md), [database.md](database.md), the [decision log](constraints.md#decision-log) and this plan. Cells that depend on PD-01, PD-03, PD-17 or PD-20 are marked prov. The tests assert status and error code, never message text (A7). They use no Spring, no database and no mocking library, and no dependency or production code was added or changed for them (INC-09).
 
 ### Coverage before and after
 
@@ -453,7 +453,7 @@ Not asserted on purpose (open or undocumented): `name: null`, whether the stored
 
 ### Bugs found
 
-None. Nothing was changed in production code, migrations or the contract.
+None found in INC-10. Production code WAS changed in INC-10 (a behaviour-preserving extraction in four service files in `src/main`, commit b92e516); nothing was changed in migrations or the contract.
 
 ### Not verified
 
