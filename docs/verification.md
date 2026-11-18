@@ -167,7 +167,7 @@ Digests were read with `docker image inspect` from the images pulled in this ses
 |---|---|---|
 | 1 | `docker pull` of the three base images | Failed first: `429 Too Many Requests` from Docker Hub (anonymous pull limit on the session's shared address); repeated after 5 s with the same result. See Problems. |
 | 2 | Daemon restarted with `registry-mirrors: ["https://mirror.gcr.io"]`, then the three `docker pull` commands | All three pulled. |
-| 3 | Build-context probe: `docker build -f <probe Dockerfile> --no-cache .` (copies the context to `/ctx` and lists it) | Context 225 kB; contains only `pom.xml` and `src/main`. `db/migration` holds `V1` to `V4` (`.sql` kept). No `.env*`, `.git*` or `*.log` file (count 0). |
+| 3 | Build-context probe: `docker build -f <probe Dockerfile> --no-cache .` (copies the context to `/ctx` and lists it) | First pass (the earlier deny-list `.dockerignore`; the allow-list is checked under [Hardening after the security audit](#hardening-after-the-security-audit)): context 225 kB; contains only `pom.xml` and `src/main`. `db/migration` holds `V1` to `V4` (`.sql` kept). No `.env*`, `.git*` or `*.log` file (count 0). |
 | 4 | `docker build -t matriz:0.1.0-SNAPSHOT -t matriz:local .` | Failed at `mvn dependency:go-offline`: `PKIX path building failed` for `repo.maven.apache.org`. See Problems. |
 | 5 | Same build with a verification-only build stage: the pinned maven image plus the session's Java truststore, substituted with `--build-context` | Built (74 s, exit 0). Dependency layer built once; a second build showed every layer `CACHED`. |
 | 6 | `docker images` and `docker image inspect matriz:local` | 519 MB; `User=matriz`; `ExposedPorts={"8080/tcp":{}}`; `Entrypoint=["java","-jar","/app/app.jar"]`. |
@@ -193,7 +193,7 @@ Digests were read with `docker image inspect` from the images pulled in this ses
 | Base images official and pinned | Tag plus digest in both `FROM` lines | Both `FROM` lines have tag and `@sha256` digest | Pass |
 | Multi-stage; runtime image has no build tools | No Maven, `javac` or sources in the final image | `no-build-tools`; `/app` holds only `app.jar` | Pass |
 | Dependencies resolved from the pinned `pom.xml`, before the sources | Separate layer before `COPY src`; cached on rebuild | Layer order as expected; second build all `CACHED` | Pass (see Limitations: no Maven lock file) |
-| Build context | No secrets, `.git`, `target`, logs, tests, docs, IDE files; `pom.xml` and migrations present | As expected (step 3) | Pass |
+| Build context | No secrets, `.git`, `target`, logs, tests, docs, IDE files; `pom.xml` and migrations present | As expected (step 3; re-checked with the allow-list in the hardening section) | Pass |
 | Image builds with clear names and tags | `matriz:0.1.0-SNAPSHOT` and `matriz:local` | Built; sizes in the table above | Pass (with the build-stage workaround, see Problems) |
 | No secret in the image | No `MATRIZ_*`, password, token or `.env` in config, history, filesystem or jar | None found (step 16) | Pass |
 | Non-root | `uid=10001(matriz)` | `uid=10001(matriz) gid=10001(matriz)` | Pass |
@@ -208,7 +208,8 @@ Digests were read with `docker image inspect` from the images pulled in this ses
 | Restart ends sessions (TD-03); data kept while the database lives (NFR-03) | Old cookie 401 `session_expired`; 3 projects after sign-in | As expected | Pass |
 | Configuration only from the environment | Start without the password stops | Exit 1 (authentication failure) | Pass |
 | Logs free of secrets | Fictitious passwords not found | 0 matches | Pass |
-| Only allowed files changed | `Dockerfile`, `.dockerignore`, this file | As expected | Pass |
+| Only allowed files changed | First pass: `Dockerfile`, `.dockerignore`, this file | As expected | Pass |
+| Files changed after approval | `README.md` and `CHANGELOG.md` (documentation updates, commit `21fb403`); `compose.yaml` and `.github/workflows/ci.yml` (S-02, S-03 hardening, see the hardening section) | As expected | Pass |
 
 ### Problems and fixes
 
@@ -229,7 +230,7 @@ Digests were read with `docker image inspect` from the images pulled in this ses
 - **`docker inspect` of a running container shows its run-time environment.** Only fictitious values were used for that reason.
 - **The temporary database was not durable** (removed after the checks), so NFR-03 was checked only across an application restart.
 - **Not run:** the Playwright test, browser checks, the README's Windows and PowerShell steps, and a build on a different machine.
-- **Proposed documentation updates (not applied; outside the files allowed for this exercise):** the last bullet of "Run with Docker" in `README.md` says the image build is not verified, which is out of date; and `CHANGELOG.md` could note the `.dockerignore` extension and the base-image pinning.
+- **Documentation updates applied after approval:** the last bullet of "Run with Docker" in `README.md` and the "Changed" entries in `CHANGELOG.md` (commit `21fb403`). The hardening of 2026-11-18 is noted in `CHANGELOG.md` as well.
 
 ### Hardening after the security audit
 
