@@ -18,7 +18,7 @@ import org.springframework.http.HttpStatus;
 import com.matriz.shared.ApiException;
 
 /**
- * Assignment request rules as pure logic (INC-10; US-29; FR-22, BR-22, AC-29.3). No Spring context, no database.
+ * Assignment request rules as pure logic (INC-10; US-29; FR-22, BR-22; AC-29.3 for the repeat rule only). No Spring context, no database.
  * Expected (openapi assignTask "Rules, checked in this order"): 1 to 20 member ids, else 422 validation_failed on
  * member_ids; the same member twice in one request is 409 conflict on member_ids. Membership lookups, eligibility
  * and check order are not tested here.
@@ -41,37 +41,37 @@ class AssignmentRuleTest {
                 });
     }
 
-    @Test
-    @DisplayName("AC-29.3, BR-22 · a missing or empty member_ids list is refused 422 validation_failed on member_ids")
-    void emptyRefused() {
-        assertCountRefused(null);
-        assertCountRefused(new ArrayList<>());
+    @ParameterizedTest(name = "[{index}] {0}")
+    @ValueSource(strings = {"null list", "empty list"})
+    @DisplayName("FR-22, BR-22 · a missing or empty member_ids list is refused 422 validation_failed on member_ids")
+    void emptyRefused(String which) {
+        assertCountRefused(which.equals("null list") ? null : new ArrayList<>());
     }
 
     @ParameterizedTest
     @ValueSource(ints = {1, 20})
-    @DisplayName("AC-29.3, BR-22 · 1 and 20 member ids are accepted")
+    @DisplayName("FR-22, BR-22 · 1 and 20 member ids are accepted")
     void boundsAccepted(int count) {
         assertThatCode(() -> AssignmentService.requireCount(ids(count))).doesNotThrowAnyException();
     }
 
     @Test
-    @DisplayName("AC-29.3, BR-22 · 21 member ids are refused 422 validation_failed on member_ids")
+    @DisplayName("FR-22, BR-22 · 21 member ids are refused 422 validation_failed on member_ids")
     void overMaxRefused() {
         assertCountRefused(ids(21));
     }
 
-    @Test
-    @DisplayName("FR-22, BR-22 · the same member twice in one request is refused 409 conflict on member_ids")
-    void repeatRefused() {
-        for (List<UUID> list : List.of(List.of(X, X), List.of(X, Y, X))) {
-            assertThatThrownBy(() -> AssignmentService.requireNoRepeats(list, id -> "Fictitious Member"))
-                    .isInstanceOfSatisfying(ApiException.class, e -> {
-                        assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT);
-                        assertThat(e.error().code()).isEqualTo("conflict");
-                        assertThat(e.error().details()).extracting(d -> d.field()).contains("member_ids");
-                    });
-        }
+    @ParameterizedTest(name = "[{index}] {0}")
+    @ValueSource(strings = {"X,X", "X,Y,X"})
+    @DisplayName("FR-22, BR-22, AC-29.3 · the same member twice in one request is refused 409 conflict on member_ids")
+    void repeatRefused(String which) {
+        List<UUID> list = which.equals("X,X") ? List.of(X, X) : List.of(X, Y, X);
+        assertThatThrownBy(() -> AssignmentService.requireNoRepeats(list, id -> "Fictitious Member"))
+                .isInstanceOfSatisfying(ApiException.class, e -> {
+                    assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(e.error().code()).isEqualTo("conflict");
+                    assertThat(e.error().details()).extracting(d -> d.field()).contains("member_ids");
+                });
     }
 
     @Test

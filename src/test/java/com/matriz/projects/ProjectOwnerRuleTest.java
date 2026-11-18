@@ -11,7 +11,7 @@ import org.springframework.http.HttpStatus;
 import com.matriz.shared.ApiException;
 
 /**
- * Project owner presence rule as pure logic (INC-10; US-05; FR-06, BR-23). No Spring context, no database.
+ * Project owner presence rule as pure logic (INC-10; US-06, US-24; FR-06, BR-23). No Spring context, no database.
  * Expected (openapi createProject/updateProject): owner_member_id cannot be null, else 422 validation_failed on
  * owner_member_id. Whether the member exists or belongs to the workspace is not checked here.
  */

@@ -11,7 +11,7 @@ import org.springframework.http.HttpStatus;
 import com.matriz.shared.ApiException;
 
 /**
- * Project description rule as pure logic (INC-10; US-05; FR-06). No Spring context, no database.
+ * Project description rule as pure logic (INC-10; US-06, US-24; FR-06). No Spring context, no database.
  * Expected (openapi createProject/updateProject): at most 1000 characters, else 422 validation_failed on description;
  * null clears an optional field. The empty string is undocumented and not tested.
  */

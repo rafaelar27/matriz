@@ -12,7 +12,7 @@ import org.springframework.http.HttpStatus;
 import com.matriz.shared.ApiException;
 
 /**
- * Project name rule as pure logic (INC-10; US-05; FR-06, AC-10.3, EC-08). No Spring context, no database.
+ * Project name rule as pure logic (INC-10; US-06, US-24; FR-06, BR-21). No Spring context, no database.
  * Expected (openapi createProject/updateProject "Rules checked (422)"): trimmed, 3 to 100 characters; otherwise
  * 422 validation_failed on field name. The returned trimmed value is not asserted (PQ4 open).
  */
@@ -29,7 +29,7 @@ class ProjectNameRuleTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"", "   "})
-    @DisplayName("FR-06, EC-08 · an empty or spaces-only project name is refused 422 validation_failed on name")
+    @DisplayName("FR-06, BR-21 · an empty or spaces-only project name is refused 422 validation_failed on name")
     void emptyRefused(String value) {
         assertRefused(value);
     }

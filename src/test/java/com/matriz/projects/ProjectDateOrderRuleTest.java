@@ -8,12 +8,14 @@ import java.time.LocalDate;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpStatus;
 
 import com.matriz.shared.ApiException;
 
 /**
- * Project date order rule as pure logic (INC-10; US-05; FR-06, BR-21). No Spring context, no database.
+ * Project date order rule as pure logic (INC-10; US-06, US-24; FR-06, BR-21). No Spring context, no database.
  * Expected: when both dates are given, the start date is not after the due date; otherwise 422 validation_failed on
  * field due_date. A single date, or none, is accepted.
  */
@@ -44,13 +46,12 @@ class ProjectDateOrderRuleTest {
         assertThatCode(() -> ProjectService.requireDateOrder(DAY.minusDays(1), DAY)).doesNotThrowAnyException();
     }
 
-    @Test
+    @ParameterizedTest(name = "[{index}] {0}")
+    @ValueSource(strings = {"only start", "only due", "neither"})
     @DisplayName("BR-21 · with only one date, or none, the order is not checked")
-    void singleOrNoDateAccepted() {
-        assertThatCode(() -> {
-            ProjectService.requireDateOrder(DAY, null);
-            ProjectService.requireDateOrder(null, DAY);
-            ProjectService.requireDateOrder(null, null);
-        }).doesNotThrowAnyException();
+    void singleOrNoDateAccepted(String which) {
+        LocalDate start = which.equals("only start") ? DAY : null;
+        LocalDate due = which.equals("only due") ? DAY : null;
+        assertThatCode(() -> ProjectService.requireDateOrder(start, due)).doesNotThrowAnyException();
     }
 }
