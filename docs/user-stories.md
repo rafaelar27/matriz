@@ -27,7 +27,7 @@
 | US-19 | **As a** Viewer, **I want** to see all of the workspace's projects and tasks without being able to change them, **so that** I can follow progress without risk of accidental edits. |
 | US-20 | **As a** Team Member, **I want** to send feedback from inside Matriz, **so that** I can report a problem or suggest an improvement. |
 | US-21 | **As a** Team Member, **I want** to request a copy or the deletion of my personal data, **so that** my data-protection rights are respected. |
-| US-22 | **As a** Team Member, **I want** to create a personal account, **so that** I can sign in and take part in a workspace. *(Sign-up method: TD-03.)* |
+| US-22 | **As a** Team Member, **I want** to create a personal account, **so that** I can sign in and take part in a workspace. *(Sign-up decided 2026-11-18. Pending: email verification, PD-25; password reset, PD-26.)* |
 | US-23 | **As a** Project Manager, **I want** to invite a colleague to the workspace by email address, **so that** they can join the work I am organizing. *(Roles a Project Manager may give: PD-02.)* |
 | US-24 | **As a** Project Manager, **I want** to edit a project's name, description, owner, start date and due date, **so that** the project reflects current plans. |
 | US-25 | **As a** Team Member, **I want** to edit a task, **so that** its details stay correct. *(Who may edit which tasks: PD-01.)* |
@@ -49,7 +49,7 @@ Each story takes the priority of its primary functional requirement. US-19 trace
 
 ## Acceptance criteria
 
-Every story is in the MVP. The seven stories US-03, US-10, US-11, US-13, US-17, US-18 and US-19 carry the core value and have Given / When / Then criteria. US-15 has criteria since 2026-11-12. US-23 to US-28 have criteria for the parts of FR-03, FR-06, FR-08 and FR-09 that are already decided. US-22 has none yet, because the sign-up method is pending (TD-03). Names (Ana, Ben, Carla) and dates are test data. "Today" means the date the test is run.
+Every story is in the MVP. The seven stories US-03, US-10, US-11, US-13, US-17, US-18 and US-19 carry the core value and have Given / When / Then criteria. US-15 has criteria since 2026-11-12. US-23 to US-28 have criteria for the parts of FR-03, FR-06, FR-08 and FR-09 that are already decided. US-22 has criteria since 2026-11-18, when the sign-up method was decided. Names (Ana, Ben, Carla) and dates are test data. "Today" means the date the test is run.
 
 ### US-03: Invite a member with a role
 
@@ -110,6 +110,18 @@ Every story is in the MVP. The seven stories US-03, US-10, US-11, US-13, US-17, 
 - **AC-19.2 (permission):** **Given** I am a Viewer, **when** I open any project or task in W, **then** no options are available to create, edit, delete or archive projects or tasks, change a task's status or owner, or add a comment.
 - **AC-19.3 (progress visible):** **Given** I am a Viewer and project P shows "2 of 8 tasks done" to its Project Manager, **when** I view P in the project list, **then** I see the same "2 of 8 tasks done".
 
+### US-22: Create a personal account
+
+- **AC-22.1 (success):** **Given** I am not signed in, no account has the email `nia@example.com`, and I am on the sign-up form, which shows the privacy notice and no consent checkbox, **when** I enter the name "Nia Newcomer", that email and a fictitious password of 12 to 64 characters and submit, **then** an account is created and I am signed in at once, with a new session and a new security token, and the first screen is the welcome message (AC-22.8).
+- **AC-22.2 (name and email):** **Given** I am on the sign-up form, **when** I submit a name that is empty, only spaces, or longer than 80 characters after removing leading and trailing spaces, or an email without "@" (for example `nia.example.com`), **then** no account is created and a message at the field states the rule. A name of 1 or 80 characters is accepted. The email is stored trimmed and in lower case.
+- **AC-22.3 (password):** **Given** I am on the sign-up form, **when** I submit a password shorter than 12 or longer than 64 characters, or longer than 72 bytes encoded as UTF-8, **then** no account is created and a message at the password field states the rule. A password of 12 or 64 characters (up to 72 bytes) is accepted, is not trimmed, has no other composition rule, and only its BCrypt hash is stored (SP-10).
+- **AC-22.4 (duplicate email):** **Given** an account with the email `ana@example.com` exists, **when** I submit the form with `Ana@Example.com ` (other case, a trailing space), **then** no account is created, the response is 409 `email_taken`, a message at the email field says the address is already registered, and Ana's account is unchanged (BR-24, SP-09).
+- **AC-22.5 (sign-in matching):** **Given** Nia's account exists with the email `nia@example.com`, **when** she signs in with ` NIA@Example.com ` and her password, **then** she is signed in. A wrong password and an unknown email still get the same generic 401.
+- **AC-22.6 (rate limits):** **Given** one client IP address has made 5 sign-up requests within an hour, **when** it makes a sixth, **then** the request is refused with 429 `too_many_requests` and a `Retry-After` header, a message asks me to wait and try again, and no account is created. The same applies to the next sign-in request after 10 failed sign-ins for one IP address and email address, or 50 failed sign-ins from one IP address, within 15 minutes (NFR-11).
+- **AC-22.7 (already signed in):** **Given** I am signed in as Ana, **when** a sign-up request is sent, **then** it is refused with 409 `conflict`, no account is created, and Ana's session stays valid. The interface does not show the sign-up form to a signed-in person but goes to the first screen.
+- **AC-22.8 (new account):** **Given** Nia has just signed up, **when** the first screen opens, **then** it shows a welcome message with no action, stating that her account is ready and that workspaces and projects are not available yet. She has no membership and no role. *(Decided for this screen only; what other people with no workspace see: PD-24.)*
+- **Pending:** email verification (PD-25); password reset (PD-26); how the client address is read behind a proxy (TD-13).
+
 ### US-23: Project Manager invites a member
 
 - **AC-23.1 (success):** **Given** I am signed in as a Project Manager of workspace W, **when** I enter the email address `ana@example.com`, which doesn't belong to any member of W, and send the invitation, **then** an invitation is delivered to `ana@example.com`, and after Ana accepts it she appears in W's member list.
@@ -166,6 +178,11 @@ Every story is in the MVP. The seven stories US-03, US-10, US-11, US-13, US-17, 
 | **EC-08** A Team Member tries to post an empty comment, or one containing only spaces | US-15 | The comment is not posted and nothing is added to the task (FR-16). |
 | **EC-09** A Project Manager removes a person from a project while that person owns tasks in it | US-08, US-10 | Pending (PD-10). Either the removal is refused until the tasks are reassigned, or the tasks are kept and flagged for reassignment. In either case, no task is deleted (NFR-03). |
 | **EC-10** An assignee is deactivated, or two Project Managers assign the same member at the same moment | US-29 | A deactivated assignee stays listed (as for owners, EC-04) but is no longer offered. Of two simultaneous assignments of the same member, only one is stored; the other is refused as a duplicate. |
+| **EC-12** Two people submit sign-up with the same email address at the same moment | US-22 | Exactly one account is created. The other request is refused with 409 `email_taken`; the database refuses the duplicate (BR-24). |
+| **EC-13** An email address differs from an existing one only in case or surrounding spaces | US-22 | It counts as the same address and is refused as in AC-22.4. |
+| **EC-14** A password of at most 64 characters is longer than 72 bytes as UTF-8 (for example non-Latin text) | US-22 | It is refused at the password field. It is never silently cut short (BCrypt limit, SP-10). |
+| **EC-15** A signed-in person sends a sign-up request | US-22 | It is refused and the current session is kept (AC-22.7). |
+| **EC-16** A client goes over a rate limit | US-22, US-01 | It gets 429 `too_many_requests` with `Retry-After`. The counters are kept in memory and start again when the application restarts. |
 
 ## Traceability
 
