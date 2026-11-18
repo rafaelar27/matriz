@@ -18,9 +18,9 @@ const TASK_DESCRIPTION_MAX = 2000;
 const COMMENT_MAX = 2000;
 
 // Task statuses. The API always sends and receives these technical values (openapi.yaml: TaskStatus); the interface
-// shows Portuguese labels (PD-13, decided 2026-11-12 for task statuses). This is the only place they are mapped.
+// shows the same English names (FR-12). This is the only place they are mapped.
 const TASK_STATUSES = ['To do', 'In progress', 'Done'];
-const STATUS_LABELS = { 'To do': 'Por fazer', 'In progress': 'Em curso', 'Done': 'Concluída' };
+const STATUS_LABELS = { 'To do': 'To do', 'In progress': 'In progress', 'Done': 'Done' };
 
 function statusLabel(value) {
   return STATUS_LABELS[value] || value;

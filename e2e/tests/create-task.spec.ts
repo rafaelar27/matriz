@@ -18,7 +18,7 @@ const password = process.env.E2E_USER_PASSWORD;
 const PROJECT = 'Website redesign';
 const OWNER = 'Ben Demo';          // an active member of the project, other than the signed-in user
 const DUE_DATE = '2026-12-01';
-const DEFAULT_STATUS_LABEL = 'Por fazer'; // interface label for "To do"; status left at its default
+const DEFAULT_STATUS_LABEL = 'To do'; // interface label for "To do"; status left at its default
 
 let title = '';
 let created = false;
