@@ -1,15 +1,45 @@
 # Keep secrets and local files out of the build context (AGENTS.md C2).
+# The image needs only pom.xml and src/main; everything else is excluded.
+
+# Secrets and local configuration (nested paths too). .env.example is not needed in the image.
 .env
 .env.*
-!.env.example
+**/.env
+**/.env.*
 
+# Version control
 .git
+**/.git
 .gitignore
+.gitattributes
+.github/
 .claude
 
-# Build output and tooling that the image does not need
+# Build output
 target/
+**/target/
+
+# Logs
+*.log
+**/*.log
+logs/
+**/logs/
+
+# Local database files and dumps. Do NOT exclude *.sql: the Flyway migrations in src/main/resources/db/migration are .sql files.
+*.db
+*.sqlite
+*.sqlite3
+*.dump
+pgdata/
+
+# Test artifacts and dependencies of the end-to-end test; unit and API tests run in CI, not in the image build
 e2e/
+**/node_modules/
+**/test-results/
+**/playwright-report/
+src/test/
+
+# Documentation and packaging files the image does not need
 docs/
 *.md
 openapi.yaml
@@ -19,6 +49,11 @@ compose.yaml
 
 # Editor and OS files
 .idea/
+**/.idea/
 .vscode/
+*.iml
+*.swp
+*~
 .DS_Store
 Thumbs.db
+desktop.ini
