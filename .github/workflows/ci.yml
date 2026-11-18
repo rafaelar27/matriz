@@ -1,22 +1,31 @@
 name: CI
 
+# Runs on every push and every pull request (no branch filter: work happens on
+# feature branches and the push run is the one that gives early feedback).
 on:
   push:
   pull_request:
 
+# Least privilege: the workflow only reads the code. It publishes nothing and
+# writes no comments, so no job needs more than this.
 permissions:
   contents: read
 
+# A newer push to the same ref cancels the older run still in progress.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Actions are pinned to full commit SHAs (the version is in the comment), so a
+# moved tag cannot change what runs.
 jobs:
+  # Mandatory: any failing test fails this job, and so blocks `docker` and `e2e`.
   test:
     name: Tests (mvn verify)
     runs-on: ubuntu-latest
     services:
       postgres:
+        # Official image, pinned by digest.
         image: postgres:16-bookworm@sha256:a49f7438ba03589f9b1ca062f2da82e899b48ea1dc50d2449fa09a70be83ebca
         env:
           # Throwaway credentials for a disposable service container; not repository secrets.
@@ -25,6 +34,7 @@ jobs:
           POSTGRES_DB: matriz_test
         ports:
           - 5432:5432
+        # Wait until the database accepts connections before the steps start.
         options: >-
           --health-cmd "pg_isready -U matriz -d matriz_test"
           --health-interval 5s --health-timeout 3s --health-retries 20
@@ -35,16 +45,20 @@ jobs:
       MATRIZ_DB_USER: matriz
       MATRIZ_DB_PASSWORD: ci-only-password
     steps:
-      - uses: actions/checkout@v4
+      # persist-credentials: false keeps the token out of .git/config.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
           distribution: temurin
           java-version: "21"
+          # There is no Maven lock file; dependencies come from the pinned pom.xml and are cached.
           cache: maven
-      - run: mvn -B verify
-      - uses: actions/upload-artifact@v4
+      # Flyway applies the migrations to matriz_test, then every automated test runs.
+      - name: Migrate and run all tests
+        run: mvn -B verify
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: surefire-and-jacoco
@@ -53,20 +67,45 @@ jobs:
             target/site/jacoco
           if-no-files-found: ignore
 
-  docker:
-    name: Docker image build
-    needs: test
+  # The user interface is static files inside the jar, so this one build covers
+  # the whole application (backend and front end).
+  build:
+    name: Build (mvn package)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Validate the build
+        run: mvn -B -DskipTests package
+
+  # Only runs after the tests and the build passed. The image is built, never pushed.
+  docker:
+    name: Docker image build
+    needs: [test, build]
+    runs-on: ubuntu-latest
+    env:
+      # Fictitious values: compose.yaml requires these two variables even to be parsed.
+      MATRIZ_DB_USER: matriz
+      MATRIZ_DB_PASSWORD: ci-only-password
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Validate compose.yaml
+        run: docker compose config -q
       - name: Build image (not pushed)
         run: docker build -t matriz:ci .
 
+  # Mandatory: the Playwright create-task flow (TE-04) on the Compose stack.
   e2e:
     name: End-to-end (Playwright)
-    needs: test
+    needs: [test, build]
     runs-on: ubuntu-latest
     env:
       # Fictitious values for a disposable stack.
@@ -76,16 +115,17 @@ jobs:
       E2E_USER_EMAIL: ana@example.com
       E2E_USER_PASSWORD: ci-only-demo-password
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
+      # Compose reads its settings from .env; it is written here from the fictitious values above.
       - name: Start the stack and load demo data
         run: |
           printf 'MATRIZ_DB_USER=%s\nMATRIZ_DB_PASSWORD=%s\nMATRIZ_DEMO_PASSWORD=%s\n' \
             "$MATRIZ_DB_USER" "$MATRIZ_DB_PASSWORD" "$MATRIZ_DEMO_PASSWORD" > .env
           docker compose up -d --build --wait
           docker compose run --rm seed
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
           cache: npm
@@ -96,14 +136,16 @@ jobs:
           npm ci
           npx playwright install --with-deps chromium
           npx playwright test
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: failure()
         with:
           name: playwright-report
           path: e2e/playwright-report
           if-no-files-found: ignore
-      - name: Show logs and stop the stack
+      # Two separate always-run steps, so the stack is removed even if printing the logs fails.
+      - name: Show app logs
         if: always()
-        run: |
-          docker compose logs --no-color app || true
-          docker compose down -v
+        run: docker compose logs --no-color app
+      - name: Stop the stack
+        if: always()
+        run: docker compose down -v
