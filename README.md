@@ -195,8 +195,8 @@ docker compose run --rm seed
 - `docker compose run --rm seed` loads the demo data. It is idempotent and never deletes data, so it can be run again.
 - `docker compose down` stops the containers and keeps the data (named volume `matriz-db`). `docker compose down -v` also **deletes the database and cannot be undone**.
 - The healthcheck of `app` calls `GET /config.js`, which needs no session.
-- The image is built from the `Dockerfile` (Maven and Eclipse Temurin 21 build stage, JRE runtime stage, non-root user). It contains no `.env` and no secrets; configuration is passed as environment variables at run time.
-- Not verified in this repository's container: building the image and running Compose need a Docker daemon.
+- The image is built from the `Dockerfile` (Maven and Eclipse Temurin 21 build stage, JRE runtime stage, non-root user). It contains no `.env` and no secrets; configuration is passed as environment variables at run time. Both base images are pinned by tag and sha256 digest in the `Dockerfile`; when updating one, update tag and digest together.
+- Verified on 2026-11-18 ([verification.md, Docker images](docs/verification.md#docker-images)): the image runs as a non-root user, seeds and serves the application with the demo users. The build there needed a workaround for the sandbox's certificate chain, so a plain `docker build .` was not shown to succeed in that environment. Not verified: `docker compose up --wait`, the healthcheck status and the `seed` service.
 
 ### Continuous integration
 
