@@ -14,6 +14,8 @@ import jakarta.persistence.PersistenceContext;
 
 import java.util.Map;
 
+import com.jayway.jsonpath.JsonPath;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -69,7 +71,9 @@ class TaskAccessTest extends ApiTestSupport {
         createTask(signIn("ana@example.com"), WEBSITE,
                 "{\"title\":\"Check page speed\",\"owner_member_id\":\"" + ACME_BEN + "\",\"due_date\":\"2026-11-25\"}")
                 .andExpect(status().isCreated())
-                .andExpect(header().exists("Location"))
+                // openapi createTask 201: Location is the path of the new task, project-scoped.
+                .andExpect(result -> header().string("Location", "/projects/" + WEBSITE + "/tasks/"
+                        + JsonPath.<String>read(result.getResponse().getContentAsString(), "$.task_id")).match(result))
                 .andExpect(jsonPath("$.status").value("To do"))
                 .andExpect(jsonPath("$.owner_member_id").value(ACME_BEN))
                 .andExpect(jsonPath("$.created_by_member_id").value(ACME_ANA));

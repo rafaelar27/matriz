@@ -207,9 +207,16 @@ class TaskIntegrationTest {
 
         // TC-01: 201 and the documented body.
         assertThat(created.status).isEqualTo(201);
-        assertThat(created.location).as("Location header present (value not asserted, Q-11)").isNotBlank();
         String taskId = body.get("task_id").asText();
         assertThat(taskId).isNotBlank();
+        // openapi createTask 201: Location is the path of the new task, project-scoped (Q-11, S-01).
+        String expectedLocation = "/projects/" + WEBSITE + "/tasks/" + taskId;
+        assertThat(created.location).as("Location header equals the exact task path (openapi createTask)")
+                .isEqualTo(expectedLocation);
+        // Follow the advertised link with the same session: it must open the same task.
+        Resp followed = ana.call("GET", created.location, null);
+        assertThat(followed.status).isEqualTo(200);
+        assertThat(followed.json().get("task_id").asText()).isEqualTo(taskId);
         assertThat(body.get("project_id").asText()).isEqualTo(WEBSITE);
         assertThat(body.get("title").asText()).isEqualTo("Draft homepage text");
         assertThat(body.get("description").asText()).isEqualTo("First draft of the homepage copy for review.");

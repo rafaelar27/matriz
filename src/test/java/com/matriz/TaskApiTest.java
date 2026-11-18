@@ -124,7 +124,9 @@ class TaskApiTest extends ApiTestSupport {
         String body = create(ana, WEBSITE, "{\"title\":\"  Check page speed  \",\"owner_member_id\":\"" + ACME_BEN
                 + "\",\"due_date\":\"2026-11-25\"}")
                 .andExpect(status().isCreated())
-                .andExpect(header().exists("Location"))
+                // openapi createTask 201: Location is the path of the new task, project-scoped.
+                .andExpect(result -> header().string("Location", "/projects/" + WEBSITE + "/tasks/"
+                        + JsonPath.<String>read(result.getResponse().getContentAsString(), "$.task_id")).match(result))
                 .andExpect(jsonPath("$.title").value("Check page speed"))
                 .andExpect(jsonPath("$.status").value("To do"))
                 .andExpect(jsonPath("$.owner_member_id").value(ACME_BEN))
