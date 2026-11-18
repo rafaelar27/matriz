@@ -1,0 +1,66 @@
+# Matriz: PostgreSQL + the Spring Boot application (API and user interface in one process).
+# Configuration comes from .env (copy .env.example and replace every value). Nothing secret is stored in this file.
+#
+#   docker compose up -d --build --wait          start the database and the application
+#   docker compose run --rm seed                 load the demo data (idempotent; never deletes)
+#   docker compose down                          stop; the data volume is kept
+#   docker compose down -v                       stop AND delete the database volume (cannot be undone)
+
+services:
+  db:
+    image: postgres:16-bookworm
+    environment:
+      POSTGRES_USER: ${MATRIZ_DB_USER:?set MATRIZ_DB_USER in .env}
+      POSTGRES_PASSWORD: ${MATRIZ_DB_PASSWORD:?set MATRIZ_DB_PASSWORD in .env}
+      POSTGRES_DB: matriz
+    volumes:
+      - matriz-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    # No published port: only the application reaches the database.
+
+  app:
+    build: .
+    image: matriz:local
+    depends_on:
+      db:
+        condition: service_healthy
+    environment: &app-env
+      # The host name "db" is the database service; this overrides the localhost URL in .env.
+      MATRIZ_DB_URL: jdbc:postgresql://db:5432/matriz
+      MATRIZ_DB_USER: ${MATRIZ_DB_USER}
+      MATRIZ_DB_PASSWORD: ${MATRIZ_DB_PASSWORD}
+      MATRIZ_PORT: "8080"
+      MATRIZ_SESSION_TIMEOUT: ${MATRIZ_SESSION_TIMEOUT:-8h}
+      MATRIZ_COOKIE_SECURE: ${MATRIZ_COOKIE_SECURE:-false}
+      MATRIZ_API_BASE_URL: ${MATRIZ_API_BASE_URL:-}
+    ports:
+      - "${MATRIZ_PORT:-8080}:8080"
+    healthcheck:
+      # /config.js is open (no session) and the application has no Actuator.
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8080/config.js"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+  # One-shot demo data. Not started by "up"; run it with: docker compose run --rm seed
+  seed:
+    image: matriz:local
+    profiles: ["seed"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      <<: *app-env
+      SPRING_PROFILES_ACTIVE: seed
+      MATRIZ_DEMO_PASSWORD: ${MATRIZ_DEMO_PASSWORD:?set MATRIZ_DEMO_PASSWORD in .env}
+    restart: "no"
+
+volumes:
+  matriz-db:

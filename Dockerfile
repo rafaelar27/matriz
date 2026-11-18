@@ -16,6 +16,10 @@ RUN mvn -B -q -DskipTests package \
 
 # ---- Runtime stage: JRE only, non-root user ----
 FROM eclipse-temurin:21-jre-jammy
+# curl is used only by the Compose healthcheck (GET /config.js).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && apt-get clean
 RUN groupadd --system --gid 10001 matriz \
     && useradd --system --uid 10001 --gid matriz --no-create-home --shell /usr/sbin/nologin matriz
 WORKDIR /app
