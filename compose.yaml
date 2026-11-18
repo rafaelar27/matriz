@@ -8,7 +8,7 @@
 
 services:
   db:
-    image: postgres:16-bookworm
+    image: postgres:16-bookworm@sha256:a49f7438ba03589f9b1ca062f2da82e899b48ea1dc50d2449fa09a70be83ebca
     environment:
       POSTGRES_USER: ${MATRIZ_DB_USER:?set MATRIZ_DB_USER in .env}
       POSTGRES_PASSWORD: ${MATRIZ_DB_PASSWORD:?set MATRIZ_DB_PASSWORD in .env}
@@ -49,6 +49,11 @@ services:
       retries: 12
       start_period: 30s
     restart: unless-stopped
+    # The application needs no extra privileges: it listens on 8080 as a non-root user.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
   # One-shot demo data. Not started by "up"; run it with: docker compose run --rm seed
   seed:
@@ -64,6 +69,11 @@ services:
       # Empty when unset so that "docker compose up" works without it; the seed command stops with an error if it is blank.
       MATRIZ_DEMO_PASSWORD: ${MATRIZ_DEMO_PASSWORD:-}
     restart: "no"
+    # The seed command needs no extra privileges; it runs as a non-root user and exits when done.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
 volumes:
   matriz-db:
