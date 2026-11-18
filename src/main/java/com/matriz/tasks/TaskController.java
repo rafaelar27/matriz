@@ -62,7 +62,8 @@ class TaskController {
     ResponseEntity<TaskView> create(@AuthenticationPrincipal SignedInAccount caller, @PathVariable String projectId,
                                     @RequestBody TaskFields body) {
         TaskView task = service.create(caller.accountId(), id(projectId, TaskService.PROJECT_NOT_FOUND), body);
-        return ResponseEntity.created(URI.create("/tasks/" + task.taskId())).body(task);
+        return ResponseEntity.created(URI.create("/projects/" + task.projectId() + "/tasks/" + task.taskId()))
+                .body(task);
     }
 
     @GetMapping("/projects/{projectId}/tasks/{taskId}")
