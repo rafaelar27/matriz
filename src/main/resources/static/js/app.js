@@ -416,8 +416,8 @@ function showBar(visible) {
   }
   const current = location.hash.startsWith('#/projects') ? 'nav-projects'
     : (location.hash.startsWith('#/dashboard') ? 'nav-dashboard'
-      : (location.hash.startsWith('#/workspaces/new') ? 'nav-workspace-new' : null));
-  ['nav-dashboard', 'nav-projects', 'nav-workspace-new'].forEach(id => {
+      : (location.hash === '#/workspaces' ? 'nav-workspaces' : null)); // the New workspace form belongs to the dashboard
+  ['nav-dashboard', 'nav-projects', 'nav-workspaces'].forEach(id => {
     const link = document.getElementById(id);
     link.classList.toggle('on', id === current);
     if (id === current) link.setAttribute('aria-current', 'page');
@@ -640,7 +640,9 @@ async function dashboardScreen() {
         h('a', { href: '#/projects' }, 'See all projects'))); // E-13
   });
 
-  render(takeFlash(), h('h1', {}, 'Dashboard'), projects);
+  // E-21 "+ New workspace": any signed-in person (FR-02, US-02); moved here from the top bar on 2026-11-19.
+  const newWorkspace = h('a', { class: 'btn secondary', href: '#/workspaces/new' }, '+ New workspace');
+  render(takeFlash(), h('h1', {}, 'Dashboard', newWorkspace), projects);
 }
 
 /** The Projects screen address for a search and a page (page 0 and an empty search are left out). */
@@ -1478,6 +1480,67 @@ async function projectFormScreen(id) {
   name.focus();
 }
 
+/** Rank of each role on the Workspaces screen: the workspaces the member administers (usually created) come first. */
+const ROLE_ORDER = { 'Workspace Administrator': 0, 'Project Manager': 1, 'Team Member': 2, 'Viewer': 3 };
+
+/** Order of the Workspaces screen rows (E-22): by role, then by name. a and b are Membership objects from /auth/me. */
+function compareMemberships(a, b) {
+  const rank = r => (r in ROLE_ORDER ? ROLE_ORDER[r] : 99); // an unknown role goes last instead of breaking the sort
+  return rank(a.role) - rank(b.role)
+    || a.workspace_name.localeCompare(b.workspace_name, undefined, { sensitivity: 'base' });
+}
+
+// Workspaces screen (E-22; added 2026-11-19): every workspace the member belongs to, including those they created,
+// with their role (from /auth/me) and, on request, the active members (listWorkspaceMembers). The API has no rename,
+// delete, invite or leave operation yet, so the screen shows no such action.
+async function workspacesScreen() {
+  const seq = screenSeq;
+  state.profile = null; // always reload /auth/me here, so roles changed by someone else are current
+  await loadProfile();
+  if (seq !== screenSeq) return;
+  showBar(true);
+  const memberships = (state.profile.memberships || []).slice().sort(compareMemberships);
+  if (!memberships.length) {
+    render(takeFlash(), h('h1', {}, 'Workspaces'),
+      h('div', { class: 'empty' }, h('strong', {}, 'You do not belong to any workspace yet.'),
+        h('a', { href: '#/dashboard' }, 'Create one from the dashboard.')));
+    return;
+  }
+  const rows = memberships.map(m => {
+    const members = h('td', {});
+    // Each button names its workspace (NFR-06). After loading, focus moves to the list, which replaces the button.
+    const show = h('button', { class: 'btn secondary', type: 'button',
+      'aria-label': 'Show members of ' + m.workspace_name, onclick: async () => {
+        show.disabled = true;
+        members.replaceChildren(h('span', { role: 'status' }, 'Loading…'));
+        try {
+          const list = await api('GET', '/workspaces/' + encodeURIComponent(m.workspace_id) + '/members');
+          if (seq !== screenSeq) return;
+          const ul = h('ul', { class: 'plain', tabindex: '-1', 'aria-label': 'Members of ' + m.workspace_name },
+            list.map(x => h('li', {}, x.name + ' — ' + x.role)));
+          members.replaceChildren(ul);
+          ul.focus();
+        } catch (err) {
+          if (err.status === 401 || seq !== screenSeq) return;
+          members.replaceChildren(
+            message(errorText(err, 'This workspace was not found, or you are no longer a member of it.')), show);
+          show.disabled = false;
+          show.focus();
+        }
+      } }, 'Show members');
+    members.append(show);
+    return h('tr', {},
+      h('th', { scope: 'row' }, m.workspace_name),
+      h('td', {}, m.role),
+      members);
+  });
+  render(takeFlash(), h('h1', {}, 'Workspaces'),
+    h('div', { class: 'panel' }, h('div', { class: 'wrap' }, h('table', {},
+      h('caption', { class: 'skip' }, 'Your workspaces'),
+      h('thead', {}, h('tr', {}, ['Workspace', 'Your role', 'Members'].map(t => h('th', { scope: 'col' }, t)))),
+      h('tbody', {}, rows)))));
+}
+
 // New workspace (US-02, FR-02, BR-01): any signed-in person. The API makes the creator its Workspace Administrator.
 async function workspaceFormScreen() {
   const seq = screenSeq;
@@ -1506,7 +1569,7 @@ async function workspaceFormScreen() {
       }
       try {
         await api('POST', '/workspaces', { name: name.value.trim() });
-        state.profile = null; // reload it so the top bar shows the new workspace
+        state.profile = null; // reload it so the new membership is known (Workspaces screen, "+ New project")
         state.flash = 'Workspace created.';
         go('#/dashboard');
       } catch (err) {
@@ -1541,6 +1604,7 @@ async function route() {
     if (parts[0] === 'projects' && parts[1] === 'new') return await projectFormScreen(null);
     if (parts[0] === 'projects' && parts.length === 2) return await projectDetailScreen(parts[1], params);
     if (parts[0] === 'projects' && parts[2] === 'edit') return await projectFormScreen(parts[1]);
+    if (parts[0] === 'workspaces' && parts.length === 1) return await workspacesScreen();
     if (parts[0] === 'workspaces' && parts[1] === 'new') return await workspaceFormScreen();
     go(HOME);
   } catch (err) {

@@ -146,3 +146,8 @@ button.link:hover { color: var(--accent-dark); }
 dialog { border: 1px solid var(--line); border-radius: 16px; padding: 20px; max-width: 440px; color: var(--ink); }
 dialog h2 { font-size: 18px; margin: 0 0 8px; }
 dialog::backdrop { background: rgba(0, 0, 0, .35); }
+
+/* Workspaces screen (E-22): member list inside a table cell */
+ul.plain { list-style: none; margin: 0; padding: 0; }
+ul.plain li + li { margin-top: 4px; }
+tbody th[scope="row"] { color: var(--ink); font: 600 14px var(--font); text-transform: none; letter-spacing: normal; border-bottom-color: var(--divider); }
