@@ -519,7 +519,7 @@ Selector strategy: roles, labels and visible text only; no `data-testid`, no CSS
 
 | Step | Expected result | Observed | Status | Source |
 |---|---|---|---|---|
-| 1. Sign in as Ana | URL `#/dashboard`; heading "Dashboard"; "Ana Demo" in the account menu; Acme Studio and Northwind Lab in the top bar | As expected | Pass | FR-01; US-01; UI-A1; E-01; E-07 |
+| 1. Sign in as Ana | URL `#/dashboard`; heading "Dashboard"; "Ana Demo" in the account menu; Acme Studio and Northwind Lab in the top bar | As expected | Pass (the top-bar workspace names were withdrawn on 2026-11-19; the test no longer checks them) | FR-01; US-01; UI-A1; E-01; E-07 |
 | 2. Open "Website redesign" | Project heading, Tasks section and "+ New task" visible | As expected | Pass | FR-08; FR-13; US-12; FR-05 |
 | 3. Create the task | `“<title>” was created.` shown; no alert | As expected | Pass | AC-10.1; FR-09 to FR-12 |
 | 4. Task in the list | Exact title, owner Ben Demo, due 2026-12-01, status Por fazer | As expected | Pass | AC-10.1; BR-11 |

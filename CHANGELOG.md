@@ -15,6 +15,7 @@ Planned version for the next release: **0.2.0** (a new feature that does not bre
 - Names refuse control and invisible formatting characters, emails are printable ASCII only (at most 254 characters), and `spring.mvc.formcontent.filter.enabled=false` (INC-12, security audits).
 - Sign-in matches the email ignoring letter case and surrounding spaces, refuses passwords over 72 bytes with the generic 401, and counts failed attempts before the password is checked (INC-12).
 - `server.forward-headers-strategy=none` is set explicitly, so forwarded headers are not trusted until TD-13 is decided (INC-12, security audit S-10).
+- The interface uses the visual design approved on 2026-11-19 (docs/ui-design.md): colour tokens, Inter and Space Grotesk (self-hosted in `static/css/fonts`, SIL Open Font License), logo, status labels and a progress bar next to "N of M tasks done" (INC-13).
 - `Dockerfile`: both base images (`maven:3.9.11-eclipse-temurin-21`, `eclipse-temurin:21-jre-jammy`) are pinned by tag and sha256 digest.
 - `.dockerignore`: keeps secrets and local files out of the build context; since the hardening below it is an allow-list (the Flyway `.sql` migrations are kept).
 - Container hardening after the security audit: root-owned application jar, `no-new-privileges` and `cap_drop: [ALL]` for `app` and `seed` in `compose.yaml`, `postgres:16-bookworm` pinned by digest in `compose.yaml` and CI, and an allow-list `.dockerignore`.
