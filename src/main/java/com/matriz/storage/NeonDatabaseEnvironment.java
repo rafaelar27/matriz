@@ -52,11 +52,19 @@ public class NeonDatabaseEnvironment implements EnvironmentPostProcessor, Ordere
             throw new IllegalStateException(NEON_VARIABLE + " has no user and password");
         }
         int colon = userInfo.indexOf(':');
-        String user = URLDecoder.decode(userInfo.substring(0, colon), StandardCharsets.UTF_8);
-        String password = URLDecoder.decode(userInfo.substring(colon + 1), StandardCharsets.UTF_8);
+        String user = decodeUriComponent(userInfo.substring(0, colon));
+        String password = decodeUriComponent(userInfo.substring(colon + 1));
         String port = uri.getPort() == -1 ? "" : ":" + uri.getPort();
         String jdbcUrl = "jdbc:postgresql://" + uri.getHost() + port + uri.getRawPath() + jdbcQuery(uri.getRawQuery());
         return Map.of("MATRIZ_DB_URL", jdbcUrl, "MATRIZ_DB_USER", user, "MATRIZ_DB_PASSWORD", password);
+    }
+
+    /**
+     * Decodes the percent-escapes of a URI component. URLDecoder follows HTML form encoding, where "+" means a space;
+     * in a URI's user info "+" is a literal plus, so it is escaped first to survive decoding.
+     */
+    private static String decodeUriComponent(String raw) {
+        return URLDecoder.decode(raw.replace("+", "%2B"), StandardCharsets.UTF_8);
     }
 
     /**

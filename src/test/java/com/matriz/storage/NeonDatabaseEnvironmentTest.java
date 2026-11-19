@@ -55,6 +55,16 @@ class NeonDatabaseEnvironmentTest {
         assertThat(result.get("MATRIZ_DB_PASSWORD")).isEqualTo("p@ss:word");
     }
 
+    @Test
+    @DisplayName("A literal + in user or password stays a + (URI rules, not HTML form rules)")
+    void keepsLiteralPlus() {
+        Map<String, Object> result =
+                NeonDatabaseEnvironment.fromNeonUrl("postgresql://app+owner:p+ss%2Bword@db.example.test/appdb");
+
+        assertThat(result.get("MATRIZ_DB_USER")).isEqualTo("app+owner");
+        assertThat(result.get("MATRIZ_DB_PASSWORD")).isEqualTo("p+ss+word");
+    }
+
     @ParameterizedTest(name = "[{index}] \"{0}\" -> \"{1}\"")
     @DisplayName("libpq parameters map to the JDBC allow-list, and TLS is always required")
     @CsvSource(delimiter = '|', nullValues = "NULL", value = {

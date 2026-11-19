@@ -94,6 +94,8 @@ cp .env.example .env
 
 Edit `.env` and replace every value: `MATRIZ_DB_PASSWORD` is the role password from step 1, and `MATRIZ_DEMO_PASSWORD` is any fictitious password for the demo accounts. `.env` is ignored by Git and must never be committed. Environment variables set in the shell take precedence over `.env`.
 
+**Using a Neon database instead.** The repository is linked to a Neon project (`neon.ts`). With the Neon CLI signed in, `neon env pull` (or `neon deploy`) writes `.env.local`, which is also ignored by Git and read by the application after `.env`. When `MATRIZ_DB_URL` is not set in the shell or in `.env`, the application derives `MATRIZ_DB_URL`, `MATRIZ_DB_USER` and `MATRIZ_DB_PASSWORD` from its `DATABASE_URL_UNPOOLED` (the direct endpoint, which Flyway needs; see `storage/NeonDatabaseEnvironment`). An explicit `MATRIZ_DB_*` value always wins, so leave `MATRIZ_DB_URL` out of `.env` to use Neon. Run `neon env pull` again after the Neon password changes. **With `.env.local` present, always set `MATRIZ_DB_URL` to the test database before `mvn verify` (step 6), or the tests run against the Neon branch.**
+
 | Variable | Purpose |
 |---|---|
 | `MATRIZ_DB_URL` | JDBC URL of the database, for example `jdbc:postgresql://localhost:5432/matriz` |
@@ -145,7 +147,7 @@ mvn verify
 Remove-Item Env:MATRIZ_DB_URL
 ```
 
-In Git Bash, `MATRIZ_DB_URL=jdbc:postgresql://localhost:5432/matriz_test mvn verify` sets it for that command only. If you changed `MATRIZ_TEST_DB_URL`, use the same value. Without this, `DatabaseSetupTest` connects to the development database from `.env` and applies any pending migration there.
+In Git Bash, `MATRIZ_DB_URL=jdbc:postgresql://localhost:5432/matriz_test mvn verify` sets it for that command only. If you changed `MATRIZ_TEST_DB_URL`, use the same value. Without this, `DatabaseSetupTest` connects to the development database from `.env` (or, with `.env.local` from Neon, to the Neon branch) and applies any pending migration there.
 
 Runs all automated tests. Expected result: `Tests run: 450, Failures: 0` and `BUILD SUCCESS`. The coverage report (JaCoCo) is written to `target/site/jacoco/index.html` after `mvn verify`; `mvn test` does not write it, and no coverage threshold is set. If another process holds `target/matriz-0.1.0-SNAPSHOT.jar` (for example `java -jar`), the last packaging step fails; `mvn verify -Dspring-boot.repackage.skip=true` runs the same tests without it.
 
