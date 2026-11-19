@@ -16,8 +16,8 @@
 | INC-08 | Remove the unscoped task status route | Done (2026-11-17) |
 | INC-09 | Coverage measurement and unit tests | Done (2026-11-17) |
 | INC-10 | Unit tests for the INC-09 refactoring candidates | Done (2026-11-18) |
-| INC-11 | English task status labels | Done |
-| INC-12 | Public sign-up | Done (2026-11-19), except hosted deployment (not done; TD-02, TD-05, TD-06, TD-13 pending) |
+| INC-11 | English task status labels | Done (2026-11-18) |
+| INC-12 | Public sign-up | Done (2026-11-19), except hosted deployment (a first deployment exists but has not been validated; no public check is recorded here; TD-02 decided 2026-11-19; TD-05, TD-06, TD-13 pending) |
 | INC-13 | Apply the approved UI visual design | Done (some manual checks still open) |
 | INC-14 | Create a workspace | Done (2026-11-19) |
 | INC-15 | Workspace Administrators manage projects | Done (2026-11-19) |
@@ -378,6 +378,8 @@ All runs were on the isolated database `matriz_test` (local PostgreSQL 16), with
 
 **Built:** `STATUS_LABELS` in `src/main/resources/static/js/app.js` and `e2e/tests/create-task.spec.ts` changed. Documentation updated: README.md, decision log and PD-13 note in constraints.md, AC-10.1 clarification removed in user-stories.md, TE-04 and the assertions row in test-plan.md (historical execution records unchanged). No change to migrations, `openapi.yaml`, Java code or access rules.
 
+**Done date:** 2026-11-18, taken from the git history: commit `aede488` ("Record INC-11 verification results and mark it Done", 2026-11-18) changed the status from "In progress" to "Done"; the [status log](#status-log) row of the same date agrees.
+
 | ID | Acceptance criterion | Verification method | Result |
 |---|---|---|---|
 | AC-INC11.1 | Task list cells show the English names To do, In progress and Done. | Browser | Pass |
@@ -399,7 +401,7 @@ All runs were on the isolated database `matriz_test` (local PostgreSQL 16), with
 
 **Basis:** FR-01; US-22 (AC-22.1 to AC-22.8, EC-12 to EC-16); NFR-11; BR-24; DA-01 and DA-02 (confirmed 2026-11-18); SP-01, SP-08 to SP-10; AQ23, AQ24; PD-24 (decided in part), PD-25, PD-26, TD-13; CMP-01. Decisions of 2026-11-18 in the [decision log](constraints.md#decision-log). Open sign-up is in tension with AQ3 (see the decision log).
 
-**Left out:** workspace creation and any membership (FR-02, US-02); what other people with no workspace see (PD-24); email verification (PD-25); password reset and a "Forgot password" link (PD-26); CAPTCHA; demo accounts in a public database (never seeded; a public demo would be a separate deployment); a new Playwright spec (the screens are checked manually in the browser); any new dependency; deployment, which is INC-13. The intended hosting target is the Render and Neon free plans. That is an intention, not a decision: TD-02, TD-05 and TD-06 stay pending, and TD-13 is verified on the platform in INC-13.
+**Left out:** workspace creation and any membership (FR-02, US-02); what other people with no workspace see (PD-24); email verification (PD-25); password reset and a "Forgot password" link (PD-26); CAPTCHA; demo accounts in a public database (never seeded; a public demo would be a separate deployment); a new Playwright spec (the screens are checked manually in the browser); any new dependency; deployment, which is INC-13. The intended hosting target is the Render and Neon free plans. That is an intention, not a decision: TD-02, TD-05 and TD-06 stay pending, and TD-13 is verified on the platform in INC-13. (Superseded 2026-11-19: TD-02 is decided; TD-05, TD-06 and TD-13 stay pending; see the [decision log](constraints.md#decision-log).)
 
 **Built (2026-11-19):** `openapi.yaml` 0.9.0-draft (`signUp`, 429, 413); migration `V5__account_email_case_insensitive.sql`; `SignUpService`, `AttemptLimiter` (two tiers), `AuthBodyLimitFilter`, the `signUp` endpoint and case-insensitive sign-in in `AuthController`; `SecurityConfig` opens `POST /auth/sign-up`; `matriz.rate-limit.*`, `server.forward-headers-strategy=none` and `spring.mvc.formcontent.filter.enabled=false` in `application.properties`; the sign-up and welcome screens in `static/js/app.js`; new test classes `SignUpApiTest`, `SignUpConcurrencyTest`, `SignUpRateLimitTest`, `SignInConcurrencyTest`, `AuthBodyLimitTest`, `FormContentFilterTest`, `accounts/AttemptLimiterTest`, `AuthBodyLimitFilterTest`, `SignUpRequestTest`, `SignUpServiceTest` and changes to `AuthControllerSignInTest`. Two security audits and one review ran; their findings and the decisions taken are in the [decision log](constraints.md#decision-log) (2026-11-19) and [verification.md](verification.md#inc-12-public-sign-up-2026-11-19). Not part of this increment: deployment ([deployment.md](deployment.md)), which the programmer does by hand.
 
