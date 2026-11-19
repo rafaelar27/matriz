@@ -39,8 +39,14 @@ class WorkspaceService {
         return new WorkspaceView(workspace.getId(), workspace.getName(), first.getId(), first.getRole().label());
     }
 
-    /** Trimmed, 3 to 100 characters; a null name is refused like an empty one (same rule as project names). */
+    /**
+     * Trimmed, 3 to 100 characters; a null name is refused like an empty one (same rule as project names). A name
+     * with a NUL character (U+0000) is refused too, because the database cannot store it (decided 2026-11-19).
+     */
     static String name(String value) {
+        if (value != null && value.indexOf('\u0000') >= 0) {
+            throw ApiException.validation(NOT_SAVED, "name", "The name cannot contain a NUL character.");
+        }
         String name = value == null ? "" : value.trim();
         int length = name.codePointCount(0, name.length());
         if (length < NAME_MIN || length > NAME_MAX) {
