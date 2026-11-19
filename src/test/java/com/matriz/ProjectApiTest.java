@@ -264,6 +264,59 @@ class ProjectApiTest extends ApiTestSupport {
     }
 
     @Test
+    @DisplayName("NFR-01, SP-02, FR-06 · a Workspace Administrator of another workspace gets 404 on edit and delete of an Acme project; nothing changes")
+    void workspaceAdministratorOfAnotherWorkspaceCannotEditOrDelete() throws Exception {
+        String id = createdId(signIn("ana@example.com"), named("Fictitious acme only"));
+        entityManager.flush();
+        long before = projectCount();
+        MockHttpSession finn = signIn("finn@example.com");
+
+        update(finn, id, "{\"name\":\"Fictitious hijack\"}").andExpect(status().isNotFound());
+        remove(finn, id).andExpect(status().isNotFound());
+
+        entityManager.flush();
+        entityManager.clear();
+        assertThat(projectCount()).isEqualTo(before);
+        assertThat(count("SELECT count(*) FROM project WHERE project_id = ?::uuid AND name = 'Fictitious acme only' "
+                + "AND workspace_id = ?::uuid", id, ACME)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("FR-06, DA-05 · deleting a project with a task, comment, notification and assignee leaves no row in any related table")
+    void workspaceAdministratorDeleteLeavesNoOrphanRows() throws Exception {
+        MockHttpSession carla = signIn("carla@example.com");
+        String id = createdId(carla, named("Fictitious cascade"));
+        String task = "e0000000-0000-0000-0000-0000000000f3";
+        String comment = "f0000000-0000-0000-0000-0000000000f3";
+        entityManager.flush();
+        jdbc.update("INSERT INTO task (task_id, project_id, title, owner_member_id, status, created_by_member_id) "
+                + "VALUES (?::uuid, ?::uuid, 'Fictitious task', ?::uuid, 'TO_DO', ?::uuid)", task, id, ACME_CARLA,
+                ACME_CARLA);
+        jdbc.update("INSERT INTO task_assignee (task_id, member_id) VALUES (?::uuid, ?::uuid)", task, ACME_CARLA);
+        jdbc.update("INSERT INTO comment (comment_id, task_id, author_member_id, body) "
+                + "VALUES (?::uuid, ?::uuid, ?::uuid, 'Fictitious comment')", comment, task, ACME_CARLA);
+        jdbc.update("INSERT INTO notification (recipient_member_id, type, task_id) VALUES (?::uuid, 'TASK_ASSIGNED', ?::uuid)",
+                ACME_CARLA, task);
+        jdbc.update("INSERT INTO notification (recipient_member_id, type, task_id, comment_id) "
+                + "VALUES (?::uuid, 'COMMENT_ADDED', ?::uuid, ?::uuid)", ACME_CARLA, task, comment);
+        entityManager.clear();
+        assertThat(count("SELECT count(*) FROM notification WHERE task_id = ?::uuid", task)).isEqualTo(2);
+        long otherTasks = count("SELECT count(*) FROM task WHERE project_id <> ?::uuid", id);
+
+        remove(carla, id).andExpect(status().is2xxSuccessful());
+
+        entityManager.flush();
+        entityManager.clear();
+        assertThat(count("SELECT count(*) FROM project WHERE project_id = ?::uuid", id)).isZero();
+        assertThat(count("SELECT count(*) FROM project_member WHERE project_id = ?::uuid", id)).isZero();
+        assertThat(count("SELECT count(*) FROM task WHERE project_id = ?::uuid", id)).isZero();
+        assertThat(count("SELECT count(*) FROM task_assignee WHERE task_id = ?::uuid", task)).isZero();
+        assertThat(count("SELECT count(*) FROM comment WHERE task_id = ?::uuid", task)).isZero();
+        assertThat(count("SELECT count(*) FROM notification WHERE task_id = ?::uuid", task)).isZero();
+        assertThat(count("SELECT count(*) FROM task WHERE project_id <> ?::uuid", id)).isEqualTo(otherTasks);
+    }
+
+    @Test
     @DisplayName("NFR-01, FR-06 · a Workspace Administrator of another workspace gets 404 on createProject with Acme's workspace_id")
     void workspaceAdministratorOfAnotherWorkspaceGets404() throws Exception {
         long before = projectCount();
