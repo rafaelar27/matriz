@@ -399,8 +399,9 @@ function showBar(visible) {
     document.getElementById('workspace-names').textContent = names.join(' · ');
   }
   const current = location.hash.startsWith('#/projects') ? 'nav-projects'
-    : (location.hash.startsWith('#/dashboard') ? 'nav-dashboard' : null);
-  ['nav-dashboard', 'nav-projects'].forEach(id => {
+    : (location.hash.startsWith('#/dashboard') ? 'nav-dashboard'
+      : (location.hash.startsWith('#/workspaces/new') ? 'nav-workspace-new' : null));
+  ['nav-dashboard', 'nav-projects', 'nav-workspace-new'].forEach(id => {
     const link = document.getElementById(id);
     link.classList.toggle('on', id === current);
     if (id === current) link.setAttribute('aria-current', 'page');
@@ -1356,6 +1357,51 @@ async function projectFormScreen(id) {
   name.focus();
 }
 
+// New workspace (US-02, FR-02, BR-01): any signed-in person. The API makes the creator its Workspace Administrator.
+async function workspaceFormScreen() {
+  const seq = screenSeq;
+  await loadProfile();
+  if (seq !== screenSeq) return;
+  showBar(true);
+  const kit = formKit('workspace');
+  const name = h('input', { type: 'text', required: true, maxlength: NAME_MAX + 20 });
+  const nameCount = h('span', {});
+  const banner = h('div', { 'aria-live': 'assertive' });
+  const submit = h('button', { class: 'btn primary', type: 'submit' }, 'Create workspace');
+  name.addEventListener('input', () => {
+    nameCount.textContent = chars(name.value.trim()) + ' / ' + NAME_MAX;
+  });
+  const form = h('form', { class: 'panel', novalidate: true, onsubmit: e => {
+    e.preventDefault();
+    guarded(form, submit, async () => {
+      banner.replaceChildren();
+      kit.clear();
+      const length = chars(name.value.trim());
+      if (length < NAME_MIN || length > NAME_MAX) {
+        kit.setError('name', 'The name must be ' + NAME_MIN + ' to ' + NAME_MAX + ' characters long.');
+        banner.append(message('Check the highlighted fields.'));
+        kit.focusFirstError();
+        return;
+      }
+      try {
+        await api('POST', '/workspaces', { name: name.value.trim() });
+        state.profile = null; // reload it so the top bar shows the new workspace
+        state.flash = 'Workspace created.';
+        go('#/dashboard');
+      } catch (err) {
+        if (err.status === 401) return;
+        const shown = err.status === 422 && kit.showServerErrors(err);
+        banner.append(message(shown ? 'Check the highlighted fields.' : errorText(err, 'The workspace could not be saved.')));
+      }
+    });
+  } },
+  banner,
+  kit.field('name', 'Name (required)', name, h('span', {}, NAME_MIN + ' to ' + NAME_MAX + ' characters. ', nameCount)),
+  h('div', { class: 'actions' }, submit, h('a', { class: 'btn secondary', href: '#/dashboard' }, 'Cancel')));
+  render(h('p', {}, h('a', { href: '#/dashboard' }, '← Back')), h('h1', {}, 'New workspace'), form);
+  name.focus();
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Routing (hash based, so the server only serves index.html).
 // ---------------------------------------------------------------------------------------------------------------
@@ -1372,6 +1418,7 @@ async function route() {
     if (parts[0] === 'projects' && parts[1] === 'new') return await projectFormScreen(null);
     if (parts[0] === 'projects' && parts.length === 2) return await projectDetailScreen(parts[1], params);
     if (parts[0] === 'projects' && parts[2] === 'edit') return await projectFormScreen(parts[1]);
+    if (parts[0] === 'workspaces' && parts[1] === 'new') return await workspaceFormScreen();
     go(HOME);
   } catch (err) {
     if (err.status !== 401) render(failure(err, route));

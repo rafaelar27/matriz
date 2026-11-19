@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: Matriz API
-  version: 0.8.0-draft
+  version: 0.9.0-draft
   summary: Draft API for the Matriz MVP (authentication, projects, progress, tasks, task assignees and comments).
   description: |
     Draft specification of the Matriz MVP API, a project and task management
@@ -103,8 +103,10 @@ info:
     - `listTaskComments` and `addTaskComment` support US-15 (FR-16). Owning
       component: CMP-07 Comments. Added 2026-11-12 (INC-05).
 
-    **Not built in this delivery:** sign-up (FR-01, US-22); workspace
-    creation (FR-02); invitations and member management (FR-03) and role
+    Version 0.9.0-draft (INC-12): adds `createWorkspace` (FR-02).
+
+    **Not built in this delivery:** sign-up (FR-01, US-22); invitations and
+    member management (FR-03) and role
     assignment and changes (FR-04) apart from reading active members (the
     FR-04 permissions are enforced by CMP-03); archiving projects (FR-06,
     US-07); choosing project members (FR-07, US-08) apart from the creator;
@@ -167,7 +169,7 @@ tags:
   - name: Progress
     description: "Derived project progress (FR-18, BR-15). Owning component: CMP-09 Progress Tracking."
   - name: Workspaces
-    description: "Workspace members, read only (FR-03, FR-04). Owning component: CMP-02."
+    description: "Creating a workspace (FR-02) and reading its members (FR-03, FR-04). Owning component: CMP-02."
   - name: Comments
     description: "Comments on tasks (FR-16). Owning component: CMP-07 Comments."
   - name: Tasks
@@ -553,6 +555,67 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+
+  /workspaces:
+    post:
+      tags: [Workspaces]
+      operationId: createWorkspace
+      summary: Create a workspace
+      description: |
+        Creates a workspace (FR-02, US-02, BR-01).
+
+        **Who can perform it:** any signed-in account. No membership is
+        needed. The account is always the one in the session.
+
+        **Set by the server:** the caller becomes the first member of the
+        new workspace, as a Workspace Administrator, in the same transaction
+        (SP-07, R-02). The workspace is kept apart from all others (NFR-01).
+
+        **Rules checked (422):** `name` is required and 3 to 100 characters
+        after trimming spaces (same rule as project names); no other fields
+        are sent (`workspace_id`, `role`, `account_id` and `member_id` cannot
+        be sent). Names need not be unique.
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkspaceCreateRequest'
+            examples:
+              newWorkspace:
+                value:
+                  name: Harbor Works
+      responses:
+        '201':
+          description: The workspace was created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatedWorkspace'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          description: |
+            `name` missing, shorter than 3 or longer than 100 characters after
+            trimming, or a field that cannot be sent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                nameTooShort:
+                  value:
+                    code: validation_failed
+                    message: The workspace could not be saved.
+                    details:
+                      - field: name
+                        issue: The name must be 3 to 100 characters long.
 
   /workspaces/{workspace_id}/members:
     get:
@@ -1476,6 +1539,32 @@ components:
         role:
           type: string
           enum: [Workspace Administrator, Project Manager, Team Member, Viewer]
+
+    WorkspaceCreateRequest:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 100
+          description: Required; 3 to 100 characters after trimming spaces.
+
+    CreatedWorkspace:
+      type: object
+      required: [workspace_id, name, member_id, role]
+      properties:
+        workspace_id:
+          $ref: '#/components/schemas/Id'
+        name:
+          type: string
+        member_id:
+          description: The caller's new membership.
+          $ref: '#/components/schemas/Id'
+        role:
+          type: string
+          enum: [Workspace Administrator]
 
     ProjectCreateRequest:
       type: object
