@@ -33,7 +33,7 @@
 | No demo seed on the public database; accounts come from public sign-up (INC-12) | Decision log 2026-11-18 and 2026-11-19 |
 | Migrations run through Flyway when the application starts (V1 to V5), are non-destructive and reproducible; the application never wipes the database (`spring.flyway.clean-disabled=true`) | `application.properties`; `src/main/resources/db/migration` |
 | Backup (TD-05), availability (TD-06) and client-address handling (TD-13) stay pending | [constraints.md](constraints.md#pending-technical-decisions) |
-| Release candidate version proposed: `0.1.0-rc.1`. It is only a proposal: no tag or release has been created | Proposal, not a decision |
+| Release candidate version: `0.2.0` (Semantic Versioning, [decision log](constraints.md#decision-log) 2026-11-19). The annotated tag `v0.2.0` is created after the release pull request is merged | Decided |
 
 ## Docker Compose (local)
 

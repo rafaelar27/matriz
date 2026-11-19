@@ -26,7 +26,7 @@ Requirement and user-story IDs are those of each increment's "Basis" in [impleme
 | INC-08 | Removal of the unscoped task status route `PATCH /tasks/{task_id}`; a status is changed through `updateTask` | FR-12; US-11 | Done |
 | INC-09, INC-10 | Coverage measurement (JaCoCo) and unit tests | FR-04, FR-05, FR-06, FR-09, FR-10, FR-12, FR-16, FR-22; NFR-01 | Done |
 | INC-11 | Task statuses shown in English (To do, In progress, Done) | FR-12 | Done |
-| INC-12 | Public sign-up with rate limits | FR-01, NFR-11; US-22 | Done, except hosted deployment (not done) |
+| INC-12 | Public sign-up with rate limits | FR-01, NFR-11; US-22 | Done, except validation of the hosted deployment (a first deployment is reported but not validated; no public check is recorded) |
 | INC-13 | Approved UI visual design applied to the existing screens | FR-08, FR-12, FR-13, FR-16, FR-18; NFR-06 to NFR-08 | Done (some manual checks still open) |
 | INC-14 | Create a workspace | FR-02; US-02 | Done |
 | INC-15 | Workspace Administrators create, edit and delete projects | FR-06; US-06, US-24, US-27 | Done |
