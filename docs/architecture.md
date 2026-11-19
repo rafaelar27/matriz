@@ -1,6 +1,6 @@
 # Matriz — Architecture
 
-> **Status:** decided on 2026-11-05 by the project decision-maker (KC-01). This decision covers the architectural style and the logical components of the MVP. The language, framework, front-end approach and database are chosen under [Technology stack](#technology-stack) (confirmed on 2026-11-12). Hosting was decided on 2026-11-19 (Render for the application, Neon for the database; decided, not yet deployed; see [Technology stack](#technology-stack)); the remaining choices are listed under [Pending decisions](#pending-decisions). Requirement IDs are defined in [requirements.md](requirements.md), user stories in [user-stories.md](user-stories.md), and constraints, assumptions and pending decisions in [constraints.md](constraints.md).
+> **Status:** decided on 2026-11-05 by the project decision-maker (KC-01). This decision covers the architectural style and the logical components of the MVP. The language, framework, front-end approach and database are chosen under [Technology stack](#technology-stack) (confirmed on 2026-11-12). Hosting was decided on 2026-11-19 (Render for the application, Neon for the database; a first deployment exists but has not been validated, and no public check is recorded here; see [Technology stack](#technology-stack)); the remaining choices are listed under [Pending decisions](#pending-decisions). Requirement IDs are defined in [requirements.md](requirements.md), user stories in [user-stories.md](user-stories.md), and constraints, assumptions and pending decisions in [constraints.md](constraints.md).
 
 ## Context
 
@@ -236,7 +236,7 @@ flowchart TB
 | Fonts | **Inter** and **Space Grotesk** (SIL Open Font License 1.1), self-hosted as woff2 files (latin subset, from the npm packages `@fontsource/inter` and `@fontsource/space-grotesk` 5.3.0) in `src/main/resources/static/css/fonts`; no font service is called (added 2026-11-19) |
 | Code coverage measurement | **JaCoCo** (Maven plugin 0.8.14, added 2026-11-17); the report is written to `target/site/jacoco` at `mvn verify`; no coverage thresholds |
 | Packaging and continuous integration | **Docker** (one image of the application, Eclipse Temurin 21), **Docker Compose** (PostgreSQL 16 and the application on one machine, on the dedicated network `matriz-net`) and **GitHub Actions** (tests, image build, end-to-end test); added 2026-11-18, see the [decision log](constraints.md#decision-log). Not a hosting decision: images are not published. |
-| Hosting (decided, 2026-11-19; **not yet deployed**, no public URL exists) | **Render** (one Docker Web Service, free plan) for the application and **Neon** (managed PostgreSQL 18, direct connection endpoint, TLS) for the database; regions: Render Frankfurt (EU Central; exact name [TO CONFIRM]), Neon AWS Europe Central 1 (Frankfurt, `eu-central-1`), using the `production` (default) branch of the existing Neon project; Docker Compose and CI keep PostgreSQL 16; approved by the project decision-maker (KC-01), see the [decision log](constraints.md#decision-log). One Render Web Service serves the API and the static interface from the same origin; a separate Render Static Site is not used, because `onrender.com` subdomains are different sites and the session and CSRF cookies are same-site only (TD-03); the `MATRIZ_API_BASE_URL` rule is unchanged. The public deployment has no demo data. Backup (TD-05) and availability (TD-06) stay pending. Risk for NFR-04, not a decision: the free plan may stop the service when idle and sessions are kept in memory, so a stop or restart ends every session [TO CONFIRM]. Compatibility with PostgreSQL 18 on Neon, the exact Render region name, free-plan limits, and TLS and connection options are not verified [TO CONFIRM]. Accounts on the public site are created by public sign-up (INC-12). |
+| Hosting (decided, 2026-11-19; a first deployment exists but has not been validated; no public check is recorded here) | **Render** (one Docker Web Service, free plan) for the application and **Neon** (managed PostgreSQL 18, direct connection endpoint, TLS) for the database; regions: Render Frankfurt (EU Central; exact name [TO CONFIRM]), Neon AWS Europe Central 1 (Frankfurt, `eu-central-1`), using the `production` (default) branch of the existing Neon project; Docker Compose and CI keep PostgreSQL 16; approved by the project decision-maker (KC-01), see the [decision log](constraints.md#decision-log). One Render Web Service serves the API and the static interface from the same origin; a separate Render Static Site is not used, because `onrender.com` subdomains are different sites and the session and CSRF cookies are same-site only (TD-03); the `MATRIZ_API_BASE_URL` rule is unchanged. The public deployment has no demo data. Backup (TD-05) and availability (TD-06) stay pending. Risk for NFR-04, not a decision: the free plan may stop the service when idle and sessions are kept in memory, so a stop or restart ends every session [TO CONFIRM]. Compatibility with PostgreSQL 18 on Neon, the exact Render region name, free-plan limits, and TLS and connection options are not verified [TO CONFIRM]. Accounts on the public site are created by public sign-up (INC-12). |
 
 ### Inputs specific to this decision
 
@@ -246,7 +246,7 @@ These come from the project decision-maker's request on 2026-11-05. Items marked
 |---|---|---|
 | The developer is one student, familiar with Java and JavaScript. | Project decision-maker, 2026-11-05; KC-08 | Stated input |
 | The MVP must be built in **1 week**. | Project decision-maker, 2026-11-05 | Stated input. **Conflicts with AQ30** ("within a few months"); see the report. |
-| Matriz runs **locally** for the course; there is no hosted deployment. | Project decision-maker, 2026-11-05 | Stated input, **superseded in part on 2026-11-19**: hosting was chosen (Render and Neon, see the Hosting row in the summary above and the [decision log](constraints.md#decision-log)), but nothing is deployed yet, so Matriz still runs only locally and in CI. TD-05 and TD-06 remain pending for any deployment. |
+| Matriz runs **locally** for the course; there is no hosted deployment. | Project decision-maker, 2026-11-05 | Stated input, **superseded in part on 2026-11-19**: hosting was chosen (Render and Neon, see the Hosting row in the summary above and the [decision log](constraints.md#decision-log)), and a first deployment exists but has not been validated; no public check is recorded here, so Matriz is still verified only locally and in CI. TD-05 and TD-06 remain pending for any deployment. |
 | **TS-A1.** No course or instructor requirement fixes a technology. | None was given | **Assumption** |
 | **TS-A2.** "Familiar with JavaScript" means plain JavaScript in the browser, not TypeScript or a front-end framework such as React. | Team context | **Assumption** |
 | **TS-A3.** The developer can install a JDK and PostgreSQL on their own computer. | Local running | **Assumption** |
@@ -389,7 +389,7 @@ Revisit this choice, recording the outcome in the [decision log](constraints.md#
 
 ## Deployment view
 
-How the single deployable unit (see the [component diagram](#component-diagram)) runs in each environment. It adds no component and decides nothing: hosting is the decision of 2026-11-19 recorded in the [Technology stack](#technology-stack) (Hosting row) and the [decision log](constraints.md#decision-log). Steps, variables and checks are in [deployment.md](deployment.md). Facts about Render and Neon behaviour are not verified [TO CONFIRM]; the hosted deployment is **decided, not yet deployed**, and no public URL exists.
+How the single deployable unit (see the [component diagram](#component-diagram)) runs in each environment. It adds no component and decides nothing: hosting is the decision of 2026-11-19 recorded in the [Technology stack](#technology-stack) (Hosting row) and the [decision log](constraints.md#decision-log). Steps, variables and checks are in [deployment.md](deployment.md). Facts about Render and Neon behaviour are not verified [TO CONFIRM]; for the hosted deployment, a first deployment exists but has not been validated; no public check is recorded here.
 
 ### Local runtime
 
@@ -421,7 +421,7 @@ flowchart LR
 
 The database of the Compose stack publishes no port; only `app` reaches it. The `seed` service is not started by `docker compose up`.
 
-### Hosted deployment (decided 2026-11-19, not yet deployed)
+### Hosted deployment (decided 2026-11-19; first deployment not validated)
 
 ```mermaid
 flowchart LR
@@ -477,7 +477,7 @@ None of these is decided by this document. The architectural style narrows each 
 | ID | Decision | Effect of this architecture |
 |---|---|---|
 | TD-01 | How users access Matriz on computers | Decides how CMP-11 User Interface is delivered. Narrowed by [Technology stack](#technology-stack): a web interface of static HTML, CSS and JavaScript, used in a browser. |
-| TD-02 | Where data is stored and hosted, including the region | Applies to the single logical store, CMP-12. Decided on 2026-11-19: Render (Frankfurt) for the application and Neon (PostgreSQL 18, AWS eu-central-1, `production` branch) for the database; not yet deployed (see the Hosting row in [Technology stack](#technology-stack)). |
+| TD-02 | Where data is stored and hosted, including the region | Applies to the single logical store, CMP-12. Decided on 2026-11-19: Render (Frankfurt) for the application and Neon (PostgreSQL 18, AWS eu-central-1, `production` branch) for the database; a first deployment exists but has not been validated (see the Hosting row in [Technology stack](#technology-stack)). |
 | TD-03 | How accounts are created and how sign-in works | Resolved: sign-in 2026-11-12, sign-up 2026-11-18 (see the decision log). Implemented inside CMP-01. |
 | TD-04 | How invitation emails are sent | Implemented behind CMP-13. |
 | TD-05 | Backup and recovery | Covers one data store. |

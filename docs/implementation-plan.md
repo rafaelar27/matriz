@@ -17,7 +17,7 @@
 | INC-09 | Coverage measurement and unit tests | Done (2026-11-17) |
 | INC-10 | Unit tests for the INC-09 refactoring candidates | Done (2026-11-18) |
 | INC-11 | English task status labels | Done (2026-11-18) |
-| INC-12 | Public sign-up | Done (2026-11-19), except hosted deployment (not done; TD-02, TD-05, TD-06, TD-13 pending) |
+| INC-12 | Public sign-up | Done (2026-11-19), except hosted deployment (a first deployment exists but has not been validated; no public check is recorded here; TD-02 decided 2026-11-19; TD-05, TD-06, TD-13 pending) |
 | INC-13 | Apply the approved UI visual design | Done (some manual checks still open) |
 | INC-14 | Create a workspace | Done (2026-11-19) |
 | INC-15 | Workspace Administrators manage projects | Done (2026-11-19) |
