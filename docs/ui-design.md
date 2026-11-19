@@ -2,7 +2,7 @@
 
 ## Status
 
-Drafted on 2026-11-19 and approved by the project decision-maker (see the [decision log](constraints.md#decision-log)). It describes the look only. No technology is chosen by this document (TD-01 stays pending). Requirement IDs are defined in [requirements.md](requirements.md), user stories in [user-stories.md](user-stories.md) and pending decisions in [constraints.md](constraints.md#pending-product-decisions).
+Drafted on 2026-11-19 and approved by the project decision-maker (see the [decision log](constraints.md#decision-log)). It describes the look only. No technology is chosen by this document (TD-01 stays pending). The front end is already decided as static HTML, CSS and JavaScript ([Technology stack](architecture.md#technology-stack), 2026-11-12, which resolved TD-10 and TD-11 and narrowed TD-01). Requirement IDs are defined in [requirements.md](requirements.md), user stories in [user-stories.md](user-stories.md) and pending decisions in [constraints.md](constraints.md#pending-product-decisions).
 
 ## Colour tokens
 
