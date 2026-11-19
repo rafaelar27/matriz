@@ -482,7 +482,8 @@ function signInScreen() {
   banner,
   kit.field('email', 'Email', email),
   kit.field('password', 'Password', password),
-  submit);
+  submit,
+  h('p', { class: 'hint' }, 'New to Matriz? ', h('a', { href: '#/sign-up' }, 'Create an account')));
   render(h('div', { class: 'narrow' }, notice, form));
   email.focus();
 
@@ -495,6 +496,106 @@ function signInScreen() {
       go(HOME);
     }
   }).catch(() => { /* not signed in */ });
+}
+
+// Sign up (US-22, FR-01, SP-01, NFR-11). The same form parts as sign-in. The browser checks only what the contract
+// states (name 1 to 80 characters, an email with "@", password 12 to 64 characters and at most 72 bytes); the API
+// decides. After a failure the name and email stay and the password is cleared. One request at a time (guarded).
+// After success the person is signed in and sees the welcome message (decision log 2026-11-18).
+const PRIVACY_NOTICE = 'To run your account, Matriz stores your name, your email address and a protected form of '
+  + 'your password (a hash, never the password itself). Your name is shown to the other members of your workspaces, '
+  + 'for example as a task owner or a comment author. Matriz uses this data to run your account and your work in '
+  + 'Matriz. There is not yet a way inside Matriz to ask for a copy or the deletion of your data; it will come with '
+  + 'personal-data requests (FR-21).';
+const PASSWORD_MIN = 12;
+const PASSWORD_MAX = 64;
+const PASSWORD_MAX_BYTES = 72;
+const ACCOUNT_NAME_MAX = 80;
+
+function signUpScreen() {
+  showBar(false);
+  const kit = formKit('signup');
+  const banner = h('div', { 'aria-live': 'assertive' });
+  const name = h('input', { type: 'text', autocomplete: 'name', required: true });
+  const email = h('input', { type: 'email', autocomplete: 'email', required: true, spellcheck: 'false' });
+  const password = h('input', { type: 'password', autocomplete: 'new-password', required: true });
+  const submit = h('button', { class: 'btn primary', type: 'submit' }, 'Create account');
+
+  const validate = () => {
+    const nameValue = name.value.trim();
+    const nameLength = [...nameValue].length;
+    const nameError = nameLength < 1 ? 'Enter your name.'
+      : (nameLength > ACCOUNT_NAME_MAX ? 'The name must be at most ' + ACCOUNT_NAME_MAX + ' characters.' : '');
+    const emailValue = email.value.trim();
+    const emailError = !emailValue ? 'Enter your email.'
+      : (!emailValue.includes('@') ? 'Enter a valid email address.' : '');
+    const length = [...password.value].length;
+    const passwordError = length < PASSWORD_MIN || length > PASSWORD_MAX
+      ? 'The password must be ' + PASSWORD_MIN + ' to ' + PASSWORD_MAX + ' characters long.'
+      : (new TextEncoder().encode(password.value).length > PASSWORD_MAX_BYTES
+        ? 'The password is too long: at most ' + PASSWORD_MAX_BYTES + ' bytes.' : '');
+    kit.setError('name', nameError);
+    kit.setError('email', emailError);
+    kit.setError('password', passwordError);
+    return !nameError && !emailError && !passwordError;
+  };
+
+  const form = h('form', { class: 'panel', novalidate: true, 'aria-describedby': 'signup-privacy', onsubmit: e => {
+    e.preventDefault();
+    banner.replaceChildren();
+    kit.clear();
+    if (!validate()) {
+      kit.focusFirstError();
+      return;
+    }
+    guarded(form, submit, async () => {
+      try {
+        await ensureCsrfToken();
+        state.profile = await api('POST', '/auth/sign-up',
+          { name: name.value.trim(), email: email.value.trim(), password: password.value });
+        state.returnTo = null;
+        go('#/welcome');
+      } catch (err) {
+        password.value = '';
+        if (err.status === 409 && err.body && err.body.code === 'conflict') {
+          go(HOME); // already signed in
+        } else if (!kit.showServerErrors(err)) {
+          banner.append(message(errorText(err)));
+          password.focus();
+        }
+      }
+    });
+  } },
+  h('h1', {}, 'Create your Matriz account'),
+  banner,
+  kit.field('name', 'Name', name),
+  kit.field('email', 'Email', email),
+  kit.field('password', 'Password', password,
+    PASSWORD_MIN + ' to ' + PASSWORD_MAX + ' characters. Any characters are allowed.'),
+  h('p', { class: 'hint', id: 'signup-privacy' }, h('strong', {}, 'Privacy. '), PRIVACY_NOTICE),
+  submit,
+  h('p', { class: 'hint' }, 'Already have an account? ', h('a', { href: '#/sign-in' }, 'Sign in')));
+  render(h('div', { class: 'narrow' }, form));
+  name.focus();
+
+  // Someone who is already signed in does not need this screen (the API would refuse the request, EC-15).
+  api('GET', '/auth/me', undefined, { quiet: true }).then(profile => {
+    if (location.hash.startsWith('#/sign-up') && !busyForms.has(form)) {
+      state.profile = profile;
+      go(HOME);
+    }
+  }).catch(() => { /* not signed in */ });
+}
+
+// First screen right after sign-up (AC-22.8): a welcome message with no action, because workspaces and projects
+// cannot be created yet (FR-02 is not built; PD-24 stays pending for every other case).
+async function welcomeScreen() {
+  await loadProfile();
+  showBar(true);
+  render(h('h1', {}, 'Welcome to Matriz, ' + state.profile.name),
+    h('div', { class: 'empty' },
+      h('strong', {}, 'Your account is ready.'),
+      'Workspaces and projects are not available yet.'));
 }
 
 // Dashboard (INC-06 screen 2; docs/ui/README.md E-01 to E-20). Built only from existing views (UI-A6): the Projects
@@ -1367,6 +1468,8 @@ async function route() {
   const parts = path.split('/').filter(Boolean);
   try {
     if (parts[0] === 'sign-in') return signInScreen();
+    if (parts[0] === 'sign-up') return signUpScreen();
+    if (parts[0] === 'welcome' && parts.length === 1) return await welcomeScreen();
     if (parts[0] === 'dashboard' && parts.length === 1) return await dashboardScreen();
     if (parts[0] === 'projects' && parts.length === 1) return await projectsScreen(params);
     if (parts[0] === 'projects' && parts[1] === 'new') return await projectFormScreen(null);

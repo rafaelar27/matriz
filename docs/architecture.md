@@ -101,7 +101,7 @@ Component IDs (CMP-xx) are new in this document. Names use the terminology of th
 
 | ID | Component | Responsibilities | Related FRs / user stories | Main dependencies |
 |---|---|---|---|---|
-| CMP-01 | **Accounts and Sign-in** | Creates personal accounts (one per person), handles sign-in and sign-out, and identifies the signed-in person for every request. Accounts are person-level, not workspace-level, so they work whichever way PD-16 is decided. | FR-01, SP-01; US-01 | Data Storage |
+| CMP-01 | **Accounts and Sign-in** | Creates personal accounts (one per person) after checking the account rules (name, email, password; BR-24, SP-10), handles sign-up, sign-in and sign-out, limits sign-up and sign-in attempts per client address (NFR-11, counters in memory, address of the direct connection until TD-13 is decided), and identifies the signed-in person for every request. Accounts are person-level, not workspace-level, so they work whichever way PD-16 is decided. | FR-01, SP-01, SP-08 to SP-10, NFR-11; US-01, US-22 | Data Storage |
 | CMP-02 | **Workspaces and Members** | Creates workspaces. Sends, tracks and accepts invitations by email address. Deactivates members. Assigns and changes roles. Refuses duplicate members and keeps at least one Workspace Administrator. Provides each member's role and status to other modules. | FR-02, FR-03, FR-04 (role assignment), SP-04, SP-07; US-02, US-03, US-04, US-05; EC-01, EC-02, EC-03 | Accounts and Sign-in, Access Control, Email Delivery, Data Storage |
 | CMP-03 | **Access Control** | Holds the permission rules in one place: what each of the four roles (Workspace Administrator, Project Manager, Team Member, Viewer) may see and change, the Viewer's read-only access, and the rule that a member can delete only the tasks they created. Other modules ask it before every action and pass the facts it needs (the member's role, project membership, task creator). | FR-04 (permissions), FR-05, FR-09 (deletion rule), SP-03; US-19; AC-03.4, AC-11.3, AC-19.2 | None (it receives the facts it needs from the asking module) |
 | CMP-04 | **Projects** | Creates, edits and archives projects (name, description, owner, start date, due date). Manages project members, including Viewers. Lists all projects in the workspace with owner and due date. | FR-06, FR-07, FR-08; US-06, US-07, US-08, US-09, US-19 (AC-19.1); EC-09 | Workspaces and Members, Access Control, Data Storage |
@@ -160,6 +160,7 @@ The progress indicator is shown in the project list (AC-17.1), but Projects does
 | NFR-08 Primary use on computers | CMP-11; access method pending TD-01 |
 | NFR-09 One interface language | CMP-11; language pending PD-13 |
 | NFR-10 Data sensitivity | CMP-12 stores no payment data; no component handles payments |
+| NFR-11 Abuse protection of sign-up and sign-in | CMP-01 (limits kept in memory); how the client address is read behind a proxy is pending TD-13 |
 
 ## Component diagram
 
@@ -407,13 +408,14 @@ None of these is decided by this document. The architectural style narrows each 
 |---|---|---|
 | TD-01 | How users access Matriz on computers | Decides how CMP-11 User Interface is delivered. Narrowed by [Technology stack](#technology-stack): a web interface of static HTML, CSS and JavaScript, used in a browser. |
 | TD-02 | Where data is stored and hosted, including the region | Applies to the single logical store, CMP-12. |
-| TD-03 | How accounts are created and how sign-in works | Implemented inside CMP-01. |
+| TD-03 | How accounts are created and how sign-in works | Resolved: sign-in 2026-11-12, sign-up 2026-11-18 (see the decision log). Implemented inside CMP-01. |
 | TD-04 | How invitation emails are sent | Implemented behind CMP-13. |
 | TD-05 | Backup and recovery | Covers one data store. |
 | TD-06 | How availability and capacity targets are met and monitored | Applies to one deployable unit. |
 | TD-07 | How simultaneous edits to the same task are handled | Implemented inside CMP-05, once PD-11 is decided. |
 | TD-08 | How in-app notifications are delivered | Implemented inside CMP-08 and CMP-11. |
 | TD-09 | How personal-data requests are received and fulfilled | Implemented inside CMP-10. |
+| TD-13 | How the client IP address is read behind a proxy | Applies to the one deployable unit; affects the rate limits in CMP-01 (NFR-11). |
 
 ### Technical decisions raised by this document
 
@@ -440,6 +442,7 @@ These are registered under [Pending technical decisions](constraints.md#pending-
 | PD-15 | Numeric targets for NFR-02, NFR-04, NFR-05, NFR-06 and NFR-07, and the thresholds for revisiting this decision. |
 | PD-16 | Membership of several workspaces: affects CMP-01, CMP-02, CMP-06 ("My tasks") and workspace scoping in CMP-12. |
 | PD-18, PD-19 | What a deletion request removes and how requesters are verified, in CMP-10. |
+| PD-25, PD-26 | Email verification and password reset in CMP-01 (and CMP-13 Email Delivery if emails are sent, TD-04). |
 
 ## Conditions for revisiting the decision
 
