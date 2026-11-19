@@ -1,6 +1,8 @@
 package com.matriz.accounts;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ReadListener;
@@ -36,7 +38,9 @@ class AuthBodyLimitFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !request.getRequestURI().startsWith("/auth/");
+        // The decoded path, as Spring MVC and Spring Security match it: "/%61uth/sign-in" is "/auth/sign-in" (audit S-11).
+        String path = request.getServletPath() + (request.getPathInfo() == null ? "" : request.getPathInfo());
+        return !path.startsWith("/auth/");
     }
 
     @Override
@@ -67,6 +71,13 @@ class AuthBodyLimitFilter extends OncePerRequestFilter {
                 limited = limit(super.getInputStream());
             }
             return limited;
+        }
+
+        /** The reader reads through the same counting stream, so it cannot get around the limit (audit S-14). */
+        @Override
+        public BufferedReader getReader() throws IOException {
+            String encoding = getCharacterEncoding() == null ? "UTF-8" : getCharacterEncoding();
+            return new BufferedReader(new InputStreamReader(getInputStream(), encoding));
         }
 
         private static ServletInputStream limit(ServletInputStream in) {

@@ -124,11 +124,12 @@ class AuthController {
         // The attempt is counted before the password is checked, so parallel guesses cannot all pass the check; it is
         // given back when the attempt is not a credentials failure. Over a limit, even a correct password is refused
         // until the window ends (decision log 2026-11-18).
-        long wait = limiter.acquire(perIpAndEmail, signInMaxPerIpAndEmail, signInWindow);
+        long wait = limiter.acquire(perIpAndEmail, signInMaxPerIpAndEmail, signInWindow,
+                AttemptLimiter.Tier.BEST_EFFORT);
         if (wait == 0) {
             wait = limiter.acquire(perIp, signInMaxPerIp, signInWindow);
             if (wait > 0) {
-                limiter.release(perIpAndEmail);
+                limiter.release(perIpAndEmail, AttemptLimiter.Tier.BEST_EFFORT);
             }
         }
         if (wait > 0) {
@@ -157,7 +158,7 @@ class AuthController {
             throw e;
         } finally {
             if (!credentialsFailure) {
-                limiter.release(perIpAndEmail);
+                limiter.release(perIpAndEmail, AttemptLimiter.Tier.BEST_EFFORT);
                 limiter.release(perIp);
             }
         }

@@ -52,8 +52,10 @@ class SignUpService {
         String cleanEmail = normalizeEmail(email);
 
         int nameLength = cleanName.codePointCount(0, cleanName.length());
-        if (nameLength < 1 || nameLength > NAME_MAX || hasControlCharacter(cleanName)) {
-            issues.add(new ApiError.FieldIssue("name", "The name must be 1 to " + NAME_MAX + " characters long."));
+        if (nameLength < 1 || nameLength > NAME_MAX || hasControlCharacter(cleanName)
+                || hasFormatCharacter(cleanName)) {
+            issues.add(new ApiError.FieldIssue("name",
+                    "The name must be 1 to " + NAME_MAX + " characters long, without control or invisible formatting characters."));
         }
         if (!looksLikeEmail(cleanEmail) || hasControlCharacter(cleanEmail)) {
             issues.add(new ApiError.FieldIssue("email", "Enter a valid email address."));
@@ -85,6 +87,11 @@ class SignUpService {
             }
             throw e;
         }
+    }
+
+    /** True if the text has a Unicode format character (bidi override, zero-width, ZWJ), which can spoof a name. */
+    static boolean hasFormatCharacter(String text) {
+        return text.codePoints().anyMatch(cp -> Character.getType(cp) == Character.FORMAT);
     }
 
     /** True if the text has a control character (for example U+0000, which PostgreSQL cannot store in text). */
