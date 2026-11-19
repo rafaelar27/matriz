@@ -10,6 +10,7 @@ import static org.mockito.ArgumentMatchers.any;
 import java.time.Duration;
 import java.util.UUID;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,6 +22,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.InternalAuthenticationServiceException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 
@@ -43,6 +45,12 @@ class AuthControllerSignInTest {
         manager = mock(AuthenticationManager.class);
         limiter = new AttemptLimiter();
         controller = controller(10, 50);
+    }
+
+    /** A successful sign-in sets the thread-local security context; clear it so later tests on this thread are unaffected. */
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
     }
 
     private final MockHttpServletRequest request = new MockHttpServletRequest();
