@@ -28,6 +28,13 @@ public class ApiExceptionHandler {
      */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     ResponseEntity<ApiError> handle(HttpMessageNotReadableException e) {
+        for (Throwable t = e; t != null; t = t.getCause() == t ? null : t.getCause()) {
+            if (t instanceof PayloadTooLargeException) {
+                // A body that grew past the limit while it was read (openapi.yaml PayloadTooLarge).
+                return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                        .body(new ApiError("payload_too_large", "The request is too large."));
+            }
+        }
         Throwable cause = e.getCause();
         if (cause instanceof UnrecognizedPropertyException u) {
             return unprocessable(u.getPropertyName(), "This field cannot be sent.");

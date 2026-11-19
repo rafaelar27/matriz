@@ -18,12 +18,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.matriz.shared.ApiError;
+import com.matriz.shared.PayloadTooLargeException;
 
 /**
  * Limits the request body of the open routes under {@code /auth/} to {@value #MAX_BYTES} bytes (decided 2026-11-18,
  * security audit S-04), so a huge body is not read and parsed before the rate limits apply. A declared length over the
- * limit gets 413 {@code payload_too_large}; a body without a declared length is cut off at the limit while it is read,
- * which the JSON parser reports as a malformed request (400).
+ * limit gets 413 {@code payload_too_large}; a body without a declared length is cut off at the limit while it is read
+ * ({@link PayloadTooLargeException}), which ApiExceptionHandler also answers with 413.
  */
 @Component
 class AuthBodyLimitFilter extends OncePerRequestFilter {
@@ -88,7 +89,7 @@ class AuthBodyLimitFilter extends OncePerRequestFilter {
                 public int read() throws IOException {
                     int b = in.read();
                     if (b >= 0 && ++total > MAX_BYTES) {
-                        throw new IOException("Request body too large");
+                        throw new PayloadTooLargeException("Request body too large");
                     }
                     return b;
                 }
@@ -99,7 +100,7 @@ class AuthBodyLimitFilter extends OncePerRequestFilter {
                     if (n > 0) {
                         total += n;
                         if (total > MAX_BYTES) {
-                            throw new IOException("Request body too large");
+                            throw new PayloadTooLargeException("Request body too large");
                         }
                     }
                     return n;
