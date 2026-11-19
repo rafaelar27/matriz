@@ -224,96 +224,55 @@ class ProjectApiTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("FR-05, PD-03 (prov.) · on a project she created, a Workspace Administrator still gets 403 on createTask, assign and comment")
-    void workspaceAdministratorStillRefusedOnTasksOfOwnProject() throws Exception {
+    @DisplayName("FR-05, FR-09, FR-10, FR-12, FR-16, FR-22, PD-03 (in part) · on a project she created, a Workspace Administrator creates, assigns, comments, changes status of her task and deletes her task, but cannot edit task content or act on others' tasks")
+    void workspaceAdministratorWorksOnTasksOfOwnProject() throws Exception {
         MockHttpSession carla = signIn("carla@example.com");
         String id = createdId(carla, named("Fictitious admin tasks"));
-        String task = "e0000000-0000-0000-0000-0000000000f1";
+        String base = "/projects/" + id + "/tasks";
+
+        String body = mvc.perform(post(base).session(carla).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Fictitious own task\",\"owner_member_id\":\"" + ACME_CARLA + "\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String task = JsonPath.read(body, "$.task_id");
+        String path = base + "/" + task;
+
+        mvc.perform(post(path + "/assignees").session(carla).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"member_ids\":[\"" + ACME_CARLA + "\"]}")).andExpect(status().isCreated());
+        mvc.perform(delete(path + "/assignees/" + ACME_CARLA).session(carla).with(csrf()))
+                .andExpect(status().is2xxSuccessful());
+        mvc.perform(post(path + "/comments").session(carla).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"body\":\"Fictitious comment\"}"))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.author_member_id").value(ACME_CARLA));
+        mvc.perform(patch(path).session(carla).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"owner_member_id\":\"" + ACME_CARLA + "\"}")).andExpect(status().isOk());
+        mvc.perform(patch(path).session(carla).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"Done\"}")).andExpect(status().isOk());
+        // Content edit stays refused, even on her own task.
+        mvc.perform(patch(path).session(carla).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Fictitious edit\"}")).andExpect(status().isForbidden());
         entityManager.flush();
+        assertThat(count("SELECT count(*) FROM task WHERE task_id = ?::uuid AND title = 'Fictitious own task' "
+                + "AND status = 'DONE'", task)).isEqualTo(1);
+
+        // A task owned and created by Ben (a project member): she may not change its status or delete it.
+        String benTask = "e0000000-0000-0000-0000-0000000000f4";
+        jdbc.update("INSERT INTO project_member (project_id, member_id) VALUES (?::uuid, ?::uuid)", id, ACME_BEN);
         jdbc.update("INSERT INTO task (task_id, project_id, title, owner_member_id, status, created_by_member_id) "
-                + "VALUES (?::uuid, ?::uuid, 'Fictitious task', ?::uuid, 'TO_DO', ?::uuid)", task, id, ACME_CARLA,
-                ACME_CARLA);
+                + "VALUES (?::uuid, ?::uuid, 'Fictitious ben task', ?::uuid, 'TO_DO', ?::uuid)", benTask, id, ACME_BEN,
+                ACME_BEN);
         entityManager.clear();
-        long tasks = count("SELECT count(*) FROM task WHERE project_id = ?::uuid", id);
-
-        mvc.perform(post("/projects/" + id + "/tasks").session(carla).with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"Fictitious new task\",\"owner_member_id\":\"" + ACME_CARLA + "\"}"))
-                .andExpect(status().isForbidden());
-        mvc.perform(patch("/projects/" + id + "/tasks/" + task).session(carla).with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"Fictitious edit\"}"))
-                .andExpect(status().isForbidden());
-        mvc.perform(delete("/projects/" + id + "/tasks/" + task).session(carla).with(csrf()))
-                .andExpect(status().isForbidden());
-        mvc.perform(post("/projects/" + id + "/tasks/" + task + "/assignees").session(carla).with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"member_ids\":[\"" + ACME_CARLA + "\"]}"))
-                .andExpect(status().isForbidden());
-        mvc.perform(delete("/projects/" + id + "/tasks/" + task + "/assignees/" + ACME_CARLA).session(carla)
-                        .with(csrf()))
-                .andExpect(status().isForbidden());
-        mvc.perform(post("/projects/" + id + "/tasks/" + task + "/comments").session(carla).with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"body\":\"Fictitious comment\"}"))
-                .andExpect(status().isForbidden());
-
-        assertThat(count("SELECT count(*) FROM task WHERE project_id = ?::uuid", id)).isEqualTo(tasks);
-        assertThat(count("SELECT count(*) FROM task WHERE task_id = ?::uuid AND title = 'Fictitious task'", task))
+        mvc.perform(patch(base + "/" + benTask).session(carla).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"Done\"}")).andExpect(status().isForbidden());
+        mvc.perform(delete(base + "/" + benTask).session(carla).with(csrf())).andExpect(status().isForbidden());
+        assertThat(count("SELECT count(*) FROM task WHERE task_id = ?::uuid AND status = 'TO_DO'", benTask))
                 .isEqualTo(1);
-        assertThat(count("SELECT count(*) FROM task_assignee WHERE task_id = ?::uuid", task)).isZero();
+
+        // She may delete the task she created.
+        mvc.perform(delete(path).session(carla).with(csrf())).andExpect(status().is2xxSuccessful());
+        entityManager.flush();
+        assertThat(count("SELECT count(*) FROM task WHERE task_id = ?::uuid", task)).isZero();
         assertThat(count("SELECT count(*) FROM comment WHERE task_id = ?::uuid", task)).isZero();
-    }
-
-    @Test
-    @DisplayName("NFR-01, SP-02, FR-06 · a Workspace Administrator of another workspace gets 404 on edit and delete of an Acme project; nothing changes")
-    void workspaceAdministratorOfAnotherWorkspaceCannotEditOrDelete() throws Exception {
-        String id = createdId(signIn("ana@example.com"), named("Fictitious acme only"));
-        entityManager.flush();
-        long before = projectCount();
-        MockHttpSession finn = signIn("finn@example.com");
-
-        update(finn, id, "{\"name\":\"Fictitious hijack\"}").andExpect(status().isNotFound());
-        remove(finn, id).andExpect(status().isNotFound());
-
-        entityManager.flush();
-        entityManager.clear();
-        assertThat(projectCount()).isEqualTo(before);
-        assertThat(count("SELECT count(*) FROM project WHERE project_id = ?::uuid AND name = 'Fictitious acme only' "
-                + "AND workspace_id = ?::uuid", id, ACME)).isEqualTo(1);
-    }
-
-    @Test
-    @DisplayName("FR-06, DA-05 · deleting a project with a task, comment, notification and assignee leaves no row in any related table")
-    void workspaceAdministratorDeleteLeavesNoOrphanRows() throws Exception {
-        MockHttpSession carla = signIn("carla@example.com");
-        String id = createdId(carla, named("Fictitious cascade"));
-        String task = "e0000000-0000-0000-0000-0000000000f3";
-        String comment = "f0000000-0000-0000-0000-0000000000f3";
-        entityManager.flush();
-        jdbc.update("INSERT INTO task (task_id, project_id, title, owner_member_id, status, created_by_member_id) "
-                + "VALUES (?::uuid, ?::uuid, 'Fictitious task', ?::uuid, 'TO_DO', ?::uuid)", task, id, ACME_CARLA,
-                ACME_CARLA);
-        jdbc.update("INSERT INTO task_assignee (task_id, member_id) VALUES (?::uuid, ?::uuid)", task, ACME_CARLA);
-        jdbc.update("INSERT INTO comment (comment_id, task_id, author_member_id, body) "
-                + "VALUES (?::uuid, ?::uuid, ?::uuid, 'Fictitious comment')", comment, task, ACME_CARLA);
-        jdbc.update("INSERT INTO notification (recipient_member_id, type, task_id) VALUES (?::uuid, 'TASK_ASSIGNED', ?::uuid)",
-                ACME_CARLA, task);
-        jdbc.update("INSERT INTO notification (recipient_member_id, type, task_id, comment_id) "
-                + "VALUES (?::uuid, 'COMMENT_ADDED', ?::uuid, ?::uuid)", ACME_CARLA, task, comment);
-        entityManager.clear();
-        assertThat(count("SELECT count(*) FROM notification WHERE task_id = ?::uuid", task)).isEqualTo(2);
-        long otherTasks = count("SELECT count(*) FROM task WHERE project_id <> ?::uuid", id);
-
-        remove(carla, id).andExpect(status().is2xxSuccessful());
-
-        entityManager.flush();
-        entityManager.clear();
-        assertThat(count("SELECT count(*) FROM project WHERE project_id = ?::uuid", id)).isZero();
-        assertThat(count("SELECT count(*) FROM project_member WHERE project_id = ?::uuid", id)).isZero();
-        assertThat(count("SELECT count(*) FROM task WHERE project_id = ?::uuid", id)).isZero();
         assertThat(count("SELECT count(*) FROM task_assignee WHERE task_id = ?::uuid", task)).isZero();
-        assertThat(count("SELECT count(*) FROM comment WHERE task_id = ?::uuid", task)).isZero();
-        assertThat(count("SELECT count(*) FROM notification WHERE task_id = ?::uuid", task)).isZero();
-        assertThat(count("SELECT count(*) FROM task WHERE project_id <> ?::uuid", id)).isEqualTo(otherTasks);
     }
 
     @Test

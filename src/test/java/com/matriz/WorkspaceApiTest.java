@@ -367,4 +367,100 @@ class WorkspaceApiTest extends ApiTestSupport {
         assertThat(count("SELECT count(*) FROM project WHERE project_id = ?::uuid", projectId)).isZero();
         assertThat(count("SELECT count(*) FROM project_member WHERE project_id = ?::uuid", projectId)).isZero();
     }
+
+    // --- A fresh creator works on tasks end to end (INC-14; PD-03 in part) ----------------------------------------
+
+    private ResultActions send(org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder b,
+                               MockHttpSession s, String json) throws Exception {
+        var req = b.session(s).with(csrf());
+        if (json != null) {
+            req = req.contentType(MediaType.APPLICATION_JSON).content(json);
+        }
+        return mvc.perform(req);
+    }
+
+    @Test
+    @DisplayName("FR-02, FR-06, FR-09, FR-10, FR-12, FR-16, FR-22, SP-07 · a fresh workspace creator creates a project, a task she owns, assigns herself, comments, sets Done and deletes the task")
+    void creatorWorksOnTasksEndToEnd() throws Exception {
+        MockHttpSession ben = signIn("ben@example.com");
+        String ws = create(ben, named("Task space")).andExpect(status().isCreated()).andReturn().getResponse()
+                .getContentAsString();
+        String wsId = JsonPath.read(ws, "$.workspace_id");
+        String me = JsonPath.read(ws, "$.member_id");
+        String project = JsonPath.read(send(post("/projects"), ben,
+                "{\"workspace_id\":\"" + wsId + "\",\"name\":\"Task project\"}")
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(), "$.project_id");
+        String base = "/projects/" + project + "/tasks";
+
+        String task = JsonPath.read(send(post(base), ben,
+                "{\"title\":\"Own task\",\"owner_member_id\":\"" + me + "\"}")
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(), "$.task_id");
+        String path = base + "/" + task;
+        entityManager.flush();
+        assertThat(jdbc.queryForObject("SELECT created_by_member_id::text FROM task WHERE task_id = ?::uuid",
+                String.class, task)).isEqualTo(me);
+
+        send(post(path + "/assignees"), ben, "{\"member_ids\":[\"" + me + "\"]}").andExpect(status().isCreated());
+        send(post(path + "/comments"), ben, "{\"body\":\"Fictitious note\"}").andExpect(status().isCreated())
+                .andExpect(jsonPath("$.author_member_id").value(me));
+        send(patch(path), ben, "{\"status\":\"Done\"}").andExpect(status().isOk());
+        entityManager.flush();
+        assertThat(count("SELECT count(*) FROM task WHERE task_id = ?::uuid AND status = 'DONE'", task)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM task_assignee WHERE task_id = ?::uuid", task)).isEqualTo(1);
+        send(patch(path), ben, "{\"title\":\"Edited\"}").andExpect(status().isForbidden());
+
+        // Isolation: an administrator of another workspace (Finn) and a member of another one (Dan) see 404.
+        for (String email : new String[] {"finn@example.com", "dan@example.com"}) {
+            MockHttpSession other = signIn(email);
+            mvc.perform(get(base).session(other)).andExpect(status().isNotFound());
+            send(post(base), other, "{\"title\":\"Intruder\",\"owner_member_id\":\"" + me + "\"}")
+                    .andExpect(status().isNotFound());
+            send(post(path + "/comments"), other, "{\"body\":\"Intruder\"}").andExpect(status().isNotFound());
+        }
+
+        send(delete(path), ben, null).andExpect(status().is2xxSuccessful());
+        entityManager.flush();
+        assertThat(count("SELECT count(*) FROM task WHERE task_id = ?::uuid", task)).isZero();
+        assertThat(count("SELECT count(*) FROM comment WHERE task_id = ?::uuid", task)).isZero();
+        assertThat(count("SELECT count(*) FROM task_assignee WHERE task_id = ?::uuid", task)).isZero();
+    }
+
+    @Test
+    @DisplayName("SP-01, SP-04, SP-07 · task requests of a creator: deactivated 403, spoofed created_by/author 422, no CSRF 403, no session 401; nothing saved")
+    void creatorTaskRequestsAreProtected() throws Exception {
+        MockHttpSession ben = signIn("ben@example.com");
+        String ws = create(ben, named("Guarded space")).andExpect(status().isCreated()).andReturn().getResponse()
+                .getContentAsString();
+        String me = JsonPath.read(ws, "$.member_id");
+        String project = JsonPath.read(send(post("/projects"), ben,
+                "{\"workspace_id\":\"" + JsonPath.read(ws, "$.workspace_id") + "\",\"name\":\"Guarded project\"}")
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(), "$.project_id");
+        String base = "/projects/" + project + "/tasks";
+        String own = "{\"title\":\"Own task\",\"owner_member_id\":\"" + me + "\"}";
+        String task = JsonPath.read(send(post(base), ben, own).andExpect(status().isCreated()).andReturn()
+                .getResponse().getContentAsString(), "$.task_id");
+        entityManager.flush();
+        long tasks = count("SELECT count(*) FROM task");
+        long comments = count("SELECT count(*) FROM comment");
+
+        // Spoofed server-set fields are refused.
+        send(post(base), ben, "{\"title\":\"Spoof\",\"owner_member_id\":\"" + me
+                + "\",\"created_by_member_id\":\"" + ACME_ANA + "\"}").andExpect(status().isUnprocessableEntity());
+        send(post(base + "/" + task + "/comments"), ben, "{\"body\":\"Spoof\",\"author_member_id\":\"" + ACME_ANA
+                + "\"}").andExpect(status().isUnprocessableEntity());
+        // No CSRF token: 403; no session: 401.
+        mvc.perform(post(base).session(ben).contentType(MediaType.APPLICATION_JSON).content(own))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("csrf_invalid"));
+        mvc.perform(post(base).with(csrf()).contentType(MediaType.APPLICATION_JSON).content(own))
+                .andExpect(status().isUnauthorized());
+        // A deactivated creator is refused.
+        jdbc.update("UPDATE member SET status = 'DEACTIVATED' WHERE member_id = ?::uuid", me);
+        entityManager.clear();
+        send(post(base), ben, own).andExpect(status().isForbidden());
+        send(post(base + "/" + task + "/comments"), ben, "{\"body\":\"Late\"}").andExpect(status().isForbidden());
+        send(delete(base + "/" + task), ben, null).andExpect(status().isForbidden());
+
+        assertThat(count("SELECT count(*) FROM task")).isEqualTo(tasks);
+        assertThat(count("SELECT count(*) FROM comment")).isEqualTo(comments);
+    }
 }

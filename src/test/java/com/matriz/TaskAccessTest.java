@@ -160,9 +160,22 @@ class TaskAccessTest extends ApiTestSupport {
     }
 
     @Test
-    void workspaceAdministratorCannotCreateTasksUntilPd03() throws Exception {
+    @DisplayName("FR-09, FR-05, PD-03 (in part) · a Workspace Administrator who is a project member creates a task; created_by is her member id")
+    void workspaceAdministratorProjectMemberCreatesTask() throws Exception {
+        String body = createTask(signIn("carla@example.com"), LAB, task("Placeholder task", NW_CARLA))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String id = com.jayway.jsonpath.JsonPath.read(body, "$.task_id");
+        entityManager.flush();
+        assertThat(jdbc.queryForObject("SELECT created_by_member_id::text FROM task WHERE task_id = ?::uuid",
+                String.class, id)).isEqualTo(NW_CARLA);
+    }
+
+    @Test
+    @DisplayName("FR-09, PD-20 (prov.) · a Workspace Administrator who is not a member of the project gets 403 on createTask; nothing saved")
+    void workspaceAdministratorNonMemberCannotCreateTask() throws Exception {
         long tasks = taskCount();
-        createTask(signIn("carla@example.com"), LAB, task("Placeholder task", NW_CARLA))
+        // Carla (Acme administrator) does not take part in Website redesign.
+        createTask(signIn("carla@example.com"), WEBSITE, task("Placeholder task", ACME_ANA))
                 .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("forbidden"));
         assertThat(taskCount()).isEqualTo(tasks);
     }

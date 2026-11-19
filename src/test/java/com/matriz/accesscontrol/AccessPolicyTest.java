@@ -72,7 +72,7 @@ class AccessPolicyTest {
 
     private static Stream<Arguments> createTask() {
         return Stream.of(
-                Arguments.of(WA, true, false), Arguments.of(PM, true, true), Arguments.of(TM, true, true),
+                Arguments.of(WA, true, true), Arguments.of(PM, true, true), Arguments.of(TM, true, true),
                 Arguments.of(V, true, false),
                 Arguments.of(WA, false, false), Arguments.of(PM, false, false), Arguments.of(TM, false, false),
                 Arguments.of(V, false, false));
@@ -80,19 +80,19 @@ class AccessPolicyTest {
 
     @ParameterizedTest(name = "{0} project member={1} create task -> allowed={2}")
     @MethodSource("createTask")
-    @DisplayName("FR-09, BR-12, FR-05, AC-19.2, TC-07 · create task: PM/TM who are project members only (prov. PD-03, PD-20)")
+    @DisplayName("FR-09, BR-12, FR-05, AC-19.2, TC-07 · create task: PM, TM and WA who are project members only; Viewer never (prov. PD-20)")
     void createTaskTable(Role role, boolean projectMember, boolean allowed) {
         check(allowed, () -> policy.checkCreateTask(actor(role), projectMember));
     }
 
     private static Stream<Arguments> assignOwner() {
         return Stream.of(Arguments.of(PM, true, true), Arguments.of(PM, false, true), Arguments.of(TM, true, true),
-                Arguments.of(TM, false, false));
+                Arguments.of(TM, false, false), Arguments.of(WA, true, true), Arguments.of(WA, false, true));
     }
 
     @ParameterizedTest(name = "{0} owner is self={1} -> allowed={2}")
     @MethodSource("assignOwner")
-    @DisplayName("FR-10 · owner at creation: PM self or other; TM only self (prov. PD-01)")
+    @DisplayName("FR-10 · owner at creation: PM and WA self or other; TM only self (prov. PD-01)")
     void ownerAtCreationTable(Role role, boolean self, boolean allowed) {
         check(allowed, () -> policy.checkAssignOwner(actor(role), self ? ME : OTHER));
     }
@@ -101,13 +101,13 @@ class AccessPolicyTest {
         return Stream.of(
                 Arguments.of(PM, true, true), Arguments.of(TM, true, true),
                 Arguments.of(PM, false, false), Arguments.of(TM, false, false),
-                Arguments.of(WA, true, false), Arguments.of(WA, false, false),
+                Arguments.of(WA, true, true), Arguments.of(WA, false, false),
                 Arguments.of(V, true, false), Arguments.of(V, false, false));
     }
 
     @ParameterizedTest(name = "{0} owner={1} change status -> allowed={2}")
     @MethodSource("changeStatus")
-    @DisplayName("FR-12, FR-05, AC-11.3 · change status: owner PM/TM only (prov. PD-01, PD-03, PD-17)")
+    @DisplayName("FR-12, FR-05, AC-11.3 · change status: only the owner (PM, TM, WA); Viewer never (prov. PD-01, PD-17)")
     void changeStatusTable(Role role, boolean owner, boolean allowed) {
         check(allowed, () -> policy.checkChangeStatus(actor(role), owner ? ME : OTHER));
     }
@@ -131,26 +131,26 @@ class AccessPolicyTest {
         return Stream.of(
                 Arguments.of(PM, true, true), Arguments.of(PM, false, true),
                 Arguments.of(TM, true, false), Arguments.of(TM, false, false),
-                Arguments.of(WA, true, false), Arguments.of(V, true, false),
-                Arguments.of(WA, false, false), Arguments.of(V, false, false));
+                Arguments.of(WA, true, true), Arguments.of(V, true, false),
+                Arguments.of(WA, false, true), Arguments.of(V, false, false));
     }
 
     @ParameterizedTest(name = "{0} owner={1} change owner -> allowed={2}")
     @MethodSource("changeOwner")
-    @DisplayName("AC-10.4, FR-10 · change owner: PM only, TM denied even as owner (prov. PD-01, PD-03, PD-17)")
+    @DisplayName("AC-10.4, FR-10 · change owner: PM and WA; TM denied even as owner (prov. PD-01, PD-17)")
     void changeOwnerTable(Role role, boolean owner, boolean allowed) {
         check(allowed, () -> policy.checkEditTask(actor(role), owner ? ME : OTHER, false, true, false));
     }
 
     private static Stream<Arguments> statusOnlyEdit() {
         return Stream.of(
-                Arguments.of(WA, true, false), Arguments.of(WA, false, false),
+                Arguments.of(WA, true, true), Arguments.of(WA, false, false),
                 Arguments.of(V, true, false), Arguments.of(V, false, false));
     }
 
     @ParameterizedTest(name = "{0} owner={1} status-only update -> allowed={2}")
     @MethodSource("statusOnlyEdit")
-    @DisplayName("FR-12, FR-05, AC-11.3 · status-only update through the edit check: Viewer and Workspace Administrator refused (prov. PD-03, PD-17)")
+    @DisplayName("FR-12, FR-05, AC-11.3 · status-only update through the edit check: WA only as owner; Viewer refused (prov. PD-01, PD-17)")
     void statusOnlyEditTable(Role role, boolean owner, boolean allowed) {
         check(allowed, () -> policy.checkEditTask(actor(role), owner ? ME : OTHER, false, false, true));
     }
@@ -160,7 +160,11 @@ class AccessPolicyTest {
                 Arguments.of("PM non-owner content+status", PM, false, true, false, true, false),
                 Arguments.of("TM owner content+owner", TM, true, true, true, false, false),
                 Arguments.of("TM owner content+status", TM, true, true, false, true, true),
-                Arguments.of("PM owner all three", PM, true, true, true, true, true));
+                Arguments.of("PM owner all three", PM, true, true, true, true, true),
+                Arguments.of("WA owner content+status", WA, true, true, false, true, false),
+                Arguments.of("WA owner owner-field+status", WA, true, false, true, true, true),
+                Arguments.of("WA non-owner owner-field+status", WA, false, false, true, true, false),
+                Arguments.of("WA non-owner owner-field only", WA, false, false, true, false, true));
     }
 
     @ParameterizedTest(name = "{0} -> allowed={6}")
@@ -175,25 +179,25 @@ class AccessPolicyTest {
         return Stream.of(
                 Arguments.of(PM, true, true), Arguments.of(TM, true, true),
                 Arguments.of(PM, false, false), Arguments.of(TM, false, false),
-                Arguments.of(WA, true, false), Arguments.of(WA, false, false),
+                Arguments.of(WA, true, true), Arguments.of(WA, false, false),
                 Arguments.of(V, true, false), Arguments.of(V, false, false));
     }
 
     @ParameterizedTest(name = "{0} creator={1} delete task -> allowed={2}")
     @MethodSource("deleteTask")
-    @DisplayName("BR-12, AC-26.1, AC-26.2, test-plan TD-03 · delete task: only the creator, never Viewer (prov. PD-03)")
+    @DisplayName("BR-12, AC-26.1, AC-26.2, test-plan TD-03 · delete task: only the creator (PM, TM, WA), never Viewer")
     void deleteTaskTable(Role role, boolean creator, boolean allowed) {
         check(allowed, () -> policy.checkDeleteTask(actor(role), creator ? ME : OTHER));
     }
 
     private static Stream<Arguments> assign() {
         return Stream.of(Arguments.of(PM, true), Arguments.of(TM, false), Arguments.of(V, false),
-                Arguments.of(WA, false));
+                Arguments.of(WA, true));
     }
 
     @ParameterizedTest(name = "{0} assign/unassign -> allowed={1}")
     @MethodSource("assign")
-    @DisplayName("FR-22, AC-29.5 · assign and unassign: Project Manager only (prov. PD-01)")
+    @DisplayName("FR-22, AC-29.5 · assign and unassign: Project Manager and Workspace Administrator (prov. PD-01)")
     void assignTable(Role role, boolean allowed) {
         check(allowed, () -> policy.checkAssign(actor(role)));
     }
@@ -203,12 +207,12 @@ class AccessPolicyTest {
                 Arguments.of(PM, true, true), Arguments.of(TM, true, true),
                 Arguments.of(PM, false, false), Arguments.of(TM, false, false),
                 Arguments.of(V, true, false), Arguments.of(V, false, false),
-                Arguments.of(WA, true, false), Arguments.of(WA, false, false));
+                Arguments.of(WA, true, true), Arguments.of(WA, false, false));
     }
 
     @ParameterizedTest(name = "{0} project member={1} comment -> allowed={2}")
     @MethodSource("comment")
-    @DisplayName("FR-16, AC-15.1, AC-15.4, FR-05 · comment: PM/TM who are project members (prov. PD-03, PD-17, PD-20)")
+    @DisplayName("FR-16, AC-15.1, AC-15.4, FR-05 · comment: PM, TM and WA who are project members; Viewer never (prov. PD-17, PD-20)")
     void commentTable(Role role, boolean projectMember, boolean allowed) {
         check(allowed, () -> policy.checkComment(actor(role), projectMember));
     }

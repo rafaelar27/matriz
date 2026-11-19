@@ -283,8 +283,8 @@ class TaskApiTest extends ApiTestSupport {
     }
 
     @Test
-    void viewersAndWorkspaceAdministratorsReadButNeverChange() throws Exception {
-        for (String email : new String[] {"vera@example.com", "carla@example.com"}) {
+    void viewersReadButNeverChange() throws Exception {
+        for (String email : new String[] {"vera@example.com"}) {
             MockHttpSession s = signIn(email);
             Map<String, Object> before = snapshot(T_IMAGES);
             long tasks = taskCount();
@@ -644,7 +644,23 @@ class TaskApiTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("TU-03 (d) · PD-03 prov. · a Workspace Administrator cannot edit a task: 403 forbidden, unchanged")
+    @DisplayName("FR-05, FR-09, FR-12, PD-03 (in part) · a Workspace Administrator who is not a project member reads, but gets 403 on content edit, status change of a task she does not own, delete and create")
+    void workspaceAdministratorReadsButIsLimited() throws Exception {
+        MockHttpSession carla = signIn("carla@example.com");
+        Map<String, Object> before = snapshot(T_IMAGES);
+        long tasks = taskCount();
+        list(carla, WEBSITE).andExpect(status().isOk()).andExpect(jsonPath("$.total").value(3));
+        mvc.perform(get(path(WEBSITE, T_IMAGES)).session(carla)).andExpect(status().isOk());
+        update(carla, WEBSITE, T_IMAGES, "{\"title\":\"Changed\"}").andExpect(status().isForbidden());
+        update(carla, WEBSITE, T_IMAGES, "{\"status\":\"Done\"}").andExpect(status().isForbidden());
+        remove(carla, WEBSITE, T_IMAGES).andExpect(status().isForbidden());
+        create(carla, WEBSITE, titled("Not allowed")).andExpect(status().isForbidden());
+        assertThat(snapshot(T_IMAGES)).isEqualTo(before);
+        assertThat(taskCount()).isEqualTo(tasks);
+    }
+
+    @Test
+    @DisplayName("TU-03 (d) · PD-03 prov. · a Workspace Administrator cannot edit a task's content: 403 forbidden, unchanged")
     void workspaceAdministratorCannotEditATask() throws Exception {
         Map<String, Object> before = snapshot(T_LAYOUT);
         update(signIn("carla@example.com"), WEBSITE, T_LAYOUT, "{\"title\":\"Admin rename\"}")
