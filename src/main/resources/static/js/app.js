@@ -224,10 +224,26 @@ function section(title, aside, load) {
 }
 
 /** Counts per status as text tags (never colour alone, NFR-06), in the API's order, with Portuguese labels. */
+const STATUS_CLASSES = { 'To do': 's-todo', 'In progress': 's-progress', 'Done': 's-done' };
+
+/** A status label with its visual style; the text is always present (NFR-06). */
+function statusTag(status, text) {
+  return h('span', { class: 'tag ' + (STATUS_CLASSES[status] || '') }, text);
+}
+
+/** The progress text plus a decorative bar, hidden from assistive technology because the text carries the meaning (FR-18). */
+function progressView(progress) {
+  const pct = progress.total > 0 ? Math.round(progress.done / progress.total * 100) : 0;
+  const fill = h('span', { class: 'bar-fill' });
+  fill.style.width = pct + '%';
+  return [h('span', { class: 'progress-text' }, progressLabel(progress)),
+    h('span', { class: 'bar-track', 'aria-hidden': 'true' }, fill)];
+}
+
 function statusCountTags(statusCounts) {
   const by = {};
   (statusCounts || []).forEach(c => { by[c.status] = c.count; });
-  return h('span', { class: 'status-counts' }, TASK_STATUSES.map(s => h('span', { class: 'tag' }, statusLabel(s) + ': ' + (by[s] || 0))));
+  return h('span', { class: 'status-counts' }, TASK_STATUSES.map(s => statusTag(s, statusLabel(s) + ': ' + (by[s] || 0))));
 }
 
 /**
@@ -275,7 +291,7 @@ function projectGrid(items, progress, counts) {
       h('td', {}, p.workspace_name),
       h('td', {}, p.owner_name || '—'),
       h('td', {}, formatDate(p.due_date)),
-      h('td', {}, pr ? progressLabel(pr) : '—'),
+      h('td', {}, pr ? progressView(pr) : '—'),
       counts ? h('td', {}, counts[p.project_id] ? statusCountTags(counts[p.project_id]) : '—') : null);
   });
   return h('div', { class: 'wrap' }, h('table', {},
@@ -395,8 +411,6 @@ function showBar(visible) {
   bar.hidden = !visible;
   if (visible && state.profile) {
     document.getElementById('acct-button').textContent = state.profile.name + ' ▾';
-    const names = [...new Set((state.profile.memberships || []).map(m => m.workspace_name))];
-    document.getElementById('workspace-names').textContent = names.join(' · ');
   }
   const current = location.hash.startsWith('#/projects') ? 'nav-projects'
     : (location.hash.startsWith('#/dashboard') ? 'nav-dashboard' : null);
@@ -626,7 +640,7 @@ async function projectDetailScreen(id, params) {
   const deleteButton = manage ? h('button', { class: 'btn danger', type: 'button', onclick: () => confirmDelete(project, progress) },
     'Delete project') : null;
   // Updated in place by the task section after every task change, so the figure never needs a reload.
-  const progressText = h('dd', { id: 'project-progress' }, progressLabel(progress));
+  const progressText = h('dd', { id: 'project-progress' }, progressView(progress));
   render(
     takeFlash(),
     h('p', {}, h('a', { href: '#/projects' }, '← Projects')),
@@ -745,7 +759,7 @@ function taskSection(project, progress, progressText, params) {
     counts.replaceChildren(statusCountTags(list));
     progress.done = by['Done'] || 0;
     progress.total = list.reduce((n, c) => n + c.count, 0);
-    progressText.textContent = progressLabel(progress);
+    progressText.replaceChildren(...progressView(progress));
   };
 
   const refresh = async () => {
@@ -801,7 +815,7 @@ function taskSection(project, progress, progressText, params) {
       h('td', {}, h('button', { class: 'link', type: 'button', onclick: () => openDetails(t) }, t.title)),
       h('td', {}, t.owner_name || '—'),
       h('td', {}, formatDate(t.due_date)),
-      h('td', {}, can.status(t) ? statusSelect(t) : h('span', { class: 'tag' }, statusLabel(t.status))),
+      h('td', {}, can.status(t) ? statusSelect(t) : statusTag(t.status, statusLabel(t.status))),
       h('td', {}, h('div', { class: 'row-actions' },
         can.edit(t) ? h('button', { class: 'btn secondary', type: 'button', 'aria-label': 'Edit “' + t.title + '”',
           onclick: () => openForm(t) }, 'Edit') : null,
@@ -858,7 +872,7 @@ function taskSection(project, progress, progressText, params) {
       h('dl', { class: 'facts' },
         h('dt', {}, 'Owner'), h('dd', {}, task.owner_name || '—'),
         h('dt', {}, 'Due date'), h('dd', {}, formatDate(task.due_date)),
-        h('dt', {}, 'Status'), h('dd', {}, statusLabel(task.status))),
+        h('dt', {}, 'Status'), h('dd', {}, statusTag(task.status, statusLabel(task.status)))),
       h('p', { class: 'description' }, task.description || 'No description.'),
       assigneeArea(task),
       commentArea(task),
