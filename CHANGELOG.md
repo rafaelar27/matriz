@@ -7,6 +7,7 @@
 - `compose.yaml`: PostgreSQL 16 and the application, with healthchecks, a named data volume and an on-demand, idempotent `seed` service.
 - `.github/workflows/ci.yml`: tests on a PostgreSQL service, Docker image build and Playwright end-to-end test.
 - README sections "Run with Docker" and "Continuous integration"; decision-log entry of 2026-11-18.
+- `createWorkspace` (`POST /workspaces`, FR-02, US-02; INC-12, `openapi.yaml` 0.9.0-draft): any signed-in account can create a workspace and becomes its first member, a Workspace Administrator, in the same transaction; the name is trimmed, 3 to 100 characters, duplicates allowed. The interface gets a "New workspace" link and form. 27 automated tests added (`WorkspaceApiTest`, `WorkspaceNameRuleTest`); decision-log entry of 2026-11-19 (PD-16 in part). INC-12 stays In progress.
 
 ### Changed
 - `Dockerfile`: both base images (`maven:3.9.11-eclipse-temurin-21`, `eclipse-temurin:21-jre-jammy`) are pinned by tag and sha256 digest.

@@ -36,7 +36,7 @@ Attribute types are generic: `id` (a unique identifier), `string` (short text), 
 | **Feedback** | A problem report or suggestion sent by a member. | CMP-10 Feedback and Personal Data Requests | FR-20; US-20 |
 | **PersonalDataRequest** | A person's request for a copy or the deletion of their personal data, handled manually by the support team. | CMP-10 Feedback and Personal Data Requests | FR-21; US-21 |
 
-**Implementation status (2026-11-16).** V1 creates every entity and V3 adds TaskAssignee. No code reads or writes `invitation`, `notification`, `feedback` or `personal_data_request` in this delivery, because FR-03, FR-17, FR-20 and FR-21 are not built. `project.is_archived` is always false (no archive operation, FR-06, US-07). `member.role` and `member.status` are only read (no role change or deactivation, FR-03, FR-04). Deleting a task or project still cascades to its notifications (DA-05, BR-21).
+**Implementation status (2026-11-19).** V1 creates every entity and V3 adds TaskAssignee. No code reads or writes `invitation`, `notification`, `feedback` or `personal_data_request` in this delivery, because FR-03, FR-17, FR-20 and FR-21 are not built. `project.is_archived` is always false (no archive operation, FR-06, US-07). `workspace` and `member` rows are also written when a workspace is created (INC-12, FR-02): the creator's first membership has role Workspace Administrator and status ACTIVE. Otherwise `member.role` and `member.status` are only read (no role change or deactivation, FR-03, FR-04). Deleting a task or project still cascades to its notifications (DA-05, BR-21).
 
 ### Requirement coverage
 
@@ -264,11 +264,11 @@ The primary key (task_id, member_id) makes a second assignment of the same membe
 
 ## Business rules
 
-These are confirmed by the documentation. Not enforced in this delivery, because their features are not built: BR-01 (creating a workspace), BR-03 (changing roles), BR-04, BR-06, BR-08 (choosing project members), BR-14, BR-16, BR-17. BR-05 is enforced only by `member_workspace_account_uk`.
+These are confirmed by the documentation. Not enforced in this delivery, because their features are not built: BR-03 (changing roles), BR-04, BR-06, BR-08 (choosing project members), BR-14, BR-16, BR-17. BR-05 is enforced only by `member_workspace_account_uk`. BR-01 is enforced by `createWorkspace` since INC-12; the name rule is checked in the module, not by the database.
 
 | ID | Rule | Source |
 |---|---|---|
-| BR-01 | Each account belongs to one person only. Any account holder can create a workspace. | FR-01, FR-02, decision log 2026-10-29 |
+| BR-01 | Each account belongs to one person only. Any account holder can create a workspace, also one who already belongs to other workspaces. A workspace's name is required, trimmed, 3 to 100 characters long, and need not be unique. The creator becomes its first member, as a Workspace Administrator, in the same transaction. | FR-01, FR-02, SP-07, decision log 2026-10-29 and 2026-11-19 |
 | BR-02 | Workspace content is only available to signed-in, active members of that workspace. | FR-01, SP-01, SP-04 |
 | BR-03 | Each member holds exactly one of the four roles: Workspace Administrator, Project Manager, Team Member, Viewer. Workspace Administrators assign and change roles. | FR-04, AQ11 (confirmed) |
 | BR-04 | A workspace always keeps at least one active Workspace Administrator. Changes that would remove the last one are refused. | SP-07, EC-03 |
@@ -299,7 +299,7 @@ These are not confirmed. Each one must be confirmed or replaced by the project d
 | ID | Assumption | Rationale | Impact if wrong |
 |---|---|---|---|
 | DA-01 | An account's email address is unique, and invitations are matched to people by email address. | EC-01 needs to recognise that an address "already belongs to a member"; FR-03 invites by email. | Matching invitations to accounts would need another identifier; Account.email would lose its UK. |
-| DA-02 | Account name and Workspace name are required. | Owners and authors must be shown by name (FR-13, FR-16); AQ23 (**assumption**) lists names among stored data. | The attributes become optional, and lists need a fallback display. |
+| DA-02 | Account name and Workspace name are required. *Confirmed for the Workspace name on 2026-11-19:* required, 3 to 100 characters after trimming (BR-01). Still assumed for the Account name. | Owners and authors must be shown by name (FR-13, FR-16); AQ23 (**assumption**) lists names among stored data. | The attributes become optional, and lists need a fallback display. |
 | DA-03 | *Rejected in part 2026-11-12:* a project always has an owner (see the [decision log](constraints.md#decision-log); enforced by migration V4 and CMP-04 Projects since INC-07, BR-23). Still assumed: only a project's name is required; description, start date and due date are optional. | FR-06 lists the fields but not which are required (comparable to PD-04 for tasks). | Making a field required changes it from optional to required, as happened for the owner (R-06 became 1 to 0..*, INC-07). |
 | DA-04 | A task's description and due date are optional until PD-04 is decided. | Optional fits both outcomes of PD-04; EC-06 already covers tasks without a due date. | If PD-04 makes them required, the attributes become required; no structural change. |
 | DA-05 | Deleting a task also deletes its comments and notifications. | FR-09 allows deletion and AC-17.3 removes the task from the count; nothing suggests keeping orphan comments. | If they must be kept, Comment and Notification need to survive without their task, and R-12 and R-15 become optional on the task side. |
@@ -351,7 +351,7 @@ DA-01 to DA-11 above need confirmation, except DA-08 (superseded on 2026-11-12) 
 | PD-10 | What happens to tasks of deactivated or removed members may add a "needs reassignment" marker to Task. |
 | PD-11 | Which change wins in simultaneous edits may require a version attribute on Task (TD-07). |
 | PD-12 | Whether self-notifications exist. Rule only (R-16 already allows zero). |
-| PD-16 | If one account may join only one workspace, R-01 becomes 1 to 0..1. Whether the workspace creator becomes its Workspace Administrator is a rule only. |
+| PD-16 | If one account may join only one workspace, R-01 becomes 1 to 0..1. That the workspace creator becomes its Workspace Administrator was decided on 2026-11-19. |
 | PD-18 | What a deletion request removes, given that tasks and comments reference the member who created or wrote them, and what happens when the only Workspace Administrator asks for deletion (BR-04). |
 | PD-19 | Identity verification and support-staff access for PersonalDataRequest. |
 

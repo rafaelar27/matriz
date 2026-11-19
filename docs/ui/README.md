@@ -26,7 +26,7 @@ From the dashboard the member can open their tasks, the projects, the members li
 
 ### Screen elements
 
-The IDs E-01 to E-20 are the labels shown on the wireframe. Data names follow [database.md](../database.md). "Derived" means calculated, not stored (BR-15, BR-16). "All" means all four user types: Workspace Administrator, Project Manager, Team Member and Viewer.
+The IDs E-01 to E-20 are the labels shown on the wireframe; E-21 is not on it (added 2026-11-19). Data names follow [database.md](../database.md). "Derived" means calculated, not stored (BR-15, BR-16). "All" means all four user types: Workspace Administrator, Project Manager, Team Member and Viewer.
 
 | ID | Element | Purpose | Related FR/US | Data shown (entity.attribute) | Visible to (user type) |
 |---|---|---|---|---|---|
@@ -50,6 +50,7 @@ The IDs E-01 to E-20 are the labels shown on the wireframe. Data names follow [d
 | E-18 | Notifications empty state | Message "No notifications." (UI-A4). | FR-17 | — | All |
 | E-19 | Section loading state | Placeholder rows and the text "Loading…" while a section loads (UI-A4). | NFR-06, NFR-07 | — | All |
 | E-20 | Section error state | Message "This section could not be loaded." and a "Try again" button (UI-A4). | NFR-03, NFR-07 | — | All |
+| E-21 | Main menu: New workspace | Opens the New workspace form (name only). Shown on every signed-in screen. | FR-02; US-02 | — | All |
 
 **Not built yet** (decided 2026-11-12, because these have no API operations yet): E-04 to E-06, E-09 to E-11, E-16 to E-18, and Send feedback and Request my personal data in E-07 (FR-03, FR-04, FR-14, FR-17, FR-20, FR-21).
 
@@ -79,6 +80,7 @@ The IDs E-01 to E-20 are the labels shown on the wireframe. Data names follow [d
 | E-07 Request my personal data | Personal-data request (copy or deletion) | FR-21, US-21 |
 | E-07 Sign out | Sign-in screen | FR-01, CMP-01 |
 | E-20 Try again | Reloads that section only | UI-A4 |
+| E-21 New workspace | New-workspace form (name); after creating, the dashboard | FR-02, US-02 |
 
 ```text
 Sign in ──► Dashboard (UI-A1)

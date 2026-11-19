@@ -3,7 +3,7 @@ openapi: 3.1.0
 info:
   title: Matriz API
   version: 0.9.0-draft
-  summary: Draft API for the Matriz MVP (authentication, projects, progress, tasks, task assignees and comments).
+  summary: Draft API for the Matriz MVP (authentication, workspaces, projects, progress, tasks, task assignees and comments).
   description: |
     Draft specification of the Matriz MVP API, a project and task management
     platform for work teams: sign-in, the signed-in profile and sign-out,
@@ -102,8 +102,8 @@ info:
       Added 2026-11-12 (INC-05).
     - `listTaskComments` and `addTaskComment` support US-15 (FR-16). Owning
       component: CMP-07 Comments. Added 2026-11-12 (INC-05).
-
-    Version 0.9.0-draft (INC-12): adds `createWorkspace` (FR-02).
+    - `createWorkspace` supports US-02 (FR-02, BR-01). Owning component:
+      CMP-02. Added 2026-11-19 (INC-12).
 
     **Not built in this delivery:** sign-up (FR-01, US-22); invitations and
     member management (FR-03) and role
@@ -138,11 +138,13 @@ info:
     - **PD-06:** whether a Done task may move back to an earlier status.
     - **PD-11 / TD-07:** which change wins when two people change the same task (EC-07).
     - **PD-12:** whether members are notified of their own actions.
-    - **PD-16:** whether one account can be a member of several workspaces.
+    - **PD-16:** whether one account can be a member of several workspaces,
+      decided in part on 2026-11-19: `createWorkspace` is open to any
+      signed-in account, also one that already belongs to other workspaces.
       Task paths avoid a workspace identifier; `listProjects` (`workspace_id`)
       and `listWorkspaceMembers` take one, and `createProject` takes
       `workspace_id` in its body. The profile lists every active
-      membership; this is not a decision on PD-16.
+      membership.
     - **PD-17:** whether a Viewer who owns a task can change its status.
 
 servers:
@@ -575,6 +577,9 @@ paths:
         after trimming spaces (same rule as project names); no other fields
         are sent (`workspace_id`, `role`, `account_id` and `member_id` cannot
         be sent). Names need not be unique.
+
+        The response has no `Location` header (decided 2026-11-19). The only
+        403 is `csrf_invalid`: no role is checked.
       parameters:
         - $ref: '#/components/parameters/CsrfHeader'
       requestBody:

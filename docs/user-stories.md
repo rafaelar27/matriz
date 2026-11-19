@@ -49,7 +49,15 @@ Each story takes the priority of its primary functional requirement. US-19 trace
 
 ## Acceptance criteria
 
-Every story is in the MVP. The seven stories US-03, US-10, US-11, US-13, US-17, US-18 and US-19 carry the core value and have Given / When / Then criteria. US-15 has criteria since 2026-11-12. US-23 to US-28 have criteria for the parts of FR-03, FR-06, FR-08 and FR-09 that are already decided. US-22 has none yet, because the sign-up method is pending (TD-03). Names (Ana, Ben, Carla) and dates are test data. "Today" means the date the test is run.
+Every story is in the MVP. The seven stories US-03, US-10, US-11, US-13, US-17, US-18 and US-19 carry the core value and have Given / When / Then criteria. US-15 has criteria since 2026-11-12. US-02 has criteria since 2026-11-19. US-23 to US-28 have criteria for the parts of FR-03, FR-06, FR-08 and FR-09 that are already decided. US-22 has none yet, because the sign-up method is pending (TD-03). Names (Ana, Ben, Carla) and dates are test data. "Today" means the date the test is run.
+
+### US-02: Create a workspace
+
+- **AC-02.1 (success):** **Given** I am signed in, with any role in other workspaces, or with all my memberships deactivated, **when** I create a workspace named "Harbor Works", **then** it exists, and I am its first member with the role "Workspace Administrator", saved together.
+- **AC-02.2 (name rule):** **Given** I am creating a workspace, **when** I enter a name of only spaces, or shorter than 3 or longer than 100 characters after removing leading and trailing spaces, **then** no workspace is created and a message states the rule. A name of exactly 3 or 100 characters is accepted, and a stored name has no leading or trailing spaces.
+- **AC-02.3 (duplicates):** **Given** a workspace named "Harbor Works" exists, **when** I create another with the same name, **then** it is created.
+- **AC-02.4 (separation):** **Given** I created workspace W, **when** a member of another workspace asks for W's members or projects, **then** W is not found and not listed for them (NFR-01).
+- **AC-02.5 (fields):** **Given** a request to create a workspace that also names a workspace, role, account or member, **then** it is refused and nothing is created.
 
 ### US-03: Invite a member with a role
 
