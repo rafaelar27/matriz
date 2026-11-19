@@ -12,6 +12,7 @@ Planned version for the next release: **0.2.0** (a new feature that does not bre
 - README sections "Run with Docker" and "Continuous integration"; decision-log entry of 2026-11-18.
 
 ### Changed
+- Names refuse control and invisible formatting characters, emails are printable ASCII only (at most 254 characters), and `spring.mvc.formcontent.filter.enabled=false` (INC-12, security audits).
 - Sign-in matches the email ignoring letter case and surrounding spaces, refuses passwords over 72 bytes with the generic 401, and counts failed attempts before the password is checked (INC-12).
 - `server.forward-headers-strategy=none` is set explicitly, so forwarded headers are not trusted until TD-13 is decided (INC-12, security audit S-10).
 - `Dockerfile`: both base images (`maven:3.9.11-eclipse-temurin-21`, `eclipse-temurin:21-jre-jammy`) are pinned by tag and sha256 digest.

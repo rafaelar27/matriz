@@ -429,3 +429,40 @@ Done on 2026-11-18 on a separate branch, `ci/controlled-failure`, with the appro
 - **README.md:** add a CI status badge (`![CI](https://github.com/rafaelar27/matriz/actions/workflows/ci.yml/badge.svg)`) and update the "Continuous integration" paragraph to name the `build` job and `needs: [test, build]`.
 - **CHANGELOG.md:** add a "Changed" line for the `build` job, `compose config -q` and SHA-pinned actions.
 - **AGENTS.md, "Docker and CI":** mention the `build` job and `docker compose config -q`.
+
+## INC-12 public sign-up (2026-11-19)
+
+Checks of the public sign-up increment ([implementation-plan.md](implementation-plan.md#inc-12-public-sign-up), [user-stories.md](user-stories.md#acceptance-criteria) US-22). Everything below was run by Claude in a Linux cloud container on a throwaway PostgreSQL 16 cluster (databases `matriz_test`, `matriz_audit`, `matriz_live`, `matriz_ui2`, all fictitious data and test-only credentials, removed with the container). Nothing was run on Render or Neon, and the development database was never used.
+
+### Commands and results
+
+| # | Check | Result |
+|---|---|---|
+| 1 | V5 on scratch databases with psql (database agent, then repeated by the main session) | Applies to an empty database; leaves seeded-style rows unchanged (md5 of all account rows equal before and after); with two emails that differ only by case it fails and leaves no index; a case variant is refused after V5. |
+| 2 | `mvn verify` after the first implementation (tester) and again by the main session | 396 tests, 0 failures, BUILD SUCCESS (the main session's run, 2026-11-19). |
+| 3 | `mvn verify` after the first security audit fixes (main session) | 428 tests, 0 failures, BUILD SUCCESS. |
+| 4 | `mvn verify` after the second audit fixes (main session) | **444 tests, 0 failures, 0 errors, 0 skipped, BUILD SUCCESS.** The Playwright test was not run (out of scope). |
+| 5 | Application on `matriz_live`: `/auth/sign-in`, `/%61uth/sign-in` and `/%61uth/sign-up` with a 20,000-byte body | 413 each. |
+| 6 | Chunked 20,000-byte body to `/auth/sign-up` | 400 `malformed_request`. |
+| 7 | Unauthenticated `PUT /auth/sign-in` with a form body | 403. |
+| 8 | Sign up, 5 more requests, application restarted, sign in as ` NIA@Example.com ` | 201 with no memberships; the sixth request in the hour was 429; after the restart sign-in gave 200 and the counters were empty; the stored hash starts with `$2a$` and is 60 characters long; Flyway logged "Schema public is up to date". |
+| 9 | Browser flow in headless Chromium at 375, 768 and 1000 px (Playwright script, not a human) | 19 of 19 checks pass: no horizontal scroll, links both ways, privacy notice, no consent checkbox, no "Forgot password" link, field messages and focus on the first error, no request while invalid, one request on three rapid clicks, welcome message with no action, empty memberships and project list for the new account, redirect when already signed in, duplicate email message at the email field, name and email kept and password cleared, sign-in with another letter case, 429 with `Retry-After`, and the 429 message shown. |
+
+### Security audit and review
+
+A reviewer (read-only) found no blocker, 3 major and 4 minor findings; the three majors were the non-atomic sign-in limit (fixed), the undocumented 254-character email limit (documented on 2026-11-19) and stale documents (updated). The security auditor ran twice against a running instance:
+
+| Round | Findings | Outcome |
+|---|---|---|
+| 1 | 2 Medium (limiter reset by a flood of addresses; sign-in limit not atomic), 8 Low (contract not written, no body cap, NUL character errors, wrong "email taken" message, passwords over 72 bytes, look-alike emails, rate-limit counting note, forwarded-header default) | Fixed in code and tests, except the documentation items, which this section and the decision log close. |
+| 2 | 7 of the 10 fixed; body cap bypassed by a percent-encoded path (Medium, fixed); limiter table could be filled with about 385 addresses (Medium, fixed with two tiers); form-content filter read large bodies (Medium, filter disabled); reader not counted, format characters in names, and a form POST read up to Tomcat's default 2 MB (Low: first two fixed, the form POST accepted) | Fixed and covered by tests (444 pass). **Not audited a third time.** |
+
+### Not verified or not covered
+
+- Anything on Render or Neon: deployment, Flyway on Neon's pooled endpoint, Secure cookie behind HTTPS, the address Render's proxy presents (all clients may share one, see [deployment.md](deployment.md)), the limits on the public site.
+- Keyboard-only and screen-reader use of the sign-up form, and the form in a browser other than headless Chromium.
+- Idle session expiry, IPv6 sources, dependency vulnerability scanning (no tool is documented).
+- A non-unique data error at insert, other than through a mocked unit test.
+- `doc-keeper` did not review the documents (it declined to edit or review on an approval relayed by another agent); the programmer approved the documentation changes in the session.
+- The sign-up and welcome screens are not described in `docs/ui/README.md` (the design document needs the programmer's wording).
+- The 16 KB cap, the 5 per hour and 10/50 per 15 minutes limits are the decided values; whether they suit real traffic is not known.
