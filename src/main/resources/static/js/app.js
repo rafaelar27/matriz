@@ -690,13 +690,17 @@ async function confirmDelete(project, progress) {
 
 function taskSection(project, progress, progressText, params) {
   const me = (state.profile.memberships || []).find(m => m.workspace_id === project.workspace_id) || {};
-  const writer = me.role === 'Project Manager' || me.role === 'Team Member';
+  const isWa = me.role === 'Workspace Administrator';
+  const writer = me.role === 'Project Manager' || me.role === 'Team Member' || isWa;
   const isPm = me.role === 'Project Manager';
-  // Mirrors AccessPolicy so that refused actions are hidden (CMP-11); the backend still decides.
+  // Mirrors AccessPolicy so that refused actions are hidden (CMP-11); the backend still decides. Workspace
+  // Administrators create, assign, comment, change the owner and the status of their own tasks and delete the tasks
+  // they created, but do not edit a task's content (decided 2026-11-19, PD-03 in part).
   const can = {
     create: writer,
-    edit: t => isPm || (writer && t.owner_member_id === me.member_id),
-    reassign: isPm,
+    edit: t => isPm || isWa || (writer && t.owner_member_id === me.member_id),
+    content: t => isPm || (writer && !isWa && t.owner_member_id === me.member_id),
+    reassign: isPm || isWa,
     status: t => writer && t.owner_member_id === me.member_id,
     remove: t => writer && t.created_by_member_id === me.member_id,
   };
@@ -1064,7 +1068,7 @@ function taskSection(project, progress, progressText, params) {
     title.addEventListener('input', counters);
     description.addEventListener('input', counters);
 
-    const contentAllowed = !editing || can.edit(task);
+    const contentAllowed = !editing || can.content(task);
     title.disabled = !contentAllowed;
     description.disabled = !contentAllowed;
     dueDate.disabled = !contentAllowed;
