@@ -133,6 +133,26 @@ class WorkspaceApiTest extends ApiTestSupport {
         }
     }
 
+    @Test
+    @DisplayName("AC-INC12.4, FR-02, BR-01 · an account whose memberships are all deactivated can create a workspace, and the new membership is active")
+    void accountWithOnlyDeactivatedMembershipsCanCreate() throws Exception {
+        MockHttpSession ana = signIn("ana@example.com");
+        String account = accountId(ana);
+        jdbc.update("UPDATE member SET status = 'DEACTIVATED' WHERE account_id = ?::uuid", account);
+        assertThat(count("SELECT count(*) FROM member WHERE account_id = ?::uuid AND status = 'ACTIVE'", account))
+                .isZero();
+
+        String memberId = JsonPath.read(create(ana, named("Fresh start")).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.role").value("Workspace Administrator"))
+                .andReturn().getResponse().getContentAsString(), "$.member_id");
+
+        entityManager.flush();
+        assertThat(jdbc.queryForObject("SELECT status FROM member WHERE member_id = ?::uuid", String.class, memberId))
+                .isEqualTo("ACTIVE");
+        assertThat(count("SELECT count(*) FROM member WHERE account_id = ?::uuid AND status = 'ACTIVE'", account))
+                .isEqualTo(1);
+    }
+
     // --- Name rule -----------------------------------------------------------------------------------------------
 
     @Test
