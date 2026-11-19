@@ -19,6 +19,7 @@ import org.springframework.mock.env.MockEnvironment;
 class NeonDatabaseEnvironmentTest {
 
     private static final String SECRET = "fake-secret-123";
+    private static final String JAVA_SSL = "org.postgresql.ssl.DefaultJavaSSLFactory";
     private static final String NEON_URL = "postgresql://app_owner:" + SECRET
             + "@ep-example-123456.eu-central-1.aws.neon.tech/appdb?sslmode=require&channel_binding=require";
 
@@ -31,7 +32,7 @@ class NeonDatabaseEnvironmentTest {
 
         assertThat(result).containsOnly(
                 Map.entry("MATRIZ_DB_URL", "jdbc:postgresql://ep-example-123456.eu-central-1.aws.neon.tech/appdb"
-                        + "?sslmode=require&channelBinding=require"),
+                        + "?sslmode=verify-full&sslfactory=" + JAVA_SSL + "&channelBinding=require"),
                 Map.entry("MATRIZ_DB_USER", "app_owner"),
                 Map.entry("MATRIZ_DB_PASSWORD", SECRET));
         assertThat((String) result.get("MATRIZ_DB_URL")).doesNotContain(SECRET);
@@ -52,7 +53,8 @@ class NeonDatabaseEnvironmentTest {
         Map<String, Object> result =
                 NeonDatabaseEnvironment.fromNeonUrl("postgresql://app_owner:p%40ss%3Aword@db.example.test:6543/appdb");
 
-        assertThat(result.get("MATRIZ_DB_URL")).isEqualTo("jdbc:postgresql://db.example.test:6543/appdb?sslmode=require");
+        assertThat(result.get("MATRIZ_DB_URL"))
+                .isEqualTo("jdbc:postgresql://db.example.test:6543/appdb?sslmode=verify-full&sslfactory=" + JAVA_SSL);
         assertThat(result.get("MATRIZ_DB_PASSWORD")).isEqualTo("p@ss:word");
     }
 
@@ -67,20 +69,33 @@ class NeonDatabaseEnvironmentTest {
     }
 
     @ParameterizedTest(name = "[{index}] \"{0}\" -> \"{1}\"")
-    @DisplayName("libpq parameters map to the JDBC allow-list, and TLS is always required")
+    @DisplayName("libpq parameters map to the JDBC allow-list, and the certificate is always verified")
     @CsvSource(delimiter = '|', nullValues = "NULL", value = {
-        "NULL                                        | ?sslmode=require",
-        "''                                          | ?sslmode=require",
-        "sslmode=require                             | ?sslmode=require",
+        "NULL                                        | ?sslmode=verify-full",
+        "''                                          | ?sslmode=verify-full",
+        "sslmode=require                             | ?sslmode=verify-full",
+        "sslmode=disable                             | ?sslmode=verify-full",
+        "sslmode=prefer                              | ?sslmode=verify-full",
+        "sslmode=verify-ca                           | ?sslmode=verify-ca",
         "sslmode=verify-full                         | ?sslmode=verify-full",
-        "channel_binding=require                     | ?channelBinding=require&sslmode=require",
-        "channel_binding=require&sslmode=require     | ?channelBinding=require&sslmode=require",
-        "sslmode=require&options=endpoint%3Dep-x     | ?sslmode=require",
-        "connect_timeout=10&application_name=x       | ?sslmode=require",
-        "sslmode                                     | ?sslmode=require",
+        "sslmode=require&options=endpoint%3Dep-x     | ?sslmode=verify-full",
+        "connect_timeout=10&sslfactory=x.Evil        | ?sslmode=verify-full",
+        "sslmode                                     | ?sslmode=verify-full",
     })
-    void mapsQueryParameters(String libpqQuery, String expected) {
-        assertThat(NeonDatabaseEnvironment.jdbcQuery(libpqQuery)).isEqualTo(expected);
+    void mapsQueryParameters(String libpqQuery, String expectedPrefix) {
+        assertThat(NeonDatabaseEnvironment.jdbcQuery(libpqQuery)).isEqualTo(expectedPrefix + "&sslfactory=" + JAVA_SSL);
+    }
+
+    @ParameterizedTest(name = "[{index}] \"{0}\"")
+    @DisplayName("channel_binding is kept as channelBinding after the TLS settings")
+    @CsvSource(delimiter = '|', value = {
+        "channel_binding=require                     | require",
+        "channel_binding=require&sslmode=require     | require",
+        "sslmode=require&channel_binding=prefer      | prefer",
+    })
+    void keepsChannelBinding(String libpqQuery, String value) {
+        assertThat(NeonDatabaseEnvironment.jdbcQuery(libpqQuery))
+                .isEqualTo("?sslmode=verify-full&sslfactory=" + JAVA_SSL + "&channelBinding=" + value);
     }
 
     @Test

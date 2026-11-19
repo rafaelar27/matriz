@@ -73,20 +73,31 @@ public class NeonDatabaseEnvironment implements EnvironmentPostProcessor, Ordere
 
     /**
      * Turns the libpq query string of a Neon URL (for example "sslmode=require&channel_binding=require") into the
-     * query string of the JDBC URL, including the leading "?", or "" for none.
+     * query string of the JDBC URL, including the leading "?".
+     *
+     * <p>The server certificate and host name are always verified: sslmode is raised to verify-full unless the URL
+     * already asks for verify-ca or verify-full, and the JVM's trust store is used (DefaultJavaSSLFactory), so no
+     * root certificate file is needed. pgJDBC's "require" encrypts but accepts any certificate, unlike libpq's
+     * behaviour with a root certificate present. channel_binding is kept as channelBinding; anything else is dropped.
      */
     static String jdbcQuery(String libpqQuery) {
-        // Allow-list: libpq name -> pgjdbc name. Anything else is dropped rather than guessed at.
-        Map<String, String> known = Map.of("sslmode", "sslmode", "channel_binding", "channelBinding");
-        Map<String, String> params = new java.util.LinkedHashMap<>();
+        String sslmode = null;
+        String channelBinding = null;
         for (String pair : libpqQuery == null ? new String[0] : libpqQuery.split("&")) {
             String[] kv = pair.split("=", 2);
-            if (kv.length == 2 && known.containsKey(kv[0])) {
-                params.put(known.get(kv[0]), kv[1]);
+            if (kv.length == 2 && kv[0].equals("sslmode")) {
+                sslmode = kv[1];
+            } else if (kv.length == 2 && kv[0].equals("channel_binding")) {
+                channelBinding = kv[1];
             }
         }
-        params.putIfAbsent("sslmode", "require"); // Neon only accepts TLS; never fall back to plain text.
-        return "?" + String.join("&", params.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).toList());
+        boolean verifies = "verify-full".equals(sslmode) || "verify-ca".equals(sslmode);
+        StringBuilder query = new StringBuilder("?sslmode=").append(verifies ? sslmode : "verify-full")
+                .append("&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory");
+        if (channelBinding != null) {
+            query.append("&channelBinding=").append(channelBinding);
+        }
+        return query.toString();
     }
 
     @Override

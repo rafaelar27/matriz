@@ -21,6 +21,9 @@
     <properties>
         <java.version>21</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- Overrides Spring Boot 3.5.7's pgJDBC 42.7.8: 42.7.4-42.7.11 can silently skip channel binding
+             (GHSA-j92g-9f8w-j867, fixed in 42.7.12). Remove once the Spring Boot parent manages 42.7.12 or later. -->
+        <postgresql.version>42.7.14</postgresql.version>
     </properties>
 
     <dependencies>
