@@ -274,4 +274,87 @@ class AttemptLimiterTest {
         assertThat(limiter.retryAfter("live", 1, HOUR)).isGreaterThanOrEqualTo(1);
         assertThat(limiter.retryAfter("another", 1, HOUR)).isGreaterThanOrEqualTo(1);
     }
+
+    // --- Tiers (audit S-12) ---------------------------------------------------------------------------------------
+
+    private void fillBestEffort(String prefix, int count) {
+        for (int i = 0; i < count; i++) {
+            limiter.acquire(prefix + i, 5, HOUR, AttemptLimiter.Tier.BEST_EFFORT);
+        }
+    }
+
+    @Test
+    @DisplayName("NFR-11 · audit S-12 · MAX_KEYS is 200000")
+    void maxKeysValue() {
+        assertThat(AttemptLimiter.MAX_KEYS).isEqualTo(200_000);
+    }
+
+    @Test
+    @DisplayName("NFR-11 · audit S-12 · BEST_EFFORT: when full, a new key is not stored and acquire returns 0 every time")
+    void bestEffortNewKeyIsNotStoredWhenFull() {
+        fillBestEffort("flood-", AttemptLimiter.MAX_KEYS);
+
+        for (int i = 0; i < 10; i++) {
+            assertThat(limiter.acquire("newcomer", 1, HOUR, AttemptLimiter.Tier.BEST_EFFORT)).isZero();
+        }
+        assertThat(limiter.retryAfter("newcomer", 1, HOUR, AttemptLimiter.Tier.BEST_EFFORT)).isZero();
+    }
+
+    @Test
+    @DisplayName("NFR-11 · audit S-12 · BEST_EFFORT: when full, existing keys keep counting and stay locked")
+    void bestEffortExistingKeysKeepCounting() {
+        for (int i = 0; i < 3; i++) {
+            limiter.acquire("known", 3, HOUR, AttemptLimiter.Tier.BEST_EFFORT);
+        }
+        fillBestEffort("flood-", AttemptLimiter.MAX_KEYS - 1);
+
+        assertThat(limiter.acquire("known", 3, HOUR, AttemptLimiter.Tier.BEST_EFFORT)).isGreaterThanOrEqualTo(1);
+        limiter.release("known", AttemptLimiter.Tier.BEST_EFFORT);
+        assertThat(limiter.acquire("known", 3, HOUR, AttemptLimiter.Tier.BEST_EFFORT)).isZero();
+    }
+
+    @Test
+    @DisplayName("NFR-11 · audit S-12 · BEST_EFFORT: when full, expired windows are dropped so a new key is stored again")
+    void bestEffortExpiredWindowsMakeRoom() {
+        for (int i = 0; i < AttemptLimiter.MAX_KEYS; i++) {
+            limiter.acquire("old-" + i, 5, Duration.ofMinutes(15), AttemptLimiter.Tier.BEST_EFFORT);
+        }
+        clock.advance(Duration.ofMinutes(15));
+
+        assertThat(limiter.acquire("newcomer", 1, HOUR, AttemptLimiter.Tier.BEST_EFFORT)).isZero();
+        assertThat(limiter.retryAfter("newcomer", 1, HOUR, AttemptLimiter.Tier.BEST_EFFORT)).isGreaterThanOrEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("NFR-11 · audit S-12 · tier isolation: a full BEST_EFFORT table does not block STRICT keys")
+    void bestEffortFloodDoesNotBlockStrictKeys() {
+        fillBestEffort("flood-", AttemptLimiter.MAX_KEYS);
+
+        assertThat(limiter.acquire("sign-in:10.0.0.1", 50, HOUR)).isZero();
+        assertThat(limiter.acquire("sign-up:10.0.0.1", 5, HOUR)).isZero();
+    }
+
+    @Test
+    @DisplayName("NFR-11 · audit S-12 · tier isolation: the same key name in the two tiers is counted separately; the default overloads are STRICT")
+    void tiersAreSeparateTables() {
+        limiter.acquire("k", 1, HOUR, AttemptLimiter.Tier.BEST_EFFORT);
+        assertThat(limiter.retryAfter("k", 1, HOUR, AttemptLimiter.Tier.BEST_EFFORT)).isGreaterThanOrEqualTo(1);
+        assertThat(limiter.retryAfter("k", 1, HOUR)).isZero();
+        assertThat(limiter.acquire("k", 1, HOUR)).isZero();
+        assertThat(limiter.acquire("k", 1, HOUR, AttemptLimiter.Tier.STRICT)).isGreaterThanOrEqualTo(1);
+        limiter.release("k");
+        assertThat(limiter.retryAfter("k", 1, HOUR, AttemptLimiter.Tier.BEST_EFFORT)).isGreaterThanOrEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("NFR-11 · audit S-12 · a full STRICT table does not stop BEST_EFFORT keys, and clear empties both tables")
+    void strictFloodDoesNotAffectBestEffortAndClearEmptiesBoth() {
+        fillWithLiveKeys("flood-", AttemptLimiter.MAX_KEYS);
+        limiter.acquire("k", 1, HOUR, AttemptLimiter.Tier.BEST_EFFORT);
+        assertThat(limiter.retryAfter("k", 1, HOUR, AttemptLimiter.Tier.BEST_EFFORT)).isGreaterThanOrEqualTo(1);
+
+        limiter.clear();
+        assertThat(limiter.retryAfter("k", 1, HOUR, AttemptLimiter.Tier.BEST_EFFORT)).isZero();
+        assertThat(limiter.acquire("newcomer", 1, HOUR)).isZero();
+    }
 }

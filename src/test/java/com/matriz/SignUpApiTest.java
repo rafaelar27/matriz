@@ -373,6 +373,24 @@ class SignUpApiTest extends ApiTestSupport {
         }
     }
 
+    @Test
+    @DisplayName("AC-22.2 · audit S-15 · a name with a Unicode format character (U+202E, U+200B, U+200D, U+FEFF) is refused with 422 at the name field")
+    void formatCharactersInNameRefused() throws Exception {
+        int count = accounts();
+        for (String name : new String[] {"Ni\u202ea", "Ni\u200ba", "Ni\u200da", "\ufeffNia", "Nia\u2060"}) {
+            assertRefused(signUp(name, "a@example.com", NIA_PASSWORD), "name");
+        }
+        assertThat(accounts()).isEqualTo(count);
+    }
+
+    @Test
+    @DisplayName("AC-22.2 · audit S-15 · accented letters, CJK and emoji without a joiner are still accepted in a name")
+    void ordinaryUnicodeNamesAccepted() throws Exception {
+        signUp("Zo\u00eb M\u00fcller", "a@example.com", NIA_PASSWORD).andExpect(status().isCreated());
+        signUp("\u4e2d\u6587\u540d", "b@example.com", NIA_PASSWORD).andExpect(status().isCreated());
+        signUp("Nia \uD83D\uDE00", "c@example.com", NIA_PASSWORD).andExpect(status().isCreated());
+    }
+
     // --- Unknown fields, malformed bodies, identity spoofing ----------------------------------------------------
 
     @Test

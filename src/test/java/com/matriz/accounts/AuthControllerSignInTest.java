@@ -60,7 +60,9 @@ class AuthControllerSignInTest {
 
     /** Seconds to wait if one more attempt were made with a limit of 1: 0 only if no attempt is counted. */
     private long counted(String key) {
-        return limiter.retryAfter(key, 1, WINDOW);
+        // The per address and email key lives in the best-effort table, the per address key in the strict one.
+        return limiter.retryAfter(key, 1, WINDOW,
+                key.equals(EMAIL_KEY) ? AttemptLimiter.Tier.BEST_EFFORT : AttemptLimiter.Tier.STRICT);
     }
 
     private static void assertInvalidCredentials(Throwable t) {

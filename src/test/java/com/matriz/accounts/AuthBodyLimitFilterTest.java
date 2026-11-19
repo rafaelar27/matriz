@@ -34,6 +34,7 @@ class AuthBodyLimitFilterTest {
                 return -1;
             }
         };
+        request.setServletPath(uri); // the decoded path, as a servlet container reports it (audit S-11)
         byte[] body = new byte[size];
         Arrays.fill(body, (byte) ' ');
         request.setContent(body);
@@ -71,6 +72,7 @@ class AuthBodyLimitFilterTest {
     @DisplayName("AC-22.6 · NFR-11 · SP-08 · a declared length over the limit gets 413 without calling the rest of the chain")
     void declaredBodyOverTheLimitGets413() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/auth/sign-up");
+        request.setServletPath("/auth/sign-up");
         request.setContent(new byte[16385]);
         MockHttpServletResponse response = new MockHttpServletResponse();
         boolean[] called = {false};
@@ -86,5 +88,68 @@ class AuthBodyLimitFilterTest {
     @DisplayName("NFR-11 · routes outside /auth/ are not limited by this filter")
     void otherRoutesAreNotLimited() throws Exception {
         assertThat(readAll(undeclared("/projects", 20000))).isEqualTo(20000);
+    }
+
+    @Test
+    @DisplayName("AC-22.6 · NFR-11 · SP-08 · audit S-11 · an encoded path such as /%61uth/sign-in is limited like /auth/sign-in")
+    void encodedPathIsLimited() throws Exception {
+        for (String[] route : new String[][] {{"/auth", "/sign-in"}, {"/auth", "/sign-up"}}) {
+            MockHttpServletRequest request = new MockHttpServletRequest("POST", "/%61uth" + route[1]);
+            request.setServletPath(route[0]);
+            request.setPathInfo(route[1]);
+            request.setContent(new byte[16385]);
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            boolean[] called = {false};
+
+            filter.doFilter(request, response, (req, res) -> called[0] = true);
+
+            assertThat(response.getStatus()).isEqualTo(413);
+            assertThat(response.getContentAsString()).contains("payload_too_large");
+            assertThat(called[0]).isFalse();
+        }
+    }
+
+    @Test
+    @DisplayName("NFR-11 · audit S-11 · the decoded path decides: a path outside /auth/ is not limited even if the raw URI starts with /auth/")
+    void decodedPathDecides() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/auth/../projects");
+        request.setServletPath("/projects");
+        request.setContent(new byte[20000]);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        boolean[] called = {false};
+
+        filter.doFilter(request, response, (req, res) -> called[0] = true);
+
+        assertThat(called[0]).isTrue();
+        assertThat(response.getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    @DisplayName("NFR-11 · SP-08 · audit S-14 · a reader over 16385 bytes is cut off with an IOException")
+    void readerOverTheLimitIsCutOff() {
+        MockHttpServletRequest request = undeclared("/auth/sign-up", 16385);
+        assertThatThrownBy(() -> filter.doFilter(request, new MockHttpServletResponse(), (req, res) -> {
+            var reader = req.getReader();
+            char[] buffer = new char[1000];
+            while (reader.read(buffer) > 0) {
+                // read on
+            }
+        })).isInstanceOf(IOException.class);
+    }
+
+    @Test
+    @DisplayName("NFR-11 · SP-08 · audit S-14 · a reader over exactly 16384 bytes reads everything")
+    void readerAtTheLimitReadsEverything() throws Exception {
+        MockHttpServletRequest request = undeclared("/auth/sign-up", 16384);
+        long[] total = {0};
+        filter.doFilter(request, new MockHttpServletResponse(), (req, res) -> {
+            var reader = req.getReader();
+            char[] buffer = new char[1000];
+            int n;
+            while ((n = reader.read(buffer)) > 0) {
+                total[0] += n;
+            }
+        });
+        assertThat(total[0]).isEqualTo(16384);
     }
 }
