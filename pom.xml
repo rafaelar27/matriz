@@ -14,7 +14,7 @@
 
     <groupId>com.matriz</groupId>
     <artifactId>matriz</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.2.0</version>
     <name>Matriz</name>
     <description>Matriz MVP: project and task management for work teams (modular monolith).</description>
 
