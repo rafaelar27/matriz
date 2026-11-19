@@ -271,7 +271,7 @@ async function loadProjectsWithProgress({ q, page, size, withCounts }) {
   return { data, progress, counts: withCounts ? counts : null };
 }
 
-/** E-14 "+ New project": Project Managers only (FR-06); hidden for Workspace Administrators until PD-03 (Q7). */
+/** E-14 "+ New project": Project Managers and Workspace Administrators (FR-06; decided 2026-11-19, PD-03 in part). */
 function newProjectLink() {
   return managedWorkspaces().length ? h('a', { class: 'btn primary', href: '#/projects/new' }, '+ New project') : null;
 }
@@ -397,7 +397,9 @@ async function loadProfile() {
 }
 
 function managedWorkspaces() {
-  return (state.profile ? state.profile.memberships : []).filter(m => m.role === 'Project Manager');
+  // Workspaces where the member manages projects: Project Managers and Workspace Administrators (PD-03 in part).
+  return (state.profile ? state.profile.memberships : [])
+    .filter(m => m.role === 'Project Manager' || m.role === 'Workspace Administrator');
 }
 
 function canManage(workspaceId) {
@@ -413,8 +415,9 @@ function showBar(visible) {
     document.getElementById('acct-button').textContent = state.profile.name + ' ▾';
   }
   const current = location.hash.startsWith('#/projects') ? 'nav-projects'
-    : (location.hash.startsWith('#/dashboard') ? 'nav-dashboard' : null);
-  ['nav-dashboard', 'nav-projects'].forEach(id => {
+    : (location.hash.startsWith('#/dashboard') ? 'nav-dashboard'
+      : (location.hash.startsWith('#/workspaces/new') ? 'nav-workspace-new' : null));
+  ['nav-dashboard', 'nav-projects', 'nav-workspace-new'].forEach(id => {
     const link = document.getElementById(id);
     link.classList.toggle('on', id === current);
     if (id === current) link.setAttribute('aria-current', 'page');
@@ -802,13 +805,17 @@ async function confirmDelete(project, progress) {
 
 function taskSection(project, progress, progressText, params) {
   const me = (state.profile.memberships || []).find(m => m.workspace_id === project.workspace_id) || {};
-  const writer = me.role === 'Project Manager' || me.role === 'Team Member';
+  const isWa = me.role === 'Workspace Administrator';
+  const writer = me.role === 'Project Manager' || me.role === 'Team Member' || isWa;
   const isPm = me.role === 'Project Manager';
-  // Mirrors AccessPolicy so that refused actions are hidden (CMP-11); the backend still decides.
+  // Mirrors AccessPolicy so that refused actions are hidden (CMP-11); the backend still decides. Workspace
+  // Administrators create, assign, comment, change the owner and the status of their own tasks and delete the tasks
+  // they created, but do not edit a task's content (decided 2026-11-19, PD-03 in part).
   const can = {
     create: writer,
-    edit: t => isPm || (writer && t.owner_member_id === me.member_id),
-    reassign: isPm,
+    edit: t => isPm || isWa || (writer && t.owner_member_id === me.member_id),
+    content: t => isPm || (writer && !isWa && t.owner_member_id === me.member_id),
+    reassign: isPm || isWa,
     status: t => writer && t.owner_member_id === me.member_id,
     remove: t => writer && t.created_by_member_id === me.member_id,
   };
@@ -1176,7 +1183,7 @@ function taskSection(project, progress, progressText, params) {
     title.addEventListener('input', counters);
     description.addEventListener('input', counters);
 
-    const contentAllowed = !editing || can.edit(task);
+    const contentAllowed = !editing || can.content(task);
     title.disabled = !contentAllowed;
     description.disabled = !contentAllowed;
     dueDate.disabled = !contentAllowed;
@@ -1320,11 +1327,11 @@ async function projectFormScreen(id) {
     }
     if (seq !== screenSeq) return;
     if (!canManage(project.workspace_id)) {
-      render(message('Only Project Managers can edit projects.'), h('a', { class: 'btn', href: '#/projects/' + id }, '← Back'));
+      render(message('Only Project Managers and Workspace Administrators can edit projects.'), h('a', { class: 'btn', href: '#/projects/' + id }, '← Back'));
       return;
     }
   } else if (!managedWorkspaces().length) {
-    render(message('Only Project Managers can create projects.'), h('a', { class: 'btn', href: '#/projects' }, '← Back'));
+    render(message('Only Project Managers and Workspace Administrators can create projects.'), h('a', { class: 'btn', href: '#/projects' }, '← Back'));
     return;
   }
 
@@ -1471,6 +1478,51 @@ async function projectFormScreen(id) {
   name.focus();
 }
 
+// New workspace (US-02, FR-02, BR-01): any signed-in person. The API makes the creator its Workspace Administrator.
+async function workspaceFormScreen() {
+  const seq = screenSeq;
+  await loadProfile();
+  if (seq !== screenSeq) return;
+  showBar(true);
+  const kit = formKit('workspace');
+  const name = h('input', { type: 'text', required: true, maxlength: NAME_MAX + 20 });
+  const nameCount = h('span', {});
+  const banner = h('div', { 'aria-live': 'assertive' });
+  const submit = h('button', { class: 'btn primary', type: 'submit' }, 'Create workspace');
+  name.addEventListener('input', () => {
+    nameCount.textContent = chars(name.value.trim()) + ' / ' + NAME_MAX;
+  });
+  const form = h('form', { class: 'panel', novalidate: true, onsubmit: e => {
+    e.preventDefault();
+    guarded(form, submit, async () => {
+      banner.replaceChildren();
+      kit.clear();
+      const length = chars(name.value.trim());
+      if (length < NAME_MIN || length > NAME_MAX) {
+        kit.setError('name', 'The name must be ' + NAME_MIN + ' to ' + NAME_MAX + ' characters long.');
+        banner.append(message('Check the highlighted fields.'));
+        kit.focusFirstError();
+        return;
+      }
+      try {
+        await api('POST', '/workspaces', { name: name.value.trim() });
+        state.profile = null; // reload it so the top bar shows the new workspace
+        state.flash = 'Workspace created.';
+        go('#/dashboard');
+      } catch (err) {
+        if (err.status === 401) return;
+        const shown = err.status === 422 && kit.showServerErrors(err);
+        banner.append(message(shown ? 'Check the highlighted fields.' : errorText(err, 'The workspace could not be saved.')));
+      }
+    });
+  } },
+  banner,
+  kit.field('name', 'Name (required)', name, h('span', {}, NAME_MIN + ' to ' + NAME_MAX + ' characters. ', nameCount)),
+  h('div', { class: 'actions' }, submit, h('a', { class: 'btn secondary', href: '#/dashboard' }, 'Cancel')));
+  render(h('p', {}, h('a', { href: '#/dashboard' }, '← Back')), h('h1', {}, 'New workspace'), form);
+  name.focus();
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Routing (hash based, so the server only serves index.html).
 // ---------------------------------------------------------------------------------------------------------------
@@ -1489,6 +1541,7 @@ async function route() {
     if (parts[0] === 'projects' && parts[1] === 'new') return await projectFormScreen(null);
     if (parts[0] === 'projects' && parts.length === 2) return await projectDetailScreen(parts[1], params);
     if (parts[0] === 'projects' && parts[2] === 'edit') return await projectFormScreen(parts[1]);
+    if (parts[0] === 'workspaces' && parts[1] === 'new') return await workspaceFormScreen();
     go(HOME);
   } catch (err) {
     if (err.status !== 401) render(failure(err, route));

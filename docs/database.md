@@ -36,7 +36,7 @@ Attribute types are generic: `id` (a unique identifier), `string` (short text), 
 | **Feedback** | A problem report or suggestion sent by a member. | CMP-10 Feedback and Personal Data Requests | FR-20; US-20 |
 | **PersonalDataRequest** | A person's request for a copy or the deletion of their personal data, handled manually by the support team. | CMP-10 Feedback and Personal Data Requests | FR-21; US-21 |
 
-**Implementation status (2026-11-16).** V1 creates every entity and V3 adds TaskAssignee. No code reads or writes `invitation`, `notification`, `feedback` or `personal_data_request` in this delivery, because FR-03, FR-17, FR-20 and FR-21 are not built. `project.is_archived` is always false (no archive operation, FR-06, US-07). `member.role` and `member.status` are only read (no role change or deactivation, FR-03, FR-04). Deleting a task or project still cascades to its notifications (DA-05, BR-21).
+**Implementation status (2026-11-19).** V1 creates every entity and V3 adds TaskAssignee. No code reads or writes `invitation`, `notification`, `feedback` or `personal_data_request` in this delivery, because FR-03, FR-17, FR-20 and FR-21 are not built. `project.is_archived` is always false (no archive operation, FR-06, US-07). `workspace` and `member` rows are also written when a workspace is created (INC-14, FR-02): the creator's first membership has role Workspace Administrator and status ACTIVE. Otherwise `member.role` and `member.status` are only read (no role change or deactivation, FR-03, FR-04). Deleting a task or project still cascades to its notifications (DA-05, BR-21).
 
 ### Requirement coverage
 
@@ -266,11 +266,11 @@ The primary key (task_id, member_id) makes a second assignment of the same membe
 
 ## Business rules
 
-These are confirmed by the documentation. Not enforced in this delivery, because their features are not built: BR-01 (creating a workspace), BR-03 (changing roles), BR-04, BR-06, BR-08 (choosing project members), BR-14, BR-16, BR-17. BR-05 is enforced only by `member_workspace_account_uk`.
+These are confirmed by the documentation. Not enforced in this delivery, because their features are not built: BR-03 (changing roles), BR-04, BR-06, BR-08 (choosing project members), BR-14, BR-16, BR-17. BR-05 is enforced only by `member_workspace_account_uk`. BR-01 is enforced by `createWorkspace` since INC-14; the name rule is checked in the module, not by the database.
 
 | ID | Rule | Source |
 |---|---|---|
-| BR-01 | Each account belongs to one person only. Any account holder can create a workspace. | FR-01, FR-02, decision log 2026-10-29 |
+| BR-01 | Each account belongs to one person only. Any account holder can create a workspace, also one who already belongs to other workspaces. A workspace's name is required, trimmed, 3 to 100 characters long, and need not be unique; a name containing a NUL character (U+0000) is refused, because the database cannot store it, while numeric and boolean JSON names are accepted and stored as text (decided 2026-11-19). An account can create any number of workspaces. The creator becomes its first member, as a Workspace Administrator, in the same transaction. | FR-01, FR-02, SP-07, decision log 2026-10-29 and 2026-11-19 |
 | BR-02 | Workspace content is only available to signed-in, active members of that workspace. | FR-01, SP-01, SP-04 |
 | BR-03 | Each member holds exactly one of the four roles: Workspace Administrator, Project Manager, Team Member, Viewer. Workspace Administrators assign and change roles. | FR-04, AQ11 (confirmed) |
 | BR-04 | A workspace always keeps at least one active Workspace Administrator. Changes that would remove the last one are refused. | SP-07, EC-03 |
@@ -281,7 +281,7 @@ These are confirmed by the documentation. Not enforced in this delivery, because
 | BR-09 | Each task has exactly one owner, who must be an active member of the task's project when assigned. A Viewer can be a task owner. | FR-10, AC-10.3, AC-10.4 |
 | BR-10 | A task's title is required. It is trimmed and must be 3 to 150 characters long, so a title of only spaces is refused. | FR-09, AC-10.2, AC-10.5, decision log 2026-11-12 |
 | BR-11 | A task has exactly one of three statuses (To do, In progress, Done). A new task starts as To do. | FR-12, AC-10.1, AC-11.2 |
-| BR-12 | A member can delete the tasks they created, but not tasks created by others. Project Managers and Team Members can create tasks. | FR-09, decision log 2026-10-29 |
+| BR-12 | A member can delete the tasks they created, but not tasks created by others. Project Managers and Team Members can create tasks, and so can Workspace Administrators in projects they are members of. | FR-09, decision log 2026-10-29 and 2026-11-19 |
 | BR-13 | Empty comments, or comments containing only spaces, are not saved. A comment is stored trimmed and is 1 to 2000 characters long. Its author and created_at are set by the server. | FR-16, EC-08, decision log 2026-11-12 |
 | BR-14 | A notification is created when a member is assigned a task, and when someone comments on a task the member owns. | FR-17, US-16 |
 | BR-15 | A project's progress is the number of its tasks with status Done out of all its tasks, for example "2 of 8 tasks done", and "0 of 0 tasks done" for a project with no tasks. Deleted tasks are not counted. It is derived, not stored. | FR-18, AC-17.1 to AC-17.3, EC-05 |
@@ -290,7 +290,7 @@ These are confirmed by the documentation. Not enforced in this delivery, because
 | BR-18 | Every record belongs to exactly one workspace, directly or through its parent, and never references records in another workspace. | NFR-01, SP-02 |
 | BR-19 | No payment data is stored. | NFR-10, SP-06 |
 | BR-20 | The customer organization owns the data stored in its workspace. | SP-05, decision log 2026-10-29 |
-| BR-21 | A Project Manager of the workspace can delete a project. Deleting it also deletes its project members and its tasks with their comments and notifications, and cannot be undone. A project's name is 3 to 100 characters long and its description at most 1000 characters. When both are given, a project's start date is not after its due date. The creator of a project becomes one of its project members. | FR-06, US-27, decision log 2026-11-12 |
+| BR-21 | A Project Manager or a Workspace Administrator of the workspace (Workspace Administrators since 2026-11-19, PD-03 in part) can create, edit and delete a project. Deleting it also deletes its project members and its tasks with their comments and notifications, and cannot be undone. A project's name is 3 to 100 characters long and its description at most 1000 characters. When both are given, a project's start date is not after its due date. The creator of a project becomes one of its project members. | FR-06, US-27, decision log 2026-11-12 and 2026-11-19 |
 | BR-22 | A task can have any number of assignees besides its owner. Only active members of the task's project can be assigned, each at most once per task. Assignments do not change the owner. | FR-22, US-29, decision log 2026-11-12 |
 | BR-23 | Each project has exactly one owner: its creator unless another active member of the project's workspace is chosen. The owner must be an active member of that workspace when chosen; an empty owner is refused. | FR-06, decision log 2026-11-12 |
 | BR-24 | An account's name is trimmed and 1 to 80 characters long. Its email address is trimmed, printable ASCII only, at most 254 characters, stored in lower case and unique ignoring case; sign-in matches the email the same way. A password is 12 to 64 characters and at most 72 UTF-8 bytes, is not trimmed and has no composition rules. A new account has no membership and no role. | FR-01, US-22, SP-10, decision log 2026-11-18 |
@@ -302,7 +302,7 @@ These are not confirmed. Each one must be confirmed or replaced by the project d
 | ID | Assumption | Rationale | Impact if wrong |
 |---|---|---|---|
 | DA-01 | *Confirmed 2026-11-18 (decision log); unique ignoring upper and lower case, BR-24.* An account's email address is unique, and invitations are matched to people by email address. | EC-01 needs to recognise that an address "already belongs to a member"; FR-03 invites by email. | Matching invitations to accounts would need another identifier; Account.email would lose its UK. |
-| DA-02 | *Confirmed 2026-11-18 (decision log) for the Account name, which is also 1 to 80 characters after trimming (BR-24); the Workspace name part stays an assumption until FR-02 is built.* Account name and Workspace name are required. | Owners and authors must be shown by name (FR-13, FR-16); AQ23 (**assumption**) lists names among stored data. | The attributes become optional, and lists need a fallback display. |
+| DA-02 | *Confirmed 2026-11-18 (decision log) for the Account name, which is also 1 to 80 characters after trimming (BR-24). Confirmed for the Workspace name on 2026-11-19:* required, 3 to 100 characters after trimming (BR-01). Account name and Workspace name are required. | Owners and authors must be shown by name (FR-13, FR-16); AQ23 (**assumption**) lists names among stored data. | The attributes become optional, and lists need a fallback display. |
 | DA-03 | *Rejected in part 2026-11-12:* a project always has an owner (see the [decision log](constraints.md#decision-log); enforced by migration V4 and CMP-04 Projects since INC-07, BR-23). Still assumed: only a project's name is required; description, start date and due date are optional. | FR-06 lists the fields but not which are required (comparable to PD-04 for tasks). | Making a field required changes it from optional to required, as happened for the owner (R-06 became 1 to 0..*, INC-07). |
 | DA-04 | A task's description and due date are optional until PD-04 is decided. | Optional fits both outcomes of PD-04; EC-06 already covers tasks without a due date. | If PD-04 makes them required, the attributes become required; no structural change. |
 | DA-05 | Deleting a task also deletes its comments and notifications. | FR-09 allows deletion and AC-17.3 removes the task from the count; nothing suggests keeping orphan comments. | If they must be kept, Comment and Notification need to survive without their task, and R-12 and R-15 become optional on the task side. |
@@ -354,7 +354,7 @@ DA-01 to DA-11 above need confirmation, except DA-01 and the Account name part o
 | PD-10 | What happens to tasks of deactivated or removed members may add a "needs reassignment" marker to Task. |
 | PD-11 | Which change wins in simultaneous edits may require a version attribute on Task (TD-07). |
 | PD-12 | Whether self-notifications exist. Rule only (R-16 already allows zero). |
-| PD-16 | If one account may join only one workspace, R-01 becomes 1 to 0..1. Whether the workspace creator becomes its Workspace Administrator is a rule only. |
+| PD-16 | If one account may join only one workspace, R-01 becomes 1 to 0..1. That the workspace creator becomes its Workspace Administrator was decided on 2026-11-19. |
 | PD-18 | What a deletion request removes, given that tasks and comments reference the member who created or wrote them, and what happens when the only Workspace Administrator asks for deletion (BR-04). |
 | PD-19 | Identity verification and support-staff access for PersonalDataRequest. |
 

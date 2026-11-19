@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.Instant;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
@@ -20,7 +21,7 @@ import com.jayway.jsonpath.JsonPath;
 
 /**
  * Task comments through direct API requests (INC-05 Feature B; openapi.yaml 0.6.0-draft; FR-16, US-15, BR-13,
- * EC-08). Demo data: "Review homepage images" has two comments, by Ana (09:40) and Ben (14:05) on 2026-11-03.
+ * EC-08; INC-16: Workspace Administrators who are project members may comment, PD-03 in part, PD-20). Demo data: "Review homepage images" has two comments, by Ana (09:40) and Ben (14:05) on 2026-11-03.
  */
 class CommentApiTest extends ApiTestSupport {
 
@@ -122,9 +123,19 @@ class CommentApiTest extends ApiTestSupport {
     // --- Permissions and isolation --------------------------------------------------------------------------------
 
     @Test
-    void viewersWorkspaceAdministratorsAndNonProjectMembersCannotComment() throws Exception {
+    @DisplayName("FR-16, FR-05, PD-03 (in part) · a Workspace Administrator who is a project member comments: 201, author is her member id")
+    void workspaceAdministratorProjectMemberComments() throws Exception {
+        jdbc.update("INSERT INTO project_member (project_id, member_id) VALUES (?::uuid, ?::uuid)", WEBSITE,
+                "c0000000-0000-0000-0000-000000000001");
+        say(signIn("carla@example.com"), WEBSITE, T_IMAGES, "Fictitious admin comment")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.author_member_id").value("c0000000-0000-0000-0000-000000000001"));
+    }
+
+    @Test
+    void viewersAndNonProjectMembersCannotComment() throws Exception {
         say(signIn("vera@example.com"), WEBSITE, T_IMAGES, "Viewer").andExpect(status().isForbidden());
-        say(signIn("carla@example.com"), WEBSITE, T_IMAGES, "Administrator").andExpect(status().isForbidden());
+        say(signIn("carla@example.com"), WEBSITE, T_IMAGES, "WA who is not a project member, PD-20").andExpect(status().isForbidden());
         // Ben stops taking part in Trade fair stand: he can still read its comments but not add one (provisional).
         jdbc.update("DELETE FROM project_member WHERE project_id = ?::uuid AND member_id = ?::uuid", TRADE_FAIR, ACME_BEN);
         MockHttpSession ben = signIn("ben@example.com");

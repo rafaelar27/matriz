@@ -17,6 +17,7 @@ import java.util.stream.IntStream;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
@@ -26,7 +27,8 @@ import org.springframework.test.web.servlet.ResultActions;
 /**
  * Task assignees through direct API requests (INC-05 Feature A; openapi.yaml 0.5.0-draft; FR-22, US-29, BR-22).
  * Demo data: "Website redesign" has project members Ana (Project Manager), Ben (Team Member) and Vera (Viewer);
- * Carla is a Workspace Administrator of Acme Studio but not a member of the project.
+ * Carla is a Workspace Administrator of Acme Studio but not a member of the project; since INC-16 she may still
+ * assign and unassign (Project Managers and Workspace Administrators), Team Members and Viewers may not.
  */
 class AssignmentApiTest extends ApiTestSupport {
 
@@ -153,16 +155,30 @@ class AssignmentApiTest extends ApiTestSupport {
     // --- Permissions and isolation --------------------------------------------------------------------------------
 
     @Test
-    void onlyProjectManagersAssignOrRemoveButEveryMemberCanRead() throws Exception {
+    @DisplayName("FR-22, AC-29.5, FR-05 · Team Members and Viewers read assignees but get 403 on assign and unassign; nothing changes")
+    void teamMembersAndViewersCannotAssignOrRemoveButEveryMemberCanRead() throws Exception {
         assign(signIn("ana@example.com"), WEBSITE, T_IMAGES, ACME_VERA).andExpect(status().isCreated());
         for (String email : new String[] {"ben@example.com", "vera@example.com", "carla@example.com"}) {
             MockHttpSession s = signIn(email);
             assignees(s, WEBSITE, T_IMAGES).andExpect(status().isOk()).andExpect(jsonPath("$", hasSize(1)));
             mvc.perform(get(base(WEBSITE, T_IMAGES) + "/eligible-assignees").session(s)).andExpect(status().isOk());
+            if (email.startsWith("carla")) {
+                continue; // Workspace Administrators may assign: see workspaceAdministratorAssignsAndRemoves
+            }
             assign(s, WEBSITE, T_IMAGES, ACME_BEN).andExpect(status().isForbidden());
             unassign(s, WEBSITE, T_IMAGES, ACME_VERA).andExpect(status().isForbidden());
         }
         assertThat(rows(T_IMAGES)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("FR-22, FR-05, PD-03 (in part) · a Workspace Administrator, also not a project member, assigns and unassigns; rows follow")
+    void workspaceAdministratorAssignsAndRemoves() throws Exception {
+        MockHttpSession carla = signIn("carla@example.com");
+        assign(carla, WEBSITE, T_IMAGES, ACME_VERA).andExpect(status().isCreated());
+        assertThat(rows(T_IMAGES)).isEqualTo(1);
+        unassign(carla, WEBSITE, T_IMAGES, ACME_VERA).andExpect(status().is2xxSuccessful());
+        assertThat(rows(T_IMAGES)).isZero();
     }
 
     @Test

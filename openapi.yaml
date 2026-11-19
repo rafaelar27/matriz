@@ -2,8 +2,8 @@ openapi: 3.1.0
 
 info:
   title: Matriz API
-  version: 0.9.0-draft
-  summary: Draft API for the Matriz MVP (authentication and sign-up, projects, progress, tasks, task assignees and comments).
+  version: 0.12.0-draft
+  summary: Draft API for the Matriz MVP (authentication and sign-up, workspaces, projects, progress, tasks, task assignees and comments).
   description: |
     Draft specification of the Matriz MVP API, a project and task management
     platform for work teams: sign-up, sign-in, the signed-in profile and
@@ -57,14 +57,14 @@ info:
 
     **Provisional rules** (most restrictive reading of pending decisions, approved
     by the project decision-maker on 2026-11-12, to be revisited when decided):
-    Workspace Administrators cannot create tasks (PD-03); Team Members can only
-    create tasks they own (PD-01); only a task's owner changes its status, also
+    Team Members can only create tasks they own (PD-01); only a task's owner changes its status, also
     for Project Managers (PD-01); Viewers are refused even on tasks they own
     (PD-17); only project members can create tasks in a project (PD-20).
     Added for INC-04 on 2026-11-12: a task's title, description and due date
     can be edited by Project Managers of the workspace and by the task's owner
     when the owner is a Team Member; only Project Managers change the owner
-    (AC-10.4); Workspace Administrators can only read tasks (PD-03).
+    (AC-10.4) and, since 2026-11-19, Workspace Administrators (PD-03 in part).
+    Workspace Administrators do not edit a task's title, description or due date.
 
     **Outside this contract:** the user interface files (`/`, `/index.html`,
     `/css/**`, `/js/**`) and `GET /config.js`, a script generated from the
@@ -109,6 +109,8 @@ info:
       component: CMP-07 Comments. Added 2026-11-12 (INC-05).
     - `signUp` supports US-22 (FR-01, SP-08 to SP-10, NFR-11). Owning
       component: CMP-01 Accounts and Sign-in. Added 2026-11-19 (INC-12).
+    - `createWorkspace` supports US-02 (FR-02, BR-01). Owning component:
+      CMP-02. Added 2026-11-19 (INC-14).
 
     **Limits on `/auth/` routes (NFR-11, SP-08):** `signUp` and failed `signIn`
     requests are limited per client address; over a limit the response is 429
@@ -119,8 +121,19 @@ info:
     proxy all clients share one address (assumption API-A6). A request body over
     16384 bytes on any `/auth/` route is refused with 413 `payload_too_large`.
 
-    **Not built in this delivery:** workspace
-    creation (FR-02); invitations and member management (FR-03) and role
+    Version 0.11.0-draft (INC-15): Workspace Administrators can also create,
+    edit and delete projects (`createProject`, `updateProject`,
+    `deleteProject`), decided 2026-11-19 (PD-03 in part).
+
+    Version 0.12.0-draft (INC-16): Workspace Administrators can also create
+    tasks and comment on tasks of projects they are members of, assign and
+    unassign members, change a task's owner, change the status of tasks they
+    own and delete tasks they created (`createTask`, `addTaskComment`,
+    `assignTask`, `unassignTask`, `updateTask` owner and status, `deleteTask`),
+    decided 2026-11-19 (PD-03 in part).
+
+    **Not built in this delivery:** invitations and
+    member management (FR-03) and role
     assignment and changes (FR-04) apart from reading active members (the
     FR-04 permissions are enforced by CMP-03); archiving projects (FR-06,
     US-07); choosing project members (FR-07, US-08) apart from the creator;
@@ -157,11 +170,13 @@ info:
     - **PD-06:** whether a Done task may move back to an earlier status.
     - **PD-11 / TD-07:** which change wins when two people change the same task (EC-07).
     - **PD-12:** whether members are notified of their own actions.
-    - **PD-16:** whether one account can be a member of several workspaces.
+    - **PD-16:** whether one account can be a member of several workspaces,
+      decided in part on 2026-11-19: `createWorkspace` is open to any
+      signed-in account, also one that already belongs to other workspaces.
       Task paths avoid a workspace identifier; `listProjects` (`workspace_id`)
       and `listWorkspaceMembers` take one, and `createProject` takes
       `workspace_id` in its body. The profile lists every active
-      membership; this is not a decision on PD-16.
+      membership.
     - **PD-17:** whether a Viewer who owns a task can change its status.
 
 servers:
@@ -184,12 +199,13 @@ tags:
   - name: Projects
     description: |
       Projects of the caller's workspaces (FR-05, FR-06, FR-08). Every active
-      member sees every project of their workspace; Project Managers create,
-      edit and delete them. Owning component: CMP-04 Projects.
+      member sees every project of their workspace; Project Managers and
+      Workspace Administrators create, edit and delete them. Owning
+      component: CMP-04 Projects.
   - name: Progress
     description: "Derived project progress (FR-18, BR-15). Owning component: CMP-09 Progress Tracking."
   - name: Workspaces
-    description: "Workspace members, read only (FR-03, FR-04). Owning component: CMP-02."
+    description: "Creating a workspace (FR-02) and reading its members (FR-03, FR-04). Owning component: CMP-02."
   - name: Comments
     description: "Comments on tasks (FR-16). Owning component: CMP-07 Comments."
   - name: Tasks
@@ -516,9 +532,11 @@ paths:
       description: |
         Creates a project in one of the caller's workspaces (US-06, FR-06).
 
-        **Who can perform it:** an active Project Manager of that workspace.
-        Team Members and Viewers are refused (FR-05, FR-06). Workspace
-        Administrators are refused until PD-03 is decided (provisional).
+        **Who can perform it:** an active Project Manager or Workspace
+        Administrator of that workspace (Workspace Administrators decided
+        2026-11-19, PD-03 in part, so the creator of a new workspace can add
+        projects). Team Members and Viewers are refused (FR-05, FR-06).
+        The same people can edit and delete projects (`updateProject`, `deleteProject`).
 
         **Set by the server:** `is_archived` is false, and the caller becomes
         a member of the new project (FR-07, decided 2026-11-12). The owner is
@@ -608,9 +626,10 @@ paths:
         project as it would be after the change, so sending only one date can
         be refused.
 
-        **Who can perform it:** any active Project Manager of the project's
-        workspace (decided 2026-11-12). Team Members, Viewers and, until PD-03,
-        Workspace Administrators are refused.
+        **Who can perform it:** any active Project Manager or Workspace
+        Administrator of the project's workspace (Project Managers decided
+        2026-11-12; Workspace Administrators 2026-11-19, PD-03 in part).
+        Team Members and Viewers are refused.
       parameters:
         - $ref: '#/components/parameters/CsrfHeader'
       requestBody:
@@ -701,6 +720,72 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+
+  /workspaces:
+    post:
+      tags: [Workspaces]
+      operationId: createWorkspace
+      summary: Create a workspace
+      description: |
+        Creates a workspace (FR-02, US-02, BR-01).
+
+        **Who can perform it:** any signed-in account. No membership is
+        needed. The account is always the one in the session.
+
+        **Set by the server:** the caller becomes the first member of the
+        new workspace, as a Workspace Administrator, in the same transaction
+        (SP-07, R-02). The workspace is kept apart from all others (NFR-01).
+
+        **Rules checked (422):** `name` is required and 3 to 100 characters
+        after trimming spaces (same rule as project names) and contains no NUL
+        character (U+0000), which the database cannot store; no other fields
+        are sent (`workspace_id`, `role`, `account_id` and `member_id` cannot
+        be sent). Names need not be unique. A name sent as a JSON number or
+        boolean is accepted and stored as text.
+
+        The response has no `Location` header (decided 2026-11-19). The only
+        403 is `csrf_invalid`: no role is checked.
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkspaceCreateRequest'
+            examples:
+              newWorkspace:
+                value:
+                  name: Harbor Works
+      responses:
+        '201':
+          description: The workspace was created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatedWorkspace'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          description: |
+            `name` missing, shorter than 3 or longer than 100 characters after
+            trimming, containing a NUL character, or a field that cannot be sent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                nameTooShort:
+                  value:
+                    code: validation_failed
+                    message: The workspace could not be saved.
+                    details:
+                      - field: name
+                        issue: The name must be 3 to 100 characters long.
 
   /workspaces/{workspace_id}/members:
     get:
@@ -845,7 +930,8 @@ paths:
         FR-09, FR-10, FR-11, FR-12).
 
         **Who can perform it:** an active member of the project's workspace whose
-        role is Project Manager or Team Member (FR-09, BR-12). Viewers and
+        role is Project Manager, Team Member or Workspace Administrator (FR-09,
+        BR-12; Workspace Administrators 2026-11-19). Viewers and
         deactivated members are refused (FR-05, AC-19.2, SP-04).
 
         **Defaults and server-set fields:**
@@ -867,8 +953,8 @@ paths:
         **Planned side effect, not built in this delivery:** a "task assigned"
         notification for the owner (FR-17, BR-14, US-16; PD-12 pending).
 
-        **Provisional rules until decided (403):** Workspace Administrators are
-        refused (PD-03); a Team Member may only set themselves as the owner
+        **Provisional rules until decided (403):** a Team Member may only set
+        themselves as the owner
         (PD-01); the caller must be a member of the project (PD-20).
 
         **Pending:** behaviour in an archived project (PD-05).
@@ -1003,17 +1089,20 @@ paths:
         Changes the sent fields (US-25, AC-10.4, US-11). Fields not sent stay
         unchanged; `null` clears `description` or `due_date`. The same rules as
         `createTask` apply to each value. A body with no fields changes nothing;
-        Viewers and Workspace Administrators get 403 even for an empty body.
+        Viewers get 403 even for an empty body.
         The task must belong to `project_id` (404 otherwise).
 
         **Who can change which field** (provisional until PD-01, PD-03 and
-        PD-17 are decided; approved 2026-11-12):
+        PD-17 are decided; approved 2026-11-12, Workspace Administrators
+        2026-11-19):
         - `title`, `description`, `due_date`: any active Project Manager of the
           project's workspace, or the task's owner when the owner is a Team Member.
-        - `owner_member_id`: Project Managers only (AC-10.4). The new owner
+          Workspace Administrators cannot change them (not decided, PD-03).
+        - `owner_member_id`: Project Managers and Workspace Administrators
+          (AC-10.4; Workspace Administrators 2026-11-19). The new owner
           must be an active member of the project (BR-09, AC-10.3).
         - `status`: the task's owner only (AC-11.1).
-        - Viewers and Workspace Administrators cannot change tasks.
+        - Viewers cannot change tasks.
 
         Permissions are checked before values. If any sent field may not be
         changed by the caller, nothing is changed and the response is 403.
@@ -1064,7 +1153,8 @@ paths:
 
         **Who can perform it:** the member who created the task (BR-12,
         AC-26.1, AC-26.2), unless they are now a Viewer or deactivated (FR-05,
-        SP-04).
+        SP-04). This includes a Workspace Administrator for the tasks she
+        created (decided 2026-11-19, PD-03 in part).
       parameters:
         - $ref: '#/components/parameters/CsrfHeader'
       responses:
@@ -1161,9 +1251,10 @@ paths:
         whose "My tasks", notifications and status rights depend on the task
         (FR-10, FR-14, FR-17, AC-11.1; decided 2026-11-12).
 
-        **Who can perform it:** any active Project Manager of the project's
-        workspace (provisional until PD-01 is decided, approved 2026-11-12).
-        Team Members, Viewers and Workspace Administrators get 403.
+        **Who can perform it:** any active Project Manager or Workspace
+        Administrator of the project's workspace (provisional until PD-01 is
+        decided, approved 2026-11-12; Workspace Administrators 2026-11-19).
+        Team Members and Viewers get 403.
 
         **Rules, checked in this order; if any fails, nothing is saved:**
         1. `member_ids` has 1 to 20 entries (422).
@@ -1313,10 +1404,10 @@ paths:
         and the stored text must be 1 to 2000 characters, so a comment of only
         spaces is refused (BR-13, EC-08; limit decided 2026-11-12).
 
-        **Who can perform it:** an active Project Manager or Team Member who is
-        a member of the task's project (provisional rule approved 2026-11-12,
-        as for task creation, PD-20). Viewers are refused (FR-05, PD-17), and
-        Workspace Administrators (PD-03).
+        **Who can perform it:** an active Project Manager, Team Member or
+        Workspace Administrator who is a member of the task's project
+        (provisional rule approved 2026-11-12, as for task creation, PD-20;
+        Workspace Administrators 2026-11-19). Viewers are refused (FR-05, PD-17).
 
         **Not yet implemented:** the "comment added" notification to the task's
         owner (FR-17, BR-14, R-16), left for the notifications increment (CMP-08).
@@ -1501,15 +1592,14 @@ components:
         valid `X-XSRF-TOKEN` header (`csrf_invalid`). Triggers:
         - the member's role is Viewer (FR-05, AC-11.3, AC-19.2);
         - the member is deactivated (FR-03, SP-04);
-        - provisional rules for `createTask`: the member is a Workspace
-          Administrator (PD-03), a Team Member setting another owner (PD-01),
-          or not a member of the project (PD-20);
+        - provisional rules for `createTask`: a Team Member setting another
+          owner (PD-01), or not a member of the project (PD-20);
         - for `updateTask`, a sent field the member may not change (see that
           operation); for `deleteTask`, the member did not create the task (BR-12);
         - for `assignTask` and `unassignTask`, the member is not a Project
-          Manager (provisional, PD-01);
-        - for `addTaskComment`, the member is a Viewer or Workspace
-          Administrator, or not a member of the task's project (provisional).
+          Manager or Workspace Administrator (provisional, PD-01);
+        - for `addTaskComment`, the member is a Viewer, or not a member of the
+          task's project (provisional, PD-20).
       content:
         application/json:
           schema:
@@ -1682,6 +1772,32 @@ components:
         role:
           type: string
           enum: [Workspace Administrator, Project Manager, Team Member, Viewer]
+
+    WorkspaceCreateRequest:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 100
+          description: Required; 3 to 100 characters after trimming spaces; no NUL character (U+0000). A JSON number or boolean is accepted and stored as text.
+
+    CreatedWorkspace:
+      type: object
+      required: [workspace_id, name, member_id, role]
+      properties:
+        workspace_id:
+          $ref: '#/components/schemas/Id'
+        name:
+          type: string
+        member_id:
+          description: The caller's new membership.
+          $ref: '#/components/schemas/Id'
+        role:
+          type: string
+          enum: [Workspace Administrator]
 
     ProjectCreateRequest:
       type: object
