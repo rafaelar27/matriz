@@ -11,7 +11,7 @@
 | US-03 | **As a** Workspace Administrator, **I want** to invite a colleague by email address and give them a role, **so that** they can join the workspace with the right permissions. |
 | US-04 | **As a** Workspace Administrator, **I want** to change a member's role, **so that** their permissions match their current responsibilities. |
 | US-05 | **As a** Workspace Administrator, **I want** to deactivate a member who has left the organization, **so that** they can no longer access the workspace. |
-| US-06 | **As a** Project Manager, **I want** to create a project with a name, description, owner, start date and due date, **so that** the team's work is grouped under a defined goal and timeframe. |
+| US-06 | **As a** Project Manager, **I want** to create a project with a name, description, owner, start date and due date, **so that** the team's work is grouped under a defined goal and timeframe. *(Workspace Administrators too, decided 2026-11-19.)* |
 | US-07 | **As a** Project Manager, **I want** to archive a finished project, **so that** finished work is separated from ongoing work. *(What archiving changes: PD-05.)* |
 | US-08 | **As a** Project Manager, **I want** to choose which workspace members take part in a project, **so that** only those people can be assigned its tasks. |
 | US-09 | **As a** Project Manager, **I want** to see a list of all projects in the workspace with their owner and due date, **so that** I have one overview of all ongoing work. |
@@ -29,10 +29,10 @@
 | US-21 | **As a** Team Member, **I want** to request a copy or the deletion of my personal data, **so that** my data-protection rights are respected. |
 | US-22 | **As a** Team Member, **I want** to create a personal account, **so that** I can sign in and take part in a workspace. *(Sign-up method: TD-03.)* |
 | US-23 | **As a** Project Manager, **I want** to invite a colleague to the workspace by email address, **so that** they can join the work I am organizing. *(Roles a Project Manager may give: PD-02.)* |
-| US-24 | **As a** Project Manager, **I want** to edit a project's name, description, owner, start date and due date, **so that** the project reflects current plans. |
+| US-24 | **As a** Project Manager, **I want** to edit a project's name, description, owner, start date and due date, **so that** the project reflects current plans. *(Workspace Administrators too, decided 2026-11-19.)* |
 | US-25 | **As a** Team Member, **I want** to edit a task, **so that** its details stay correct. *(Who may edit which tasks: PD-01.)* |
 | US-26 | **As a** Team Member, **I want** to delete a task I created, **so that** tasks that are no longer needed don't clutter the project. |
-| US-27 | **As a** Project Manager, **I want** to delete a project, **so that** projects created by mistake or no longer needed don't clutter the project list. *(Added 2026-11-12.)* |
+| US-27 | **As a** Project Manager, **I want** to delete a project, **so that** projects created by mistake or no longer needed don't clutter the project list. *(Added 2026-11-12. Workspace Administrators too, decided 2026-11-19.)* |
 | US-28 | **As a** Team Member, **I want** to search the project list by project name, **so that** I find a project quickly when the workspace has many. *(Added 2026-11-12.)* |
 | US-29 | **As a** Project Manager, **I want** to assign several project members to a task besides its owner, and remove them again, **so that** everyone working on the task is visible. *(Added 2026-11-12.)* |
 
