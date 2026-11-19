@@ -25,7 +25,7 @@ import com.jayway.jsonpath.JsonPath;
 /**
  * createWorkspace through direct API requests (INC-12; US-02; FR-02, BR-01, SP-01, SP-07, NFR-01, NFR-03).
  * US-02 has no numbered acceptance criteria in docs/user-stories.md, so tests carry FR, BR, SP and NFR ids.
- * The creator's 403 on createProject in the new workspace is the provisional rule PD-03 (decision log 2026-11-12).
+ * The creator, a Workspace Administrator, manages projects of the new workspace (decided by the human 2026-11-19).
  */
 class WorkspaceApiTest extends ApiTestSupport {
 
@@ -302,8 +302,8 @@ class WorkspaceApiTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("FR-02, FR-06 · the creator, a Workspace Administrator, can create a project in the new workspace: 201, owner and project member, listed; still 403 on update and delete (PD-03, provisional)")
-    void creatorCreatesProjectInNewWorkspace() throws Exception {
+    @DisplayName("FR-02, FR-06 · the creator, a Workspace Administrator, can create, edit and delete a project in the new workspace; owner, project member, listed, no rows left after delete")
+    void creatorManagesProjectInNewWorkspace() throws Exception {
         MockHttpSession ben = signIn("ben@example.com");
         String ws = create(ben, named("Admin projects")).andExpect(status().isCreated()).andReturn().getResponse()
                 .getContentAsString();
@@ -327,9 +327,11 @@ class WorkspaceApiTest extends ApiTestSupport {
 
         mvc.perform(patch("/projects/" + projectId).session(ben).with(csrf()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Renamed\"}"))
-                .andExpect(status().isForbidden());
-        mvc.perform(delete("/projects/" + projectId).session(ben).with(csrf())).andExpect(status().isForbidden());
-        assertThat(count("SELECT count(*) FROM project WHERE project_id = ?::uuid AND name = 'Admin project'",
-                projectId)).isEqualTo(1);
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Renamed"));
+        mvc.perform(delete("/projects/" + projectId).session(ben).with(csrf())).andExpect(status().is2xxSuccessful());
+        entityManager.flush();
+        assertThat(count("SELECT count(*) FROM project WHERE project_id = ?::uuid", projectId)).isZero();
+        assertThat(count("SELECT count(*) FROM project_member WHERE project_id = ?::uuid", projectId)).isZero();
     }
 }
