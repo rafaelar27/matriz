@@ -58,7 +58,7 @@ The IDs E-01 to E-20 are the labels shown on the wireframe; E-21 is not on it (a
 
 | User type | Differences on the dashboard |
 |---|---|
-| Workspace Administrator | Sees "+ New project" (E-14, also in the empty state E-15) and can create, edit and delete projects like a Project Manager (decided 2026-11-19, PD-03 in part). Otherwise the same as Team Member until the rest of PD-03 is decided. Inviting and managing members happens on the Members screen (E-05). |
+| Workspace Administrator | Sees "+ New project" (E-14, also in the empty state E-15) and can create, edit and delete projects like a Project Manager (decided 2026-11-19, PD-03 in part). On tasks (decided 2026-11-19, PD-03 in part), in projects they are members of, a Workspace Administrator creates tasks and comments; she also assigns and removes assignees and changes a task's owner, changes the status of tasks she owns and deletes tasks she created. She is not offered editing of a task's title, description or due date (pending PD-03). Otherwise as Team Member until the rest of PD-03 is decided. Inviting and managing members happens on the Members screen (E-05). |
 | Project Manager | Sees "+ New project" (E-14), also in the empty state (E-15). |
 | Team Member | No "+ New project". Sees every project, including those they are not a member of (FR-08). |
 | Viewer | No "+ New project" and no other create or change action (FR-05, AC-19.2). Same project list and the same progress figures as everyone else (AC-19.1, AC-19.3). Tasks open read-only (AC-11.3); PD-17 may change this for tasks the Viewer owns. |
@@ -116,7 +116,7 @@ These are not confirmed requirements.
 
 | ID | Effect on the dashboard |
 |---|---|
-| PD-03 | Whether a Workspace Administrator sees "+ New project" (E-14) was decided on 2026-11-19: yes (see the [decision log](../constraints.md#decision-log)). Still pending: whether a member can hold more than one role, and which other Project Manager rights (tasks, owners, assignees, comments, project members, archiving) a Workspace Administrator has. |
+| PD-03 | Whether a Workspace Administrator sees "+ New project" (E-14) was decided on 2026-11-19: yes (see the [decision log](../constraints.md#decision-log)). Still pending: whether a member can hold more than one role, and which other Project Manager rights (editing a task's title, description and due date, project members, archiving) a Workspace Administrator has; her task actions (create, comment, assign, owner, own status, delete own) were decided on 2026-11-19. |
 | PD-05 | Whether archived projects appear in the Projects section (E-12), and whether a project status is shown. |
 | PD-06 | Whether Done tasks appear in My tasks (E-09). |
 | PD-07 | Whether progress also shows a percentage. |

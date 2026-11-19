@@ -58,7 +58,7 @@ Deactivating Eli and demoting a task creator need direct database setup, because
 | TC-04 | Explicit status at creation | Ana | status `In progress` | 201; status `In progress` | API | Decision log 2026-11-12; createTask |
 | TC-05 | TM creates their own task | Ben | owner = Ben | 201; created_by=Ben; owner=Ben | API | FR-09; BR-12; createTask (prov. PD-01) |
 | TC-06 | A Viewer who is a project member can own a task | Ana; Vera is a member of P1 | owner = Vera | 201; owner=Vera | API | FR-10; decision log 2026-10-29 |
-| TC-07 | Creation refused by role or membership | Cases: (a) Vera; (b) Carla; (c) Ben with owner Ana; (d) Tom; (e) Paula | Otherwise valid body | 403 `forbidden`; no task created | API | (a) FR-05, AC-19.2; (b) PD-03 prov.; (c) PD-01 prov.; (d, e) PD-20 prov.; createTask |
+| TC-07 | Creation refused by role or membership | Cases: (a) Vera; (b) Carla; (c) Ben with owner Ana; (d) Tom; (e) Paula | Otherwise valid body | 403 `forbidden`; no task created | API | (a) FR-05, AC-19.2; (b) PD-03 prov. (superseded 2026-11-19, INC-14: a Workspace Administrator who is a project member creates tasks, and gets 403 only when she is not a project member, PD-20); (c) PD-01 prov.; (d, e) PD-20 prov.; createTask |
 | TC-08 | A deactivated member cannot create | Eli | Valid body | Refused, no task created. Status 403 vs 404 is open (Q-03) | API | SP-04; FR-03 |
 | TV-01 ★ | Invalid title on create | Ana | title missing; `""`; `"   "`; `"ab"`; `"  ab  "`; 151 chars; `null` (A8) | 422 `validation_failed`, details field `title`. No task created (list `total` unchanged) | API | AC-10.2; AC-10.5; FR-09; BR-10 |
 | TV-02 | Valid title boundaries | Ana | 3 chars; 150 chars; `"  abc  "`; 150 chars plus padding | 201 each. Title is returned trimmed (A4) | API | AC-10.5; FR-09 |
@@ -78,9 +78,9 @@ Deactivating Eli and demoting a task creator need direct database setup, because
 | TG-02 | Task reached through the wrong project (same workspace) | Ana is a member of P1 and P2 | `GET /projects/P1/tasks/T3` | 404 | API | getTask |
 | TU-01 | Allowed editors change title, description, due date | (a) Paula on T1; (b) Ben (owner) on T2 | `PATCH` `{title, description, due_date}` | 200 with the new values; owner, status, created_by unchanged | API | US-25; updateTask (prov. PD-01) |
 | TU-02 | PM changes the owner | Ana; T1 owner Ben | `{owner_member_id: Ana}` | 200; Ana is the only owner; Ben is no longer owner | API | AC-10.4; FR-10 |
-| TU-03 | Edit refused | (a) Ben edits T4; (b) Ben (owner of T1) sets owner; (c) Vera (owner of T4) edits; (d) Carla edits | Valid values | 403; unchanged | API | (a, b) updateTask, PD-01 prov.; (c) FR-05, AC-19.2, PD-17 prov.; (d) PD-03 prov. |
+| TU-03 | Edit refused | (a) Ben edits T4; (b) Ben (owner of T1) sets owner; (c) Vera (owner of T4) edits; (d) Carla edits | Valid values | 403; unchanged | API | (a, b) updateTask, PD-01 prov.; (c) FR-05, AC-19.2, PD-17 prov.; (d) PD-03 (editing a task's content by Workspace Administrators is not decided; still 403 after INC-14) |
 | TU-04 | Owner changes status | Ben, owner of T1 (To do) | `In progress`, then `Done` | 200 each. Reads reflect it; `status_counts` updates; progress done goes 0 to 1 on `Done` | API | AC-11.1; AC-11.2; AC-17.2; FR-12 |
-| TU-05 | Status change refused | (a) Ana (PM, not owner) on T1; (b) Vera (owner) on T4; (c) Carla on T1 | `{status: Done}` | 403; status unchanged | API | (a) updateTask, PD-01 prov.; (b) AC-11.3, PD-17 prov.; (c) PD-03 prov. |
+| TU-05 | Status change refused | (a) Ana (PM, not owner) on T1; (b) Vera (owner) on T4; (c) Carla on T1 | `{status: Done}` | 403; status unchanged | API | (a) updateTask, PD-01 prov.; (b) AC-11.3, PD-17 prov.; (c) PD-01 prov. (Carla is not the owner; since INC-14, 2026-11-19, a Workspace Administrator who owns the task changes its status) |
 | TU-06 | Invalid values on edit | Ana | title `""`, spaces, `"ab"`, 151 chars, `null`; description 2001; status `"done"`; owner `null`; owner Tom; due `"abc"`; field `priority` | 422; task unchanged | API | AC-25.1; AC-25.2; AC-10.3; TaskValidationFailed |
 | TU-07 | Permissions are checked before values, all or nothing | (a) Ana on T1; (b) Ben (owner) on T1 | (a) `{title: "New title", status: "Done"}`; (b) `{owner_member_id: Ana, title: ""}` | 403 in both cases (not 422). Title also unchanged | API | updateTask |
 | TU-08 | Clear optional fields | Ana; T1 has a description and due date | `{description: null, due_date: null}` | 200; both null | API | updateTask; EC-06 |
@@ -120,7 +120,7 @@ Decided on 2026-11-17 by the programmer, who approved the proposed assumptions a
 | # | Assumption | Basis | Used in | Decision |
 |---|---|---|---|---|
 | A1 | A project or task in another workspace returns 404, identical to "not found". | API-A3, confirmed 2026-11-17; NFR-01 alone does not fix the code | TA-03 to TA-05 | Accepted, then **confirmed 2026-11-17** (decision log) |
-| A2 | The provisional permission rules are asserted as written. | Decision log 2026-11-12 (PD-01, PD-03, PD-17, PD-20) | TC-07, TU-03, TU-05, TD-03 | Accepted (Q-06 resolved: test now, marked prov.) |
+| A2 | The provisional permission rules are asserted as written. | Decision log 2026-11-12 (PD-01, PD-03, PD-17, PD-20) | TC-07, TU-03, TU-05, TD-03 | Accepted (Q-06 resolved: test now, marked prov.). PD-03 decided in part on 2026-11-19 (INC-14); see TC-07 (b), TU-03 (d) and TU-05 (c) |
 | A3 | Description and due date are optional; omitted means null or absent. | DA-04, API-A5; PD-04 pending | TC-03 | Accepted |
 | A4 | The stored and returned title is trimmed, not only validated. | FR-09 | TV-02 | Accepted |
 | A5 | `priority` is an unknown field and gets 422. | additionalProperties false; F17 out of scope | TV-07, TU-06 | Accepted (Q-01 resolved: no positive priority scenarios) |
@@ -255,7 +255,7 @@ Environment as in [Environment setup](#environment-setup): local PostgreSQL 16, 
 | `TaskApiTest.pagingCoversEveryTaskOnce` (25 tasks) | TL-04 | Default size 20; each task on exactly one page; total 25 | As expected | Pass | FR-13; listTasks |
 | `TaskApiTest.allowedEditorsChangeTitleDescriptionAndDueDate` | TU-01 | 200 with the new values; owner, status, created_by unchanged | As expected | Pass | US-25; updateTask (prov. PD-01) |
 | `TaskApiTest.viewerWhoOwnsATaskCannotEditIt` | TU-03 (c) | 403; unchanged | As expected | Pass | FR-05; AC-19.2; PD-17 prov. |
-| `TaskApiTest.workspaceAdministratorCannotEditATask` | TU-03 (d) | 403; unchanged | As expected | Pass | PD-03 prov. |
+| `TaskApiTest.workspaceAdministratorCannotEditATask` (record of 2026-11-17; the test is now `workspaceAdministratorCannotEditTaskContent`, INC-14) | TU-03 (d) | 403; unchanged | As expected | Pass | PD-03 (content editing not decided) |
 | `TaskApiTest.projectManagerWhoIsNotTheCreatorCannotDelete` | TD-03 (a) | 403; task still exists | As expected | Pass | AC-26.2; BR-12; deleteTask |
 | `TaskApiTest.creatorWhoIsNowAViewerCannotDelete` | TD-03 (d) | 403; task still exists | As expected | Pass | AC-26.2; BR-12; deleteTask |
 | `TaskApiTest.memberOfAcmeCannotReadNorthwindTasks` | TA-03 (reverse) | 404 `not_found`; no task data | As expected | Pass | NFR-01; SP-02; API-A3 |

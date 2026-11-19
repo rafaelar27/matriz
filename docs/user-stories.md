@@ -15,12 +15,12 @@
 | US-07 | **As a** Project Manager, **I want** to archive a finished project, **so that** finished work is separated from ongoing work. *(What archiving changes: PD-05.)* |
 | US-08 | **As a** Project Manager, **I want** to choose which workspace members take part in a project, **so that** only those people can be assigned its tasks. |
 | US-09 | **As a** Project Manager, **I want** to see a list of all projects in the workspace with their owner and due date, **so that** I have one overview of all ongoing work. |
-| US-10 | **As a** Project Manager, **I want** to create a task in a project and give it one owner and a due date, **so that** everyone knows who is responsible and by when. |
+| US-10 | **As a** Project Manager, **I want** to create a task in a project and give it one owner and a due date, **so that** everyone knows who is responsible and by when. *(Workspace Administrators too, in projects they are members of, decided 2026-11-19.)* |
 | US-11 | **As a** Team Member, **I want** to change the status of my task to To do, In progress or Done, **so that** others can see how my work is progressing. |
 | US-12 | **As a** Team Member, **I want** to see all tasks in a project with their owner, status and due date, **so that** I understand what the whole team is working on. |
 | US-13 | **As a** Team Member, **I want** to see a list of all tasks assigned to me across projects, ordered by due date, **so that** I know what to work on next. |
 | US-14 | **As a** Project Manager, **I want** to filter a project's task list by owner, status or due date, **so that** I see only the tasks I need to follow up on. |
-| US-15 | **As a** Team Member, **I want** to comment on a task, **so that** discussion about that task stays with the task instead of in separate emails. |
+| US-15 | **As a** Team Member, **I want** to comment on a task, **so that** discussion about that task stays with the task instead of in separate emails. *(Workspace Administrators too, in projects they are members of, decided 2026-11-19.)* |
 | US-16 | **As a** Team Member, **I want** to be notified inside Matriz when I am assigned a task or when someone comments on a task I own, **so that** I don't miss work that concerns me. |
 | US-17 | **As a** Project Manager, **I want** each project to show how many of its tasks are done, **so that** I can see its progress without opening every task. |
 | US-18 | **As a** Project Manager, **I want** tasks that are past their due date and not done to be marked as overdue, **so that** I can follow up on delays. |
@@ -34,7 +34,7 @@
 | US-26 | **As a** Team Member, **I want** to delete a task I created, **so that** tasks that are no longer needed don't clutter the project. |
 | US-27 | **As a** Project Manager, **I want** to delete a project, **so that** projects created by mistake or no longer needed don't clutter the project list. *(Added 2026-11-12. Workspace Administrators too, decided 2026-11-19.)* |
 | US-28 | **As a** Team Member, **I want** to search the project list by project name, **so that** I find a project quickly when the workspace has many. *(Added 2026-11-12.)* |
-| US-29 | **As a** Project Manager, **I want** to assign several project members to a task besides its owner, and remove them again, **so that** everyone working on the task is visible. *(Added 2026-11-12.)* |
+| US-29 | **As a** Project Manager, **I want** to assign several project members to a task besides its owner, and remove them again, **so that** everyone working on the task is visible. *(Added 2026-11-12. Workspace Administrators too, decided 2026-11-19.)* |
 
 ## Priorities (MoSCoW)
 
@@ -95,7 +95,7 @@ Every story is in the MVP. The seven stories US-03, US-10, US-11, US-13, US-17, 
 - **AC-15.1 (success):** **Given** I am a Team Member of project P, **when** I post the comment "The first two sections are done." on task T, **then** it appears last in T's comments with my name and the date and time it was posted, set by Matriz.
 - **AC-15.2 (validation):** **Given** I am commenting on T, **when** I post a comment that is empty, only spaces, or longer than 2000 characters after removing leading and trailing spaces, **then** nothing is added and a message states the rule (EC-08). A comment of 1 or 2000 characters is accepted.
 - **AC-15.3 (order and author):** **Given** T has comments by Ana and then Ben, **when** anyone in the workspace opens T, **then** Ana's comment is listed before Ben's, each with its author and date; a request that sends its own author or date is refused.
-- **AC-15.4 (permission):** **Given** I am a Viewer, a Workspace Administrator, or not a member of P, **when** I open T, **then** I can read its comments but cannot add one. *(Provisional until PD-03, PD-17 and PD-20 are decided.)*
+- **AC-15.4 (permission):** **Given** I am a Viewer, or not a member of P, **when** I open T, **then** I can read its comments but cannot add one. *(Provisional until PD-17 and PD-20 are decided. Workspace Administrators who are members of P can comment, decided 2026-11-19, PD-03 in part.)*
 
 ### US-17: Project progress indicator
 
@@ -158,7 +158,7 @@ Every story is in the MVP. The seven stories US-03, US-10, US-11, US-13, US-17, 
 - **AC-29.2 (eligible only):** **Given** Carla is a member of the workspace but not of P, **when** I choose assignees for T, **then** Carla is not offered, and a request to assign her is refused.
 - **AC-29.3 (no duplicates):** **Given** Ben is assigned to T, **when** I assign Ben to T again, **then** the request is refused with a message that Ben is already assigned, and Ben is listed once.
 - **AC-29.4 (remove one):** **Given** Ben and Vera are assigned to T, **when** I remove Ben, **then** only Vera is listed.
-- **AC-29.5 (permission):** **Given** I am a Team Member, Viewer or Workspace Administrator, **when** I open T, **then** I see its assignees but no option to assign or remove. *(Provisional until PD-01 is decided.)*
+- **AC-29.5 (permission):** **Given** I am a Team Member or Viewer, **when** I open T, **then** I see its assignees but no option to assign or remove. *(Provisional until PD-01 is decided. Workspace Administrators assign and remove too, decided 2026-11-19, PD-03 in part.)*
 
 ## Relevant edge cases and expected behavior
 
