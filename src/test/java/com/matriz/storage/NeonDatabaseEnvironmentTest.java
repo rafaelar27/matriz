@@ -76,7 +76,7 @@ class NeonDatabaseEnvironmentTest {
         "sslmode=require                             | ?sslmode=verify-full",
         "sslmode=disable                             | ?sslmode=verify-full",
         "sslmode=prefer                              | ?sslmode=verify-full",
-        "sslmode=verify-ca                           | ?sslmode=verify-ca",
+        "sslmode=verify-ca                           | ?sslmode=verify-full",
         "sslmode=verify-full                         | ?sslmode=verify-full",
         "sslmode=require&options=endpoint%3Dep-x     | ?sslmode=verify-full",
         "connect_timeout=10&sslfactory=x.Evil        | ?sslmode=verify-full",
