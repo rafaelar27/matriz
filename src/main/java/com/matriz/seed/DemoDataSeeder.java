@@ -40,7 +40,7 @@ public class DemoDataSeeder implements CommandLineRunner {
     static final UUID DAN = id("a0000000-0000-0000-0000-000000000005");
     /** Project Manager of Orchard Office only, which has no projects on purpose (E-15, INC-06). Added 2026-11-12. */
     static final UUID EVA = id("a0000000-0000-0000-0000-000000000006");
-    /** Workspace Administrator of Orchard Office only, so the workspace keeps an administrator (BR-04, SP-07) and the Dashboard empty state can be checked without "+ New project" (E-15, PD-03). Added 2026-11-12. */
+    /** Workspace Administrator of Orchard Office only, so the workspace keeps an administrator (BR-04, SP-07). Orchard Office has no projects, so the Dashboard empty state (E-15) can be checked with a Workspace Administrator, who sees "+ New project" since the decision of 2026-11-19 (PD-03 in part); Eva is the Project Manager. Added 2026-11-12. */
     static final UUID FINN = id("a0000000-0000-0000-0000-000000000007");
 
     // Workspaces

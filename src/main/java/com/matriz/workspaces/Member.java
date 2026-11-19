@@ -7,6 +7,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -20,6 +22,7 @@ import com.matriz.accesscontrol.Role;
 class Member {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "member_id")
     private UUID id;
 
@@ -36,6 +39,14 @@ class Member {
     private String status;
 
     protected Member() {
+    }
+
+    /** A new active membership (status ACTIVE, as the column default). */
+    Member(Workspace workspace, UUID accountId, Role role) {
+        this.workspace = workspace;
+        this.accountId = accountId;
+        this.role = role;
+        this.status = "ACTIVE";
     }
 
     UUID getId() {

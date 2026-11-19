@@ -283,26 +283,24 @@ class TaskApiTest extends ApiTestSupport {
     }
 
     @Test
-    void viewersAndWorkspaceAdministratorsReadButNeverChange() throws Exception {
-        for (String email : new String[] {"vera@example.com", "carla@example.com"}) {
-            MockHttpSession s = signIn(email);
-            Map<String, Object> before = snapshot(T_IMAGES);
-            long tasks = taskCount();
-            list(s, WEBSITE).andExpect(status().isOk()).andExpect(jsonPath("$.total").value(3));
-            mvc.perform(get(path(WEBSITE, T_IMAGES)).session(s)).andExpect(status().isOk());
-            update(s, WEBSITE, T_IMAGES, "{\"title\":\"Changed\"}").andExpect(status().isForbidden())
-                    .andExpect(jsonPath("$.code").value("forbidden"));
-            update(s, WEBSITE, T_IMAGES, "{}").andExpect(status().isForbidden())
-                    .andExpect(jsonPath("$.code").value("forbidden"));
-            remove(s, WEBSITE, T_IMAGES).andExpect(status().isForbidden())
-                    .andExpect(jsonPath("$.code").value("forbidden"));
-            create(s, WEBSITE, titled("Not allowed")).andExpect(status().isForbidden())
-                    .andExpect(jsonPath("$.code").value("forbidden"));
-            // TD-03 (b, c) and TU-03 (d): a refused request changed nothing and the task still exists.
-            assertThat(count("SELECT count(*) FROM task WHERE task_id = ?::uuid", T_IMAGES)).as(email).isEqualTo(1);
-            assertThat(snapshot(T_IMAGES)).as(email).isEqualTo(before);
-            assertThat(taskCount()).as(email).isEqualTo(tasks);
-        }
+    void viewersReadButNeverChange() throws Exception {
+        MockHttpSession s = signIn("vera@example.com");
+        Map<String, Object> before = snapshot(T_IMAGES);
+        long tasks = taskCount();
+        list(s, WEBSITE).andExpect(status().isOk()).andExpect(jsonPath("$.total").value(3));
+        mvc.perform(get(path(WEBSITE, T_IMAGES)).session(s)).andExpect(status().isOk());
+        update(s, WEBSITE, T_IMAGES, "{\"title\":\"Changed\"}").andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("forbidden"));
+        update(s, WEBSITE, T_IMAGES, "{}").andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("forbidden"));
+        remove(s, WEBSITE, T_IMAGES).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("forbidden"));
+        create(s, WEBSITE, titled("Not allowed")).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("forbidden"));
+        // TD-03 (b, c) and TU-03 (d): a refused request changed nothing and the task still exists.
+        assertThat(count("SELECT count(*) FROM task WHERE task_id = ?::uuid", T_IMAGES)).isEqualTo(1);
+        assertThat(snapshot(T_IMAGES)).isEqualTo(before);
+        assertThat(taskCount()).isEqualTo(tasks);
     }
 
     // --- Delete ---------------------------------------------------------------------------------------------------
@@ -644,8 +642,126 @@ class TaskApiTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("TU-03 (d) · PD-03 prov. · a Workspace Administrator cannot edit a task: 403 forbidden, unchanged")
-    void workspaceAdministratorCannotEditATask() throws Exception {
+    @DisplayName("FR-05, FR-09, FR-12, PD-03 (in part) · a Workspace Administrator who is not a project member reads, but gets 403 on content edit, status change of a task she does not own, delete and create")
+    void workspaceAdministratorReadsButIsLimited() throws Exception {
+        MockHttpSession carla = signIn("carla@example.com");
+        Map<String, Object> before = snapshot(T_IMAGES);
+        long tasks = taskCount();
+        list(carla, WEBSITE).andExpect(status().isOk()).andExpect(jsonPath("$.total").value(3));
+        mvc.perform(get(path(WEBSITE, T_IMAGES)).session(carla)).andExpect(status().isOk());
+        update(carla, WEBSITE, T_IMAGES, "{\"title\":\"Changed\"}").andExpect(status().isForbidden());
+        update(carla, WEBSITE, T_IMAGES, "{\"status\":\"Done\"}").andExpect(status().isForbidden());
+        remove(carla, WEBSITE, T_IMAGES).andExpect(status().isForbidden());
+        create(carla, WEBSITE, titled("Not allowed")).andExpect(status().isForbidden());
+        assertThat(snapshot(T_IMAGES)).isEqualTo(before);
+        assertThat(taskCount()).isEqualTo(tasks);
+    }
+
+    // --- Workspace Administrator who is a project member (INC-16; PD-03 in part) --------------------------------------
+
+    /** A fictitious Acme project created by Carla (Workspace Administrator); Ben (Team Member) is added as a project member. */
+    private String adminProject(MockHttpSession carla) throws Exception {
+        String id = JsonPath.read(mvc.perform(post("/projects").session(carla).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"workspace_id\":\"b0000000-0000-0000-0000-000000000001\",\"name\":\"Fictitious admin project\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(), "$.project_id");
+        entityManager.flush();
+        jdbc.update("INSERT INTO project_member (project_id, member_id) VALUES (?::uuid, ?::uuid)", id, ACME_BEN);
+        return id;
+    }
+
+    private String ownedTask(MockHttpSession s, String project, String owner) throws Exception {
+        return JsonPath.read(create(s, project, "{\"title\":\"Fictitious task\",\"owner_member_id\":\"" + owner + "\"}")
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(), "$.task_id");
+    }
+
+    private String storedOwner(String task) {
+        entityManager.flush();
+        entityManager.clear();
+        return jdbc.queryForObject("SELECT owner_member_id::text FROM task WHERE task_id = ?::uuid", String.class, task);
+    }
+
+    @Test
+    @DisplayName("FR-12, AC-11.1, FR-05 · a Workspace Administrator who owns a task changes its status: 200 and stored")
+    void workspaceAdministratorOwnerChangesStatus() throws Exception {
+        MockHttpSession carla = signIn("carla@example.com");
+        String project = adminProject(carla);
+        String task = ownedTask(carla, project, ACME_CARLA);
+        update(carla, project, task, "{\"status\":\"Done\"}").andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("Done"));
+        entityManager.flush();
+        entityManager.clear();
+        assertThat(count("SELECT count(*) FROM task WHERE task_id = ?::uuid AND status = 'DONE'", task)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("FR-10, AC-10.4, BR-09 · a Workspace Administrator changes a task's owner to a Team Member; a non-member or deactivated owner gives 422 and nothing changes")
+    void workspaceAdministratorChangesOwner() throws Exception {
+        MockHttpSession carla = signIn("carla@example.com");
+        String project = adminProject(carla);
+        String task = ownedTask(carla, project, ACME_CARLA);
+
+        update(carla, project, task, "{\"owner_member_id\":\"" + ACME_BEN + "\"}").andExpect(status().isOk())
+                .andExpect(jsonPath("$.owner_member_id").value(ACME_BEN));
+        assertThat(storedOwner(task)).isEqualTo(ACME_BEN);
+
+        // Ana is a Project Manager of the workspace but not a member of this project.
+        update(carla, project, task, "{\"owner_member_id\":\"" + ACME_ANA + "\"}")
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.details[0].field").value("owner_member_id"));
+        assertThat(storedOwner(task)).isEqualTo(ACME_BEN);
+
+        jdbc.update("UPDATE member SET status = 'DEACTIVATED' WHERE member_id = ?::uuid", ACME_BEN);
+        entityManager.clear();
+        update(carla, project, task, "{\"owner_member_id\":\"" + ACME_CARLA + "\"}").andExpect(status().isOk());
+        update(carla, project, task, "{\"owner_member_id\":\"" + ACME_BEN + "\"}")
+                .andExpect(status().isUnprocessableEntity());
+        assertThat(storedOwner(task)).isEqualTo(ACME_CARLA);
+    }
+
+    @Test
+    @DisplayName("BR-12, AC-26.1, AC-26.2 · a Workspace Administrator deletes a task she created, with its rows, but gets 403 on a task created by someone else, which remains")
+    void workspaceAdministratorDeletesOnlyTasksSheCreated() throws Exception {
+        MockHttpSession carla = signIn("carla@example.com");
+        String project = adminProject(carla);
+        String mine = ownedTask(carla, project, ACME_CARLA);
+        String bens = "e0000000-0000-0000-0000-0000000000f5";
+        entityManager.flush();
+        jdbc.update("INSERT INTO task (task_id, project_id, title, owner_member_id, status, created_by_member_id) "
+                + "VALUES (?::uuid, ?::uuid, 'Fictitious ben task', ?::uuid, 'TO_DO', ?::uuid)", bens, project,
+                ACME_BEN, ACME_BEN);
+        jdbc.update("INSERT INTO comment (task_id, author_member_id, body) VALUES (?::uuid, ?::uuid, 'Fictitious')",
+                mine, ACME_CARLA);
+        entityManager.clear();
+
+        remove(carla, project, bens).andExpect(status().isForbidden());
+        assertThat(count("SELECT count(*) FROM task WHERE task_id = ?::uuid", bens)).isEqualTo(1);
+
+        remove(carla, project, mine).andExpect(status().is2xxSuccessful());
+        entityManager.flush();
+        assertThat(count("SELECT count(*) FROM task WHERE task_id = ?::uuid", mine)).isZero();
+        assertThat(count("SELECT count(*) FROM comment WHERE task_id = ?::uuid", mine)).isZero();
+        assertThat(count("SELECT count(*) FROM task WHERE task_id = ?::uuid", bens)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("FR-09, PD-03 (in part) · a Workspace Administrator who owns and created a task gets 403 on title, description and due date edits; nothing changes")
+    void workspaceAdministratorOwnerCannotEditContent() throws Exception {
+        MockHttpSession carla = signIn("carla@example.com");
+        String project = adminProject(carla);
+        String task = ownedTask(carla, project, ACME_CARLA);
+        Map<String, Object> before = snapshot(task);
+        update(carla, project, task, "{\"title\":\"Fictitious rename\"}").andExpect(status().isForbidden());
+        update(carla, project, task, "{\"description\":\"Fictitious text\"}").andExpect(status().isForbidden());
+        update(carla, project, task, "{\"due_date\":\"2027-01-31\"}").andExpect(status().isForbidden());
+        update(carla, project, task, "{\"title\":\"Fictitious rename\",\"status\":\"Done\"}")
+                .andExpect(status().isForbidden());
+        assertThat(snapshot(task)).isEqualTo(before);
+    }
+
+    @Test
+    @DisplayName("TU-03 (d) · FR-09, PD-03 (in part) · a Workspace Administrator cannot edit a task's title: 403 forbidden, unchanged")
+    void workspaceAdministratorCannotEditTaskContent() throws Exception {
         Map<String, Object> before = snapshot(T_LAYOUT);
         update(signIn("carla@example.com"), WEBSITE, T_LAYOUT, "{\"title\":\"Admin rename\"}")
                 .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("forbidden"));
