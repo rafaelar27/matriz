@@ -1,7 +1,7 @@
 # Render Blueprint for the Matriz release candidate (docs/deployment.md). NO SECRETS in this file:
 # every secret is entered by the programmer in the Render dashboard (sync: false).
 # Field names and values were written without access to Render's documentation: [TO CONFIRM] against the Blueprint
-# reference before the first deploy (TD-02: Render + Neon, EU region, decided 2026-11-19; nothing deployed yet).
+# reference before the first deploy (TD-02: Render + Neon, EU region, decided 2026-11-19; a first deployment exists but has not been validated).
 services:
   - type: web
     name: matriz                # [TO CONFIRM] the public name becomes https://<name>.onrender.com if it is free
@@ -14,8 +14,8 @@ services:
     healthCheckPath: /config.js # open without a session, holds no secret, same path as the Compose healthcheck
     envVars:
       # Database on Neon: DIRECT (non-pooled) endpoint, TLS verified: add
-      # ?sslmode=verify-full&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory to the URL (fallback: sslmode=require
-      # if the certificate chain is not accepted) [TO CONFIRM].
+      # ?sslmode=verify-full&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory to the URL. Never use
+      # sslmode=require (no certificate check); if the chain is not accepted, fix the trust store [TO CONFIRM].
       - key: MATRIZ_DB_URL
         sync: false
       - key: MATRIZ_DB_USER
