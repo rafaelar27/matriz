@@ -168,6 +168,50 @@ class WorkspaceApiTest extends ApiTestSupport {
     }
 
     @Test
+    @DisplayName("FR-02, BR-01 · decided: a JSON number or boolean name is not refused; it is saved as text")
+    void numericAndBooleanNamesAreAccepted() throws Exception {
+        MockHttpSession ben = signIn("ben@example.com");
+        create(ben, "{\"name\":12345}").andExpect(status().isCreated()).andExpect(jsonPath("$.name").value("12345"));
+        create(ben, "{\"name\":true}").andExpect(status().isCreated()).andExpect(jsonPath("$.name").value("true"));
+        entityManager.flush();
+        assertThat(count("SELECT count(*) FROM workspace WHERE name = '12345'")).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("FR-02, BR-01 · decided: no limit on the number of workspaces one account creates")
+    void oneAccountCanCreateManyWorkspaces() throws Exception {
+        MockHttpSession ben = signIn("ben@example.com");
+        long w = workspaces();
+        long m = members();
+        for (int i = 1; i <= 5; i++) {
+            create(ben, named("Many spaces " + i)).andExpect(status().isCreated());
+        }
+        assertThat(workspaces()).isEqualTo(w + 5);
+        assertThat(members()).isEqualTo(m + 5);
+    }
+
+    @Test
+    @DisplayName("FR-02 · PROBE (no assertion on status): a name containing a NUL character; prints status, body and rows saved")
+    void probeNulCharacterInName() throws Exception {
+        MockHttpSession ben = signIn("ben@example.com");
+        long w = workspaces();
+        String result;
+        try {
+            var r = create(ben, "{\"name\":\"ab\\u0000cd\"}").andReturn().getResponse();
+            result = r.getStatus() + " " + r.getContentAsString();
+        } catch (Exception e) {
+            result = "exception " + e;
+        }
+        String saved;
+        try {
+            saved = String.valueOf(workspaces() - w);
+        } catch (Exception e) {
+            saved = "not countable (transaction aborted): " + e.getClass().getSimpleName();
+        }
+        System.out.println("PROBE NUL name: " + result + " | workspaces saved: " + saved);
+    }
+
+    @Test
     @DisplayName("FR-02 · whitespace-only, empty, null and missing name are refused 422 on name, nothing saved")
     void blankNullAndMissingNameRefused() throws Exception {
         MockHttpSession ben = signIn("ben@example.com");
