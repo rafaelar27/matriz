@@ -387,6 +387,74 @@ Revisit this choice, recording the outcome in the [decision log](constraints.md#
 5. The development team changes (KC-08) and its skills differ from Java and JavaScript.
 6. Performance problems appear that come from the data-access layer rather than from the data model.
 
+## Deployment view
+
+How the single deployable unit (see the [component diagram](#component-diagram)) runs in each environment. It adds no component and decides nothing: hosting is the decision of 2026-11-19 recorded in the [Technology stack](#technology-stack) (Hosting row) and the [decision log](constraints.md#decision-log). Steps, variables and checks are in [deployment.md](deployment.md). Facts about Render and Neon behaviour are not verified [TO CONFIRM]; the hosted deployment is **decided, not yet deployed**, and no public URL exists.
+
+### Local runtime
+
+Two ways to run Matriz on one computer. The Compose variant is exactly `compose.yaml`; the plain variant is the README, [Getting started](../README.md#getting-started).
+
+```mermaid
+flowchart LR
+    subgraph Host["Developer computer"]
+        BR["Browser"]
+        subgraph Plain["Plain local development"]
+            MVN["mvn spring-boot:run<br/>Spring Boot app, port MATRIZ_PORT default 8080"]
+            LPG[("Local PostgreSQL<br/>localhost:5432")]
+        end
+        subgraph Compose["Docker Compose: network matriz-net"]
+            APP["app<br/>image matriz:local, listens on 8080"]
+            DB[("db<br/>postgres:16-bookworm")]
+            SEED["seed<br/>profile seed, one-shot, exits"]
+            VOL[("volume matriz-db")]
+        end
+    end
+
+    BR -->|"HTTP 127.0.0.1:MATRIZ_PORT to 8080"| APP
+    BR -->|"HTTP localhost:8080"| MVN
+    MVN -->|"JDBC, Flyway at start"| LPG
+    APP -->|"JDBC db:5432, Flyway at start"| DB
+    SEED -->|"JDBC db:5432, demo data"| DB
+    DB --- VOL
+```
+
+The database of the Compose stack publishes no port; only `app` reaches it. The `seed` service is not started by `docker compose up`.
+
+### Hosted deployment (decided 2026-11-19, not yet deployed)
+
+```mermaid
+flowchart LR
+    BRW["Browser"]
+    subgraph RND["Render, EU region"]
+        EDGE["Render edge and proxy<br/>TLS ends here"]
+        WEB["Docker Web Service, free plan<br/>Spring Boot: API and static UI<br/>Flyway runs at start"]
+    end
+    subgraph NEO["Neon, same EU region"]
+        NPG[("PostgreSQL 16<br/>direct endpoint")]
+    end
+
+    BRW -->|"HTTPS"| EDGE
+    EDGE -->|"proxied request, same origin"| WEB
+    WEB -->|"TLS, sslmode=require, direct endpoint"| NPG
+```
+
+One service serves the API and the user interface, so the browser sees one origin and the same-site session and CSRF cookies (TD-03) work. There is no Static Site and no CORS configuration. The internal path from the proxy to the application, the proxy addresses and whether `X-Forwarded-For` is trusted (`SERVER_FORWARD_HEADERS_STRATEGY`, TD-13, pending) are [TO CONFIRM]. The public database has no demo data.
+
+### Continuous integration
+
+`.github/workflows/ci.yml`, run on every push and pull request with read-only permissions. `test` and `build` run first; `docker` and `e2e` run only after both pass. Nothing is published or deployed.
+
+```mermaid
+flowchart LR
+    EV["push or pull_request"] --> T["test<br/>mvn verify on a PostgreSQL 16 service container"]
+    EV --> B["build<br/>mvn -DskipTests package"]
+    T --> D["docker<br/>compose config check and image build, not pushed"]
+    B --> D
+    T --> E["e2e<br/>Compose stack, seed, Playwright"]
+    B --> E
+```
+
 ## Implementation notes (2026-11-16)
 
 Recorded during the release review of 2026-11-16 (see the [implementation plan](implementation-plan.md#status-log)). The design above is unchanged; these notes record where the code built so far differs from it or does not yet cover it. None of them is a decision.

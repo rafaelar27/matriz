@@ -1,0 +1,42 @@
+# Render Blueprint for the Matriz release candidate (docs/deployment.md). NO SECRETS in this file:
+# every secret is entered by the programmer in the Render dashboard (sync: false).
+# Field names and values were written without access to Render's documentation: [TO CONFIRM] against the Blueprint
+# reference before the first deploy (TD-02: Render + Neon, EU region, decided 2026-11-19; nothing deployed yet).
+services:
+  - type: web
+    name: matriz                # [TO CONFIRM] the public name becomes https://<name>.onrender.com if it is free
+    runtime: docker             # uses ./Dockerfile; the image is the one tested in CI
+    plan: free
+    region: frankfurt           # EU region [TO CONFIRM] the exact value; keep Neon in the same region
+    branch: master
+    dockerfilePath: ./Dockerfile
+    autoDeploy: false           # [TO CONFIRM] newer Blueprints may use autoDeployTrigger: "off"; deploys are manual
+    healthCheckPath: /config.js # open without a session, holds no secret, same path as the Compose healthcheck
+    envVars:
+      # Database on Neon: DIRECT (non-pooled) endpoint, TLS required (sslmode=require in the URL).
+      - key: MATRIZ_DB_URL
+        sync: false
+      - key: MATRIZ_DB_USER
+        sync: false
+      - key: MATRIZ_DB_PASSWORD
+        sync: false
+      # The application reads MATRIZ_PORT; Render routes to PORT ([TO CONFIRM] default 10000). Keep both equal.
+      - key: PORT
+        value: "10000"
+      - key: MATRIZ_PORT
+        value: "10000"
+      # The public site is HTTPS only, so the session cookie must be Secure.
+      - key: MATRIZ_COOKIE_SECURE
+        value: "true"
+      - key: MATRIZ_SESSION_TIMEOUT
+        value: 8h
+      # TD-13 (pending): trust X-Forwarded-For only from the platform proxy, so the rate limits (NFR-11) see the real
+      # client address. Overrides server.forward-headers-strategy=none in application.properties. Verify on the live
+      # service; if Render's proxy is not trusted, every visitor still shares one address (fails safe).
+      - key: SERVER_FORWARD_HEADERS_STRATEGY
+        value: native
+      # Memory of the free instance is small [TO CONFIRM]; let the JVM use most of it.
+      - key: JAVA_TOOL_OPTIONS
+        value: "-XX:MaxRAMPercentage=75"
+      # Not set on purpose: MATRIZ_DEMO_PASSWORD (no demo data on the public database) and MATRIZ_API_BASE_URL
+      # (empty = same origin).

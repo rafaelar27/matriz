@@ -47,7 +47,7 @@ The MVP serves four user types: Workspace Administrator, Project Manager, Team M
 | [docs/database.md](docs/database.md) | Conceptual and logical data model, business rules (BR-xx), data-model assumptions (DA-xx) |
 | [docs/database-diagram.md](docs/database-diagram.md) | Entity-relationship diagram of the data model |
 | [openapi.yaml](openapi.yaml) | Draft API specification, version 0.9.0-draft (authentication and sign-up, projects, progress, tasks, task assignees and comments), API assumptions (API-Ax) |
-| [docs/deployment.md](docs/deployment.md) | Notes for the intended Render and Neon deployment: variables, rate-limit and proxy risks, checks to run. Nothing is deployed |
+| [docs/deployment.md](docs/deployment.md) | Docker Compose use, Neon and Render setup steps, variables, migration step, free-tier limits, rate-limit and proxy risks, checks to run, troubleshooting. Nothing is deployed |
 | [docs/ui/README.md](docs/ui/README.md) | UI notes for the dashboard: screen elements (E-xx), navigation, UI assumptions (UI-Ax) |
 | [docs/ui/dashboard-wireframe.html](docs/ui/dashboard-wireframe.html) | Low-fidelity dashboard wireframe |
 | [docs/ui-design.md](docs/ui-design.md) | UI visual design, approved 2026-11-19: colour tokens, typography, shape and spacing, status signals, screens drafted |
@@ -105,8 +105,11 @@ Edit `.env` and replace every value: `MATRIZ_DB_PASSWORD` is the role password f
 | `MATRIZ_PORT` | Optional HTTP port, default `8080` |
 | `MATRIZ_TEST_DB_URL` | JDBC URL of the separate test database used by `mvn verify`, default `jdbc:postgresql://localhost:5432/matriz_test` (same role and password) |
 | `MATRIZ_SESSION_TIMEOUT` | Optional sign-in session idle timeout, default `8h` (for example `30m` or `1m`) |
-| `MATRIZ_RATE_SIGN_UP_MAX`, `MATRIZ_RATE_SIGN_UP_WINDOW`, `MATRIZ_RATE_SIGN_IN_MAX_PER_IP_AND_EMAIL`, `MATRIZ_RATE_SIGN_IN_MAX_PER_IP`, `MATRIZ_RATE_SIGN_IN_WINDOW` | Optional rate limits for sign-up and sign-in (NFR-11). Defaults: 5 per `1h`, 10 per `15m`, 50 per `15m`. Properties `matriz.rate-limit.*` |
+| `MATRIZ_RATE_SIGN_UP_MAX`, `MATRIZ_RATE_SIGN_UP_WINDOW` | Optional sign-up limit per client address (NFR-11): maximum requests and window. Defaults: 5 per `1h`. Properties `matriz.rate-limit.sign-up.*` |
+| `MATRIZ_RATE_SIGN_IN_MAX_PER_IP_AND_EMAIL`, `MATRIZ_RATE_SIGN_IN_MAX_PER_IP`, `MATRIZ_RATE_SIGN_IN_WINDOW` | Optional failed sign-in limits (NFR-11): per address and email, per address, and the window. Defaults: 10, 50 and `15m`. Properties `matriz.rate-limit.sign-in.*` |
 | `MATRIZ_COOKIE_SECURE` | Optional; `true` sends the session cookie only over HTTPS. Default `false` for local HTTP use |
+| `SERVER_FORWARD_HEADERS_STRATEGY` | Hosted deployment only, set in the Render dashboard or `render.yaml`, never needed locally. Overrides `server.forward-headers-strategy` (`none` in `application.properties`, so forwarded headers are not trusted). `render.yaml` sets `native` so that the rate limits see the real client address; this is TD-13, still pending until verified on the live service [TO CONFIRM] |
+| `PORT` | Hosted deployment only: the port Render routes traffic to; must equal `MATRIZ_PORT` (`render.yaml` sets both to `10000` [TO CONFIRM]). The application itself reads only `MATRIZ_PORT` |
 | `MATRIZ_API_BASE_URL` | Optional base URL of the API for the user interface (property `matriz.api-base-url`). Default empty: the same server. Only a path on the same site is accepted, such as `/api` behind a proxy; any other value, such as another host, a scheme, a query or spaces, stops the application at startup, because the session and CSRF cookies are same-site only (TD-03) |
 
 ### 3. Install dependencies and build
@@ -121,7 +124,7 @@ mvn -DskipTests package
 mvn spring-boot:run
 ```
 
-Flyway applies any pending migrations from `src/main/resources/db/migration` at startup; on an empty database the log shows `Successfully applied 4 migrations`, and on later starts `Schema "public" is up to date`. The application, with its user interface, listens on port `MATRIZ_PORT` (default 8080). It keeps this terminal busy until you stop it. Stop it with `Ctrl+C`. Starting it again keeps all data. On a database that already has migrations V1 to V3, the next start applies V4, which stops startup if any project has no owner or a start date after its due date.
+Flyway applies any pending migrations from `src/main/resources/db/migration` at startup; on an empty database the log shows `Successfully applied 5 migrations`, and on later starts `Schema "public" is up to date`. The application, with its user interface, listens on port `MATRIZ_PORT` (default 8080). It keeps this terminal busy until you stop it. Stop it with `Ctrl+C`. Starting it again keeps all data. On a database that already has migrations V1 to V3, the next start applies V4, which stops startup if any project has no owner or a start date after its due date.
 
 ### 5. Load the demo data
 
@@ -208,6 +211,18 @@ docker compose run --rm seed
 ### Continuous integration
 
 `.github/workflows/ci.yml` runs on every `push` and `pull_request` with read-only permissions: `test` (`mvn verify` against a PostgreSQL 16 service container, using throwaway credentials) and `build` (`mvn -B -DskipTests package`, which also covers the static user interface inside the jar) run first; then `docker` (image build, not published) and `e2e` (Compose stack, seed, Playwright), each only after both `test` and `build` pass.
+
+### Deployment
+
+The intended public deployment (decided in part on 2026-11-19, TD-02) is one Docker Web Service on **Render** (free plan) that serves the interface and the API from the same origin, with a **Neon** PostgreSQL database, both in an EU region. It is **not deployed yet**. The Render Blueprint is [render.yaml](render.yaml); it holds no secrets, because the database variables are entered in the Render dashboard, and its field names are not verified against Render's documentation [TO CONFIRM]. The public database gets no demo data: accounts are created by public sign-up. On the free plan the service may stop when idle, so the first request after a pause may be slow (cold start), and a restart ends every session [TO CONFIRM against the providers' documentation]. Neon and Render setup steps, variables, the migration step, rotating secrets, the checks to run after deploying and troubleshooting are in [docs/deployment.md](docs/deployment.md); how it fits the design is in the [deployment view](docs/architecture.md#deployment-view). The proposed release candidate version is `0.1.0-rc.1`; no tag or release exists yet.
+
+### Live demo
+
+Not deployed yet. The URL will be added here after the first deployment.
+
+### API documentation
+
+The API contract is [openapi.yaml](openapi.yaml) (OpenAPI 3, version in its `info`). It lists only the local server (`http://localhost:{port}`) until a public URL exists. To read it as formatted documentation, open the file in an editor or viewer that understands OpenAPI, for example by pasting its text into the Swagger Editor in a browser [TO CONFIRM: not tried in this project]; the file holds no secret. To try requests against a running local application, use the sign-in steps under [Authentication](#authentication).
 
 ### Authentication
 
