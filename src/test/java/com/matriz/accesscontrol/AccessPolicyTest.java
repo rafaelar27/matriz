@@ -20,8 +20,9 @@ import com.matriz.shared.ApiException;
 
 /**
  * Permission decision table as pure logic (test-plan matrix; INC-02 access rules; US-06, US-10, US-11, US-15, US-19,
- * US-25, US-26, US-29). No Spring context, no database. Expected values come from openapi.yaml 0.7.0-draft and the
- * decision log. Cells marked "prov." follow a provisional rule (PD-01, PD-03, PD-17, PD-20) as documented.
+ * US-25, US-26, US-29). No Spring context, no database. Expected values come from openapi.yaml 0.11.0-draft (INC-14: Workspace Administrators
+ * manage projects, assign, change owners, and create, comment on, change the status of and delete their own tasks;
+ * they never edit task content) and the decision log. Cells marked "prov." follow a provisional rule (PD-01, PD-03, PD-17, PD-20) as documented.
  * A denial is a 403 with code {@code forbidden}; message text is never asserted.
  */
 class AccessPolicyTest {

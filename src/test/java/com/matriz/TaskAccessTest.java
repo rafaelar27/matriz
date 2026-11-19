@@ -23,8 +23,10 @@ import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.ResultActions;
 
 /**
- * INC-08, US-10, US-11: authorization of createTask and of status changes through updateTask
+ * INC-08, INC-14, US-10, US-11: authorization of createTask and of status changes through updateTask
  * (PATCH /projects/{project_id}/tasks/{task_id}, body {"status": ...}) by direct API requests (access rules table).
+ * Since INC-14 a Workspace Administrator who is a member of the project creates tasks like a Project Manager
+ * (PD-03 in part, PD-20); only the owner changes a status (PD-01, provisional) and Viewers never write.
  * The unscoped PATCH /tasks/{id} no longer exists; one regression test checks that.
  */
 class TaskAccessTest extends ApiTestSupport {
@@ -268,14 +270,14 @@ class TaskAccessTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("AC-11.1, FR-04, FR-05 · a non-owner Project Manager (PD-01 provisional) and a Workspace Administrator "
-            + "(PD-03 provisional) get 403 forbidden and the status is unchanged")
-    void nonOwnerProjectManagerAndAdministratorCannotChangeTheStatusUntilPd01AndPd03() throws Exception {
+    @DisplayName("AC-11.1, FR-04, FR-05 · a non-owner Project Manager and a non-owner Workspace Administrator "
+            + "(owner-only rule, PD-01 provisional) get 403 forbidden and the status is unchanged")
+    void nonOwnerProjectManagerAndAdministratorCannotChangeTheStatusUntilPd01() throws Exception {
         Map<String, Object> images = row(T_IMAGES);
         changeStatus(signIn("ana@example.com"), WEBSITE, T_IMAGES, "{\"status\":\"Done\"}")
                 .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("forbidden"));
         assertThat(row(T_IMAGES)).isEqualTo(images);
-        // Carla is the Workspace Administrator of Northwind Lab; the rule is provisional (PD-03).
+        // Carla is the Workspace Administrator of Northwind Lab and does not own this task; the owner-only rule is provisional (PD-01).
         Map<String, Object> equipment = row(T_EQUIPMENT);
         changeStatus(signIn("carla@example.com"), LAB, T_EQUIPMENT, "{\"status\":\"Done\"}")
                 .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("forbidden"));
