@@ -1,6 +1,6 @@
 # Matriz — Architecture
 
-> **Status:** decided on 2026-11-05 by the project decision-maker (KC-01). This decision covers the architectural style and the logical components of the MVP. The language, framework, front-end approach and database are chosen under [Technology stack](#technology-stack) (confirmed on 2026-11-12). Hosting was chosen in part on 2026-11-18 (Render for the application, Neon for the database; decided, not yet deployed; see [Technology stack](#technology-stack)); the remaining choices are listed under [Pending decisions](#pending-decisions). Requirement IDs are defined in [requirements.md](requirements.md), user stories in [user-stories.md](user-stories.md), and constraints, assumptions and pending decisions in [constraints.md](constraints.md).
+> **Status:** decided on 2026-11-05 by the project decision-maker (KC-01). This decision covers the architectural style and the logical components of the MVP. The language, framework, front-end approach and database are chosen under [Technology stack](#technology-stack) (confirmed on 2026-11-12). Hosting was chosen in part on 2026-11-19 (Render for the application, Neon for the database; decided, not yet deployed; see [Technology stack](#technology-stack)); the remaining choices are listed under [Pending decisions](#pending-decisions). Requirement IDs are defined in [requirements.md](requirements.md), user stories in [user-stories.md](user-stories.md), and constraints, assumptions and pending decisions in [constraints.md](constraints.md).
 
 ## Context
 
@@ -101,7 +101,7 @@ Component IDs (CMP-xx) are new in this document. Names use the terminology of th
 
 | ID | Component | Responsibilities | Related FRs / user stories | Main dependencies |
 |---|---|---|---|---|
-| CMP-01 | **Accounts and Sign-in** | Creates personal accounts (one per person), handles sign-in and sign-out, and identifies the signed-in person for every request. Accounts are person-level, not workspace-level, so they work whichever way PD-16 is decided. | FR-01, SP-01; US-01 | Data Storage |
+| CMP-01 | **Accounts and Sign-in** | Creates personal accounts (one per person) after checking the account rules (name, email, password; BR-24, SP-10), handles sign-up, sign-in and sign-out, limits sign-up and sign-in attempts per client address (NFR-11, counters in memory, address of the direct connection until TD-13 is decided), and identifies the signed-in person for every request. Accounts are person-level, not workspace-level, so they work whichever way PD-16 is decided. | FR-01, SP-01, SP-08 to SP-10, NFR-11; US-01, US-22 | Data Storage |
 | CMP-02 | **Workspaces and Members** | Creates workspaces. Sends, tracks and accepts invitations by email address. Deactivates members. Assigns and changes roles. Refuses duplicate members and keeps at least one Workspace Administrator. Provides each member's role and status to other modules. | FR-02, FR-03, FR-04 (role assignment), SP-04, SP-07; US-02, US-03, US-04, US-05; EC-01, EC-02, EC-03 | Accounts and Sign-in, Access Control, Email Delivery, Data Storage |
 | CMP-03 | **Access Control** | Holds the permission rules in one place: what each of the four roles (Workspace Administrator, Project Manager, Team Member, Viewer) may see and change, the Viewer's read-only access, and the rule that a member can delete only the tasks they created. Other modules ask it before every action and pass the facts it needs (the member's role, project membership, task creator). | FR-04 (permissions), FR-05, FR-09 (deletion rule), SP-03; US-19; AC-03.4, AC-11.3, AC-19.2 | None (it receives the facts it needs from the asking module) |
 | CMP-04 | **Projects** | Creates, edits and archives projects (name, description, owner, start date, due date). Manages project members, including Viewers. Lists all projects in the workspace with owner and due date. | FR-06, FR-07, FR-08; US-06, US-07, US-08, US-09, US-19 (AC-19.1); EC-09 | Workspaces and Members, Access Control, Data Storage |
@@ -160,6 +160,7 @@ The progress indicator is shown in the project list (AC-17.1), but Projects does
 | NFR-08 Primary use on computers | CMP-11; access method pending TD-01 |
 | NFR-09 One interface language | CMP-11; language pending PD-13 |
 | NFR-10 Data sensitivity | CMP-12 stores no payment data; no component handles payments |
+| NFR-11 Abuse protection of sign-up and sign-in | CMP-01 (limits kept in memory); how the client address is read behind a proxy is pending TD-13 |
 
 ## Component diagram
 
@@ -222,7 +223,7 @@ flowchart TB
 
 ## Technology stack
 
-> **Status:** proposed on 2026-11-05 and **confirmed on 2026-11-12 by the project decision-maker** (KC-01). It resolves TD-10 and TD-11 and narrows TD-01. It does **not** decide TD-04, TD-05, TD-06, TD-07, TD-08, TD-09 or TD-12. TD-03 was decided on 2026-11-12 (session cookie with BCrypt passwords; see the [decision log](constraints.md#decision-log)), and TD-02 was decided in part on 2026-11-18 (see the Hosting row below). The JaCoCo row was added on 2026-11-17 (see the [decision log](constraints.md#decision-log)). The Docker, Docker Compose and GitHub Actions row and the Hosting row were added on 2026-11-18.
+> **Status:** proposed on 2026-11-05 and **confirmed on 2026-11-12 by the project decision-maker** (KC-01). It resolves TD-10 and TD-11 and narrows TD-01. It does **not** decide TD-04, TD-05, TD-06, TD-07, TD-08, TD-09 or TD-12. TD-03 was decided on 2026-11-12 (session cookie with BCrypt passwords; see the [decision log](constraints.md#decision-log)), and TD-02 was decided in part on 2026-11-19 (see the Hosting row below). The JaCoCo row was added on 2026-11-17 (see the [decision log](constraints.md#decision-log)). The Docker, Docker Compose and GitHub Actions row was added on 2026-11-18 and the Hosting row on 2026-11-19.
 
 ### Summary
 
@@ -232,9 +233,10 @@ flowchart TB
 | Front-end approach | **Static HTML, CSS and plain JavaScript**, served by the same Spring Boot application and calling the REST API in [openapi.yaml](../openapi.yaml) |
 | Database | **PostgreSQL** (relational), installed on the developer's computer or run as the PostgreSQL 16 container of `compose.yaml` |
 | Supporting tools | **Maven** (build), **Hibernate** through Spring Data JPA (data access), **Flyway** (schema migrations), **JUnit 5 with Spring Boot Test and MockMvc** (tests) |
+| Fonts | **Inter** and **Space Grotesk** (SIL Open Font License 1.1), self-hosted as woff2 files (latin subset, from the npm packages `@fontsource/inter` and `@fontsource/space-grotesk` 5.3.0) in `src/main/resources/static/css/fonts`; no font service is called (added 2026-11-19) |
 | Code coverage measurement | **JaCoCo** (Maven plugin 0.8.14, added 2026-11-17); the report is written to `target/site/jacoco` at `mvn verify`; no coverage thresholds |
 | Packaging and continuous integration | **Docker** (one image of the application, Eclipse Temurin 21), **Docker Compose** (PostgreSQL 16 and the application on one machine, on the dedicated network `matriz-net`) and **GitHub Actions** (tests, image build, end-to-end test); added 2026-11-18, see the [decision log](constraints.md#decision-log). Not a hosting decision: images are not published. |
-| Hosting (decided in part, 2026-11-18; **not yet deployed**, no public URL exists) | **Render** (one Docker Web Service, free plan) for the application and **Neon** (managed PostgreSQL, direct connection endpoint, TLS) for the database, both in an EU region; approved by the project decision-maker (KC-01), see the [decision log](constraints.md#decision-log). One Render Web Service serves the API and the static interface from the same origin; a separate Render Static Site is not used, because `onrender.com` subdomains are different sites and the session and CSRF cookies are same-site only (TD-03); the `MATRIZ_API_BASE_URL` rule is unchanged. The public deployment has no demo data. Backup (TD-05) and availability (TD-06) stay pending. Risk for NFR-04, not a decision: the free plan may stop the service when idle and sessions are kept in memory, so a stop or restart ends every session [TO CONFIRM]. The exact regions, free-plan limits, and TLS and connection options are not verified [TO CONFIRM]. Open question: how accounts are created on the public site, because sign-up and invitations are not built (FR-01, FR-03). |
+| Hosting (decided in part, 2026-11-19; **not yet deployed**, no public URL exists) | **Render** (one Docker Web Service, free plan) for the application and **Neon** (managed PostgreSQL, direct connection endpoint, TLS) for the database, both in an EU region; approved by the project decision-maker (KC-01), see the [decision log](constraints.md#decision-log). One Render Web Service serves the API and the static interface from the same origin; a separate Render Static Site is not used, because `onrender.com` subdomains are different sites and the session and CSRF cookies are same-site only (TD-03); the `MATRIZ_API_BASE_URL` rule is unchanged. The public deployment has no demo data. Backup (TD-05) and availability (TD-06) stay pending. Risk for NFR-04, not a decision: the free plan may stop the service when idle and sessions are kept in memory, so a stop or restart ends every session [TO CONFIRM]. The exact regions, free-plan limits, and TLS and connection options are not verified [TO CONFIRM]. Accounts on the public site are created by public sign-up (INC-12). |
 
 ### Inputs specific to this decision
 
@@ -244,7 +246,7 @@ These come from the project decision-maker's request on 2026-11-05. Items marked
 |---|---|---|
 | The developer is one student, familiar with Java and JavaScript. | Project decision-maker, 2026-11-05; KC-08 | Stated input |
 | The MVP must be built in **1 week**. | Project decision-maker, 2026-11-05 | Stated input. **Conflicts with AQ30** ("within a few months"); see the report. |
-| Matriz runs **locally** for the course; there is no hosted deployment. | Project decision-maker, 2026-11-05 | Stated input, **superseded in part on 2026-11-18**: hosting was chosen (Render and Neon, see the Hosting row in the summary above and the [decision log](constraints.md#decision-log)), but nothing is deployed yet, so Matriz still runs only locally and in CI. TD-05 and TD-06 remain pending for any deployment. |
+| Matriz runs **locally** for the course; there is no hosted deployment. | Project decision-maker, 2026-11-05 | Stated input, **superseded in part on 2026-11-19**: hosting was chosen (Render and Neon, see the Hosting row in the summary above and the [decision log](constraints.md#decision-log)), but nothing is deployed yet, so Matriz still runs only locally and in CI. TD-05 and TD-06 remain pending for any deployment. |
 | **TS-A1.** No course or instructor requirement fixes a technology. | None was given | **Assumption** |
 | **TS-A2.** "Familiar with JavaScript" means plain JavaScript in the browser, not TypeScript or a front-end framework such as React. | Team context | **Assumption** |
 | **TS-A3.** The developer can install a JDK and PostgreSQL on their own computer. | Local running | **Assumption** |
@@ -380,7 +382,7 @@ Revisit this choice, recording the outcome in the [decision log](constraints.md#
 
 1. A course or instructor requirement fixes a technology (TS-A1).
 2. The front end grows beyond what plain JavaScript can maintain, for example after pilot feedback asks for more interactive views; consider a front-end framework then.
-3. Matriz is deployed beyond local use; TD-05 and TD-06 must then be decided (TD-02 is decided in part, 2026-11-18), and the database setup reviewed.
+3. Matriz is deployed beyond local use; TD-05 and TD-06 must then be decided (TD-02 is decided in part, 2026-11-19), and the database setup reviewed.
 4. A later change of the sign-in method (decided in TD-03 on 2026-11-12) is one that Spring Security does not support well.
 5. The development team changes (KC-08) and its skills differ from Java and JavaScript.
 6. Performance problems appear that come from the data-access layer rather than from the data model.
@@ -407,14 +409,15 @@ None of these is decided by this document. The architectural style narrows each 
 | ID | Decision | Effect of this architecture |
 |---|---|---|
 | TD-01 | How users access Matriz on computers | Decides how CMP-11 User Interface is delivered. Narrowed by [Technology stack](#technology-stack): a web interface of static HTML, CSS and JavaScript, used in a browser. |
-| TD-02 | Where data is stored and hosted, including the region | Applies to the single logical store, CMP-12. Decided in part on 2026-11-18: Render for the application and Neon for the database, both in an EU region; not yet deployed (see the Hosting row in [Technology stack](#technology-stack)). |
-| TD-03 | How accounts are created and how sign-in works | **Resolved 2026-11-12** (sign-in by email and password, BCrypt, server-side session cookie; see the decision log). Implemented inside CMP-01; sign-up is not built yet (FR-01). |
+| TD-02 | Where data is stored and hosted, including the region | Applies to the single logical store, CMP-12. Decided in part on 2026-11-19: Render for the application and Neon for the database, both in an EU region; not yet deployed (see the Hosting row in [Technology stack](#technology-stack)). |
+| TD-03 | How accounts are created and how sign-in works | Resolved: sign-in 2026-11-12, sign-up 2026-11-18 (see the decision log). Implemented inside CMP-01. |
 | TD-04 | How invitation emails are sent | Implemented behind CMP-13. |
 | TD-05 | Backup and recovery | Covers one data store. |
 | TD-06 | How availability and capacity targets are met and monitored | Applies to one deployable unit. |
 | TD-07 | How simultaneous edits to the same task are handled | Implemented inside CMP-05, once PD-11 is decided. |
 | TD-08 | How in-app notifications are delivered | Implemented inside CMP-08 and CMP-11. |
 | TD-09 | How personal-data requests are received and fulfilled | Implemented inside CMP-10. |
+| TD-13 | How the client IP address is read behind a proxy | Applies to the one deployable unit; affects the rate limits in CMP-01 (NFR-11). |
 
 ### Technical decisions raised by this document
 
@@ -441,6 +444,7 @@ These are registered under [Pending technical decisions](constraints.md#pending-
 | PD-15 | Numeric targets for NFR-02, NFR-04, NFR-05, NFR-06 and NFR-07, and the thresholds for revisiting this decision. |
 | PD-16 | Membership of several workspaces: affects CMP-01, CMP-02, CMP-06 ("My tasks") and workspace scoping in CMP-12. |
 | PD-18, PD-19 | What a deletion request removes and how requesters are verified, in CMP-10. |
+| PD-25, PD-26 | Email verification and password reset in CMP-01 (and CMP-13 Email Delivery if emails are sent, TD-04). |
 
 ## Conditions for revisiting the decision
 
