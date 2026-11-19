@@ -27,6 +27,14 @@ public class Account {
     protected Account() {
     }
 
+    /** A new account. The id is chosen by the server, never by the client (FR-01, BR-24). */
+    Account(UUID id, String name, String email, String passwordHash) {
+        this.id = id;
+        this.name = name;
+        this.email = email;
+        this.passwordHash = passwordHash;
+    }
+
     public UUID getId() {
         return id;
     }

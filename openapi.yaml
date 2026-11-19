@@ -2,12 +2,12 @@ openapi: 3.1.0
 
 info:
   title: Matriz API
-  version: 0.8.0-draft
-  summary: Draft API for the Matriz MVP (authentication, projects, progress, tasks, task assignees and comments).
+  version: 0.9.0-draft
+  summary: Draft API for the Matriz MVP (authentication and sign-up, projects, progress, tasks, task assignees and comments).
   description: |
     Draft specification of the Matriz MVP API, a project and task management
-    platform for work teams: sign-in, the signed-in profile and sign-out,
-    projects, progress and tasks.
+    platform for work teams: sign-up, sign-in, the signed-in profile and
+    sign-out, projects, progress and tasks.
 
     **Status:** draft, written on 2026-11-05; authentication added on 2026-11-12
     (INC-02, docs/implementation-plan.md); projects on 2026-11-12 (INC-03); task
@@ -21,16 +21,21 @@ info:
     unscoped `updateTaskStatus` (`PATCH /tasks/{task_id}`) was removed, status
     changes use `updateTask`, `null` is refused as a status, and the
     `createTask` Location is the project-scoped path (decision log).
+    Version 0.9.0-draft (INC-12, 2026-11-19): public sign-up (`signUp`, FR-01,
+    US-22), emails trimmed, lower-cased and matched ignoring case (BR-24), rate
+    limits with 429 `too_many_requests` on `signUp` and `signIn` (NFR-11), and a
+    16 KB body limit on `/auth/` routes (413 `payload_too_large`).
     The technology stack is chosen in
     docs/architecture.md (Technology stack). Authentication uses a server-side
     session cookie (TD-03, decided 2026-11-12); see `components.securitySchemes`.
 
     **Authentication and session lifecycle:**
     1. `GET /auth/csrf` sets the `XSRF-TOKEN` cookie.
-    2. `POST /auth/sign-in` checks the email and password (stored only as a
-       BCrypt hash) and creates a new server-side session, identified by the
-       `MATRIZ_SESSION` cookie (HttpOnly, SameSite=Lax). A new session id is
-       issued on every sign-in, and a new CSRF token with it.
+    2. `POST /auth/sign-up` creates an account and signs it in, and
+       `POST /auth/sign-in` checks the email and password (stored only as a
+       BCrypt hash). Either one creates a new server-side session, identified
+       by the `MATRIZ_SESSION` cookie (HttpOnly, SameSite=Lax). A new session id
+       is issued on every sign-in and sign-up, and a new CSRF token with it.
     3. Every other request needs that cookie. Every request that changes data
        (POST, PATCH, DELETE) also needs the header `X-XSRF-TOKEN` with the
        value of the `XSRF-TOKEN` cookie; without it the response is 403
@@ -102,8 +107,19 @@ info:
       Added 2026-11-12 (INC-05).
     - `listTaskComments` and `addTaskComment` support US-15 (FR-16). Owning
       component: CMP-07 Comments. Added 2026-11-12 (INC-05).
+    - `signUp` supports US-22 (FR-01, SP-08 to SP-10, NFR-11). Owning
+      component: CMP-01 Accounts and Sign-in. Added 2026-11-19 (INC-12).
 
-    **Not built in this delivery:** sign-up (FR-01, US-22); workspace
+    **Limits on `/auth/` routes (NFR-11, SP-08):** `signUp` and failed `signIn`
+    requests are limited per client address; over a limit the response is 429
+    `too_many_requests` with a `Retry-After` header (seconds). The counters are
+    kept in memory, so they start again when the application restarts. The
+    client address is the address of the direct connection: forwarded headers
+    such as `X-Forwarded-For` are ignored until TD-13 is decided, so behind a
+    proxy all clients share one address (assumption API-A6). A request body over
+    16384 bytes on any `/auth/` route is refused with 413 `payload_too_large`.
+
+    **Not built in this delivery:** workspace
     creation (FR-02); invitations and member management (FR-03) and role
     assignment and changes (FR-04) apart from reading active members (the
     FR-04 permissions are enforced by CMP-03); archiving projects (FR-06,
@@ -121,6 +137,11 @@ info:
       if it did not exist, so that its existence is not revealed (NFR-01, SP-02).
     - **API-A4.** Identifiers are opaque strings; their format is not decided.
     - **API-A5.** A task's description and due date are optional (DA-04, pending PD-04).
+    - **API-A6.** The rate limits of `signUp` and `signIn` use the address of
+      the direct connection, because how the client address is read behind a
+      proxy is pending (TD-13). Behind a shared proxy all clients then count as
+      one address, so one person can use up the sign-up limit for everyone. The
+      limits themselves are NFR-11; the counters are in memory.
 
     **Pending decisions that this specification deliberately leaves open:**
     - **PD-01:** whether a Team Member may create a task owned by someone else,
@@ -157,8 +178,9 @@ security:
 tags:
   - name: Authentication
     description: |
-      Sign-in, the signed-in profile and sign-out with a server-side session
-      (FR-01, SP-01, TD-03). Owning component: CMP-01 Accounts and Sign-in.
+      Sign-up, sign-in, the signed-in profile and sign-out with a server-side
+      session (FR-01, SP-01, SP-08, TD-03, NFR-11). Owning component: CMP-01
+      Accounts and Sign-in.
   - name: Projects
     description: |
       Projects of the caller's workspaces (FR-05, FR-06, FR-08). Every active
@@ -194,6 +216,119 @@ paths:
               schema:
                 type: string
 
+  /auth/sign-up:
+    post:
+      tags: [Authentication]
+      operationId: signUp
+      summary: Create a personal account and sign in
+      description: |
+        Creates a personal account (FR-01, US-22) and signs it in at once: a
+        new `MATRIZ_SESSION` cookie and a new `XSRF-TOKEN` are issued, as for
+        `signIn`. Open to anyone who is not signed in, but needs the
+        `X-XSRF-TOKEN` header (see `getCsrfToken`).
+
+        The new account has no workspace membership and no role (a role exists
+        only on a membership), so `memberships` in the response is empty. The
+        account id is chosen by the server; no identity, role or membership
+        field can be sent (422).
+
+        **Rules checked (422, `details[].field` names each one):** `name` is
+        trimmed and 1 to 80 characters, without control characters; `email` is
+        trimmed, has exactly one "@" with text on both sides, is printable
+        ASCII only, at most 254 characters, is stored in lower case and is
+        unique ignoring case (BR-24); `password` is 12 to 64 characters and at
+        most 72 UTF-8 bytes, is not trimmed and has no composition rules
+        (SP-10). It is stored only as a BCrypt hash and never appears in
+        responses or logs.
+
+        An email address that is already registered is refused with 409
+        `email_taken`. This operation therefore reveals whether an address is
+        registered (accepted risk, SP-09); `signIn` keeps its generic 401. A
+        caller who is already signed in gets 409 `conflict` and keeps the
+        current session.
+
+        Limited to 5 requests per client address per hour (NFR-11). Requests
+        that reach the operation all count, including refused ones; requests
+        refused earlier (missing CSRF token, unreadable or unknown-field body)
+        do not. The sixth gets 429 `too_many_requests` with `Retry-After`.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignUpRequest'
+            examples:
+              nia:
+                summary: Fictitious new account
+                value:
+                  name: Nia Newcomer
+                  email: nia@example.com
+                  password: a-fictitious-passphrase
+      responses:
+        '201':
+          description: |
+            Account created and signed in. A new `MATRIZ_SESSION` cookie and a
+            new `XSRF-TOKEN` cookie are set. `memberships` is empty.
+          headers:
+            Set-Cookie:
+              description: '`MATRIZ_SESSION=<id>; Path=/; HttpOnly; SameSite=Lax` and a new `XSRF-TOKEN`.'
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/CsrfInvalid'
+        '409':
+          description: |
+            `email_taken`: an account with this email address (ignoring case
+            and surrounding spaces) exists. `conflict`: the caller is already
+            signed in; the session is kept.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                emailTaken:
+                  value:
+                    code: email_taken
+                    message: This email address is already registered.
+                    details:
+                      - field: email
+                        issue: This email address is already registered.
+                alreadySignedIn:
+                  value:
+                    code: conflict
+                    message: You are already signed in. Sign out to create another account.
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          description: |
+            The body is well formed but breaks a rule: `name`, `email` or
+            `password` (see above), a field that cannot be sent, or a value of
+            the wrong type. `code` is `validation_failed`; `details` names the
+            field.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                passwordTooShort:
+                  value:
+                    code: validation_failed
+                    message: The account could not be created.
+                    details:
+                      - field: password
+                        issue: The password must be 12 to 64 characters long.
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
   /auth/sign-in:
     post:
       tags: [Authentication]
@@ -203,8 +338,17 @@ paths:
         Checks the email and password and starts a new session (FR-01, SP-01).
         Open to everyone, but needs the `X-XSRF-TOKEN` header (see `getCsrfToken`).
         A wrong password, an unknown email and empty fields all get the same
-        401 response, which does not say which field was wrong. Passwords are
-        stored only as BCrypt hashes and never appear in responses or logs.
+        401 response, which does not say which field was wrong. The same 401
+        answers an email that sign-up would refuse and a password of more than
+        72 UTF-8 bytes (no account can have one, SP-10). The email is trimmed
+        and matched ignoring upper and lower case (BR-24). Passwords are stored
+        only as BCrypt hashes and never appear in responses or logs.
+
+        Failed attempts are limited to 10 per client address and email address,
+        and to 50 per client address, each per 15 minutes (NFR-11). Over a limit
+        every request gets 429 `too_many_requests` with `Retry-After`, even one
+        with the correct password, until the window ends. A successful sign-in
+        does not count and does not reset the counters.
       security: []
       parameters:
         - $ref: '#/components/parameters/CsrfHeader'
@@ -249,6 +393,8 @@ paths:
                     message: The email or password is incorrect.
         '403':
           $ref: '#/components/responses/CsrfInvalid'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
         '422':
           description: |
             The body is well formed but has a field other than `email` and
@@ -258,6 +404,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   /auth/me:
     get:
@@ -1232,12 +1380,12 @@ components:
       in: cookie
       name: MATRIZ_SESSION
       description: |
-        Server-side session created by `signIn` (TD-03, decided 2026-11-12).
+        Server-side session created by `signIn` or `signUp` (TD-03, decided 2026-11-12).
         The cookie is HttpOnly and SameSite=Lax (and Secure when
         `MATRIZ_COOKIE_SECURE` is `true`). The session expires after 8 hours without requests
         (`MATRIZ_SESSION_TIMEOUT`), and ends at `signOut` or when the
-        application restarts. Every operation except `getCsrfToken` and `signIn`
-        requires it (FR-01, SP-01). Permissions are then checked by role
+        application restarts. Every operation except `getCsrfToken`, `signUp` and
+        `signIn` requires it (FR-01, SP-01). Permissions are then checked by role
         (FR-04, SP-03, CMP-03 Access Control), and deactivated members are
         refused (SP-04). Requests that change data also need `X-XSRF-TOKEN`.
 
@@ -1248,7 +1396,7 @@ components:
       required: true
       description: |
         The value of the `XSRF-TOKEN` cookie (set by `getCsrfToken` and renewed
-        by `signIn`). Required on every request that changes data; without a
+        by `signIn` and `signUp`). Required on every request that changes data; without a
         valid value the response is 403 `csrf_invalid`.
       schema:
         type: string
@@ -1285,6 +1433,38 @@ components:
               value:
                 code: malformed_request
                 message: The request body could not be read.
+    TooManyRequests:
+      description: |
+        Too many requests from this client address (NFR-11, SP-08). Nothing was
+        created or changed. Try again after the number of seconds in `Retry-After`.
+      headers:
+        Retry-After:
+          description: Seconds to wait before trying again.
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            tooManyRequests:
+              value:
+                code: too_many_requests
+                message: Too many attempts. Try again later.
+    PayloadTooLarge:
+      description: |
+        The request body is larger than 16384 bytes. Only the open routes under
+        `/auth/` have this limit (security audit S-04, decided 2026-11-18).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            payloadTooLarge:
+              value:
+                code: payload_too_large
+                message: The request is too large.
     Unauthorized:
       description: |
         No valid session. Workspace content is only available to signed-in
@@ -1424,6 +1604,32 @@ components:
                     issue: The title must be 3 to 150 characters long.
 
   schemas:
+    SignUpRequest:
+      type: object
+      required: [name, email, password]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+          description: Required; 1 to 80 characters after trimming spaces; no control characters.
+        email:
+          type: string
+          maxLength: 254
+          description: |
+            Required; trimmed, one "@" with text on both sides, printable ASCII
+            only, at most 254 characters; stored in lower case and unique
+            ignoring case (BR-24).
+        password:
+          type: string
+          writeOnly: true
+          minLength: 12
+          maxLength: 64
+          description: |
+            12 to 64 characters and at most 72 UTF-8 bytes; not trimmed; never
+            stored, returned or logged (SP-10).
+
     SignInRequest:
       type: object
       required: [email, password]
@@ -1431,7 +1637,7 @@ components:
       properties:
         email:
           type: string
-          description: The account's email address (DA-01).
+          description: The account's email address (DA-01). Surrounding spaces and letter case are ignored (BR-24).
         password:
           type: string
           writeOnly: true
@@ -1835,7 +2041,8 @@ components:
           type: string
           description: Stable, machine-readable error code.
           enum: [malformed_request, not_authenticated, session_expired, invalid_credentials, forbidden,
-                 csrf_invalid, not_found, validation_failed, conflict]
+                 csrf_invalid, not_found, validation_failed, conflict, email_taken,
+                 too_many_requests, payload_too_large]
         message:
           type: string
           description: Human-readable summary in the interface language (NFR-09, pending PD-13).
