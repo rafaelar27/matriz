@@ -2,11 +2,15 @@
 
 All notable changes to this project are documented in this file.
 
-The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/). No version has been released and no Git tag exists, so every change is listed under Unreleased. The versioning scheme has not been decided; the Maven version is `0.1.0-SNAPSHOT`. The entries come from the Git history and [docs/implementation-plan.md](docs/implementation-plan.md); increments are named INC-xx, with the date they were recorded.
+The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/). This project follows Semantic Versioning (decision log 2026-11-19). Each release has an annotated Git tag `v<version>` and release notes in `docs/release-notes-<version>.md`. The entries come from the Git history and [docs/implementation-plan.md](docs/implementation-plan.md); increments are named INC-xx, with the date they were recorded.
 
 ## [Unreleased]
 
-Planned version for the next release: **0.2.0** (a new feature that does not break the API: Semantic Versioning, minor bump). `pom.xml` still says `0.1.0-SNAPSHOT`; changing it waits for your decision (the Dockerfile and CI refer to the jar name).
+Nothing yet.
+
+## [0.2.0] - 2026-11-19
+
+First tagged version (annotated tag `v0.2.0`, created on the merge commit of the release pull request after the merge). Matriz follows Semantic Versioning in its initial development phase (0.y.z); the minor number is raised from the never-released `0.1.0-SNAPSHOT`. It is a candidate: it is not published to production, and a first deployment is reported (AGENTS.md, docs/implementation-plan.md) but has not been validated; no public check is recorded. The API contract (`openapi.yaml`) has its own version, 0.12.0-draft, independent of this one. See [docs/release-notes-0.2.0.md](docs/release-notes-0.2.0.md) for what is included and the known limitations.
 
 ### Added
 - INC-01 (2026-11-12): project skeleton (one package per component, CMP-01 to CMP-13), Flyway migration `V1__initial_schema.sql` with the 11 entities of `docs/database.md`, the idempotent demo-data seed command (Spring profile `seed`) and `DatabaseSetupTest`.
@@ -33,6 +37,8 @@ Planned version for the next release: **0.2.0** (a new feature that does not bre
 - Workspace Administrators can create, edit and delete the projects of their workspace, like a Project Manager (INC-15, `openapi.yaml` 0.11.0-draft; PD-03 decided in part, decision log 2026-11-19). `AccessPolicy.checkManageProject` and the interface ("+ New project" and the create and edit forms) changed; task, assignee and comment rules for Workspace Administrators are unchanged. `ProjectApiTest` renamed `onlyProjectManagersCreateEditAndDelete` to `teamMemberAndViewerCannotCreateEditAndDelete` and gained Workspace Administrator tests; `WorkspaceCreateRollbackTest` added. The suite is 388 tests. INC-15 is Done.
 - Workspace Administrators work on tasks in a limited way (INC-16, `openapi.yaml` 0.12.0-draft; PD-03 decided in part, decision log 2026-11-19): in projects they are members of they create tasks (choosing the owner) and comment; they assign and unassign members and change a task's owner; they change the status of tasks they own and delete tasks they created. They do not edit a task's title, description or due date. `AccessPolicy`, the interface and the contract changed; the rules for Viewers, Team Members and Project Managers are unchanged. Task, assignee, comment and project tests updated and Workspace Administrator tests added; the suite is 402 tests. INC-16 is Done.
 - Workspaces screen (E-22, FR-02, FR-03, US-02; decision log 2026-11-19): the main menu shows "Workspaces" instead of "New workspace". The screen lists every workspace the member belongs to, Workspace Administrator rows first and then by name, with the member's role and, on request, the active members (`listWorkspaceMembers`). "+ New workspace" (E-21) moves beside the Dashboard heading. No API change; rename, delete, invite and leave have no API operation yet and are not shown.
+- Deployment guide for Render and Neon (`docs/deployment.md`) and `render.yaml`; hosting decision TD-02 recorded in the decision log on 2026-11-19 (PR #20).
+- Test suite: 535 automated tests (`mvn verify` on `matriz_test`, release verification run 2026-11-19, 0 failures).
 
 ### Changed
 - INC-11 (2026-11-18): the interface shows task statuses in English (To do, In progress, Done), equal to the API values, instead of Portuguese labels; the decision-log entry of 2026-11-18 supersedes that of 2026-11-12.
@@ -56,6 +62,7 @@ Planned version for the next release: **0.2.0** (a new feature that does not bre
 - B-01 (2026-11-16): a success notice from an earlier action stayed visible above the task form when a later save failed.
 - Review S-01 (2026-11-18): list pages whose offset overflows are refused with 422.
 - Review S-05 (2026-11-18): an internal failure during sign-in is no longer reported as wrong credentials (401 `invalid_credentials`).
+- `AuthControllerSignInTest` clears `SecurityContextHolder` after each test, which removes an order-dependent failure seen on Windows (PR #23; test-only).
 
 ### Security
 - Container hardening after the security audit: root-owned application jar, `no-new-privileges` and `cap_drop: [ALL]` for `app` and `seed` in `compose.yaml`, `postgres:16-bookworm` pinned by digest in `compose.yaml` and CI, and an allow-list `.dockerignore`.
