@@ -10,6 +10,7 @@
 - [Docker Compose (local)](#docker-compose-local)
 - [Before the first deployment](#before-the-first-deployment)
 - [Neon setup](#neon-setup)
+  - [Local development with Neon](#local-development-with-neon)
 - [Render setup](#render-setup)
 - [Environment variables (set only in the Render dashboard)](#environment-variables-set-only-in-the-render-dashboard)
 - [The render.yaml file](#the-renderyaml-file)
@@ -80,7 +81,7 @@ The plain local variant without Docker (`mvn spring-boot:run` with a local Postg
 ## Before the first deployment
 
 1. **Pending decisions:** TD-05 (backup), TD-06 (availability) and TD-13 (client address) stay pending. The programmer decides, with the decision-maker, whether to deploy before they are decided, and records each decision in the decision log (D2).
-2. **Check the Neon database first** (read-only): migration V5 fails as a whole, and changes nothing, if two accounts have emails that differ only by letter case. On a database with no accounts there is nothing to check. PR #19 (open, not merged) reports that Flyway already applied V1 to V5 to the `production` branch and that one test account was created and deleted there (reported in PR #19, not verified here), so run the check before the first deployment.
+2. **Check the Neon database first** (read-only): migration V5 fails as a whole, and changes nothing, if two accounts have emails that differ only by letter case. On a database with no accounts there is nothing to check. PR #19 (merged on 2026-11-19) reports that Flyway already applied V1 to V5 to the `production` branch and that one test account was created and deleted there (reported in PR #19, not verified here), so run the check before the first deployment.
    ```sql
    SELECT lower(email), count(*) FROM account GROUP BY 1 HAVING count(*) > 1;
    ```
@@ -93,13 +94,17 @@ The plain local variant without Docker (`mvn spring-boot:run` with a local Postg
 
 Dashboard steps for the programmer. None has been run; all Neon behaviour is [TO CONFIRM] against Neon's current documentation.
 
-1. Sign in to the Neon console and open the **existing** project (do not create a new one). Check that its region is **AWS Europe Central 1 (Frankfurt, `eu-central-1`)**, that its PostgreSQL version is **18**, and that the branch the public site uses is **`production`**, the default branch. Do **not** create a separate branch only for the public site. Branches created by Neon tooling in pull requests (`neon.ts`, non-default) expire after 7 days, as reported in PR #19 (open, not merged) [TO CONFIRM once it is merged]; the `production` branch is not one of them. Exact console labels are [TO CONFIRM].
+1. Sign in to the Neon console and open the **existing** project (do not create a new one). Check that its region is **AWS Europe Central 1 (Frankfurt, `eu-central-1`)**, that its PostgreSQL version is **18**, and that the branch the public site uses is **`production`**, the default branch. Do **not** create a separate branch only for the public site. `neon.ts` (merged with PR #19) gives a new non-default branch, created with `neon checkout <name>`, a time to live of 7 days (`ttl: "7d"`); the default branch `production` and existing branches get no override. What Neon does when the time to live ends is [TO CONFIRM]. Exact console labels are [TO CONFIRM].
 2. Use the existing database and role, or create them. Use a dedicated role for Matriz with a strong, unique password; note that the application needs to create and change tables, because Flyway runs as this role.
 3. Copy the **direct** connection string with connection pooling **off** (the host without the `-pooler` suffix [TO CONFIRM]). Keep it private: it is a secret (C2).
-4. The programmer builds the JDBC URL and sets it in the Render dashboard as `MATRIZ_DB_URL=jdbc:postgresql://<neon-direct-host>/<database>?sslmode=...`, with the direct (non-pooled) host (all values here are placeholders). The role name and the password go in the separate variables `MATRIZ_DB_USER` and `MATRIZ_DB_PASSWORD`, not inside the URL. PR #19's `.env.local` mechanism is for local use only and is switched off whenever `MATRIZ_DB_URL` is set, as it is on Render.
-5. TLS: recommended `sslmode=verify-full&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory`, which verifies the server certificate against the JVM trust store. Documented fallback, if the certificate chain is not accepted: `sslmode=require` (TLS without certificate verification). Both are [TO CONFIRM] against Neon (also server name indication); neither has been tested.
+4. The programmer builds the JDBC URL and sets it in the Render dashboard as `MATRIZ_DB_URL=jdbc:postgresql://<neon-direct-host>/<database>?sslmode=...`, with the direct (non-pooled) host (all values here are placeholders). The role name and the password go in the separate variables `MATRIZ_DB_USER` and `MATRIZ_DB_PASSWORD`, not inside the URL. The local mechanism described in [Local development with Neon](#local-development-with-neon) is inactive on Render, because `MATRIZ_DB_URL` is set explicitly there.
+5. TLS: recommended `sslmode=verify-full&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory`, which verifies the server certificate against the JVM trust store. Documented fallback, if the certificate chain is not accepted: `sslmode=require` (TLS without certificate verification). Both are [TO CONFIRM] against Neon (also server name indication); neither has been tested. The derived local connection has no `require` fallback: it always uses `sslmode=verify-full` with `DefaultJavaSSLFactory` (JVM trust store). If its certificate check fails, the local start fails. In that case set `MATRIZ_DB_URL` yourself, which switches the derivation off.
 6. Check the free plan's storage, compute-hours, idle suspension and history (restore) window in Neon's documentation and write them in the decision log when known. They are [TO CONFIRM] and they decide TD-05.
 7. Run the read-only SQL check from [Before the first deployment](#before-the-first-deployment) only if the database is not new.
+
+### Local development with Neon
+
+Local use only; nothing here applies to Render. The Neon CLI (`neon env pull` or `neon deploy`) writes `.env.local` in the repository root (Git-ignored: `.gitignore` has `.env.*`). The application imports it after `.env` (`spring.config.import`). `.env.local` holds `DATABASE_URL_UNPOOLED`, the direct (non-pooled) endpoint, which Flyway needs. When `MATRIZ_DB_URL` is set nowhere (shell, `.env`), `storage/NeonDatabaseEnvironment` derives `MATRIZ_DB_URL`, `MATRIZ_DB_USER` and `MATRIZ_DB_PASSWORD` from it, all three together, even if `MATRIZ_DB_USER` or `MATRIZ_DB_PASSWORD` are set elsewhere. The URL is always `jdbc:postgresql://<host>[:port]/<db>?sslmode=verify-full&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory`. The `sslmode` in the Neon URL is ignored, and only `channel_binding` is kept, as `channelBinding`. The variable name, the file name and what the CLI writes are taken from the code and its comments; the CLI's behaviour is [TO CONFIRM]. Automated tests never use this path: Maven's Surefire sets `matriz.neon.enabled=false`, so without `MATRIZ_DB_URL` pointing at the test database they stop at startup. The pgJDBC driver is 42.7.14 (override in `pom.xml`, advisory GHSA-j92g-9f8w-j867, which concerns channel binding).
 
 ## Render setup
 

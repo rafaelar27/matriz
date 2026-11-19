@@ -28,6 +28,7 @@ Planned version for the next release: **0.2.0** (a new feature that does not bre
 - `compose.yaml`: PostgreSQL 16 and the application, with healthchecks, a named data volume and an on-demand, idempotent `seed` service.
 - `.github/workflows/ci.yml`: `test` (`mvn verify` on a PostgreSQL service), `build` (`mvn -B -DskipTests package`), `docker` (image build, not published) and `e2e` (Compose stack, seed, Playwright); `docker` and `e2e` need both `test` and `build`.
 - README sections "Run with Docker", "Continuous integration" and "End-to-end test"; decision-log entries of 2026-11-18 for Docker, Compose and CI, and of 2026-11-19 for the hosting choice (TD-02 decided in part: Render and Neon, EU region, single service; not yet deployed, no public URL; TD-05, TD-06 and TD-13 stay pending).
+- Neon connection for local development (PR #19): `storage/NeonDatabaseEnvironment` derives `MATRIZ_DB_URL`, `MATRIZ_DB_USER` and `MATRIZ_DB_PASSWORD` from `DATABASE_URL_UNPOOLED` in `.env.local` when `MATRIZ_DB_URL` is not set; the derived URL always uses `sslmode=verify-full` with `DefaultJavaSSLFactory`; `NeonDatabaseEnvironmentTest`. Node tooling was added at the repository root: `neon.ts`, `package.json` and `package-lock.json` with `@neon/config` and `@neon/env`. It is not part of the Maven build or the Docker image.
 
 ### Changed
 - INC-11 (2026-11-18): the interface shows task statuses in English (To do, In progress, Done), equal to the API values, instead of Portuguese labels; the decision-log entry of 2026-11-18 supersedes that of 2026-11-12.
@@ -42,6 +43,7 @@ Planned version for the next release: **0.2.0** (a new feature that does not bre
 - `.dockerignore`: keeps secrets and local files out of the build context; since the hardening below it is an allow-list (the Flyway `.sql` migrations are kept).
 - `compose.yaml`: all three services (`db`, `app`, `seed`) use an explicit, dedicated network `matriz-net` instead of the implicit default network; the pinned `postgres` image has a comment. Compose was run end to end on 2026-11-18 (see `docs/verification.md`, "Docker Compose").
 - `.github/workflows/ci.yml`: a `build` job was added, `compose.yaml` is validated, and actions are pinned by commit SHA.
+- pgJDBC overridden to 42.7.14 in `pom.xml` (`postgresql.version`; advisory GHSA-j92g-9f8w-j867, fixed in 42.7.12). Tests set `matriz.neon.enabled=false` (Surefire), so they never use the Neon connection.
 
 ### Removed
 - INC-08 (2026-11-17): the unscoped route `PATCH /tasks/{task_id}` (`updateTaskStatus`) and its schema `TaskStatusUpdateRequest`; a task's status changes through the project-scoped `updateTask`. The regression test `TaskAccessTest.unscopedStatusRouteIsGone` was added.

@@ -13,7 +13,9 @@ services:
     autoDeploy: false           # [TO CONFIRM] newer Blueprints may use autoDeployTrigger: "off"; deploys are manual
     healthCheckPath: /config.js # open without a session, holds no secret, same path as the Compose healthcheck
     envVars:
-      # Database on Neon: DIRECT (non-pooled) endpoint, TLS required (sslmode=require in the URL).
+      # Database on Neon: DIRECT (non-pooled) endpoint, TLS verified: add
+      # ?sslmode=verify-full&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory to the URL (fallback: sslmode=require
+      # if the certificate chain is not accepted) [TO CONFIRM].
       - key: MATRIZ_DB_URL
         sync: false
       - key: MATRIZ_DB_USER

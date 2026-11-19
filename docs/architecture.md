@@ -436,7 +436,7 @@ flowchart LR
 
     BRW -->|"HTTPS"| EDGE
     EDGE -->|"proxied request, same origin"| WEB
-    WEB -->|"TLS, sslmode=require, direct endpoint"| NPG
+    WEB -->|"TLS, sslmode=verify-full, direct endpoint"| NPG
 ```
 
 One service serves the API and the user interface, so the browser sees one origin and the same-site session and CSRF cookies (TD-03) work. There is no Static Site and no CORS configuration. The internal path from the proxy to the application, the proxy addresses and whether `X-Forwarded-For` is trusted (`SERVER_FORWARD_HEADERS_STRATEGY`, TD-13, pending) are [TO CONFIRM]. The public database has no demo data.
