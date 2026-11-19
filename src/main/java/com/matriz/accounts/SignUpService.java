@@ -114,7 +114,7 @@ class SignUpService {
      * printable ASCII characters (decided 2026-11-18: ASCII only, so look-alike characters cannot make a second
      * account for one address).
      */
-    private static boolean looksLikeEmail(String email) {
+    static boolean looksLikeEmail(String email) {
         if (email.isEmpty() || email.length() > EMAIL_MAX) {
             return false;
         }

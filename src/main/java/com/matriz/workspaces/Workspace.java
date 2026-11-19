@@ -21,6 +21,10 @@ class Workspace {
 
     private String name;
 
+    /** Set when the workspace is deleted (soft delete, INC-19, V8); empty while it is active. */
+    @Column(name = "deleted_at")
+    private java.time.OffsetDateTime deletedAt;
+
     protected Workspace() {
     }
 
@@ -34,5 +38,15 @@ class Workspace {
 
     String getName() {
         return name;
+    }
+
+    /** updateWorkspace (FR-23); the name already follows BR-01. */
+    void rename(String newName) {
+        this.name = newName;
+    }
+
+    /** deleteWorkspace (FR-24): soft delete; the row and its data are kept (QO). */
+    void markDeleted() {
+        this.deletedAt = java.time.OffsetDateTime.now();
     }
 }

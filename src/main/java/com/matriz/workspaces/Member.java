@@ -68,4 +68,15 @@ class Member {
     boolean isActive() {
         return "ACTIVE".equals(status);
     }
+
+    /** updateMemberRole (FR-04, US-04); applies to the member's next request (SP-03). */
+    void changeRole(Role newRole) {
+        this.role = newRole;
+    }
+
+    /** Accepting an invitation for a deactivated membership makes it active again with the invited role (Q8). */
+    void reactivate(Role invitedRole) {
+        this.role = invitedRole;
+        this.status = "ACTIVE";
+    }
 }

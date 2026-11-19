@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: Matriz API
-  version: 0.12.0-draft
+  version: 0.13.0-draft
   summary: Draft API for the Matriz MVP (authentication and sign-up, workspaces, projects, progress, tasks, task assignees and comments).
   description: |
     Draft specification of the Matriz MVP API, a project and task management
@@ -25,6 +25,12 @@ info:
     US-22), emails trimmed, lower-cased and matched ignoring case (BR-24), rate
     limits with 429 `too_many_requests` on `signUp` and `signIn` (NFR-11), and a
     16 KB body limit on `/auth/` routes (413 `payload_too_large`).
+    Version 0.13.0-draft (INC-17 to INC-19, decided 2026-11-19): invitations
+    by email (`createInvitation`, `listInvitations`, `cancelInvitation`,
+    `listMyInvitations`, `acceptInvitation`), renaming a workspace
+    (`updateWorkspace`), changing a member's role (`updateMemberRole`),
+    removing a member permanently (`removeMember`) and deleting a workspace
+    softly (`deleteWorkspace`); every operation on a deleted workspace gives 404.
     The technology stack is chosen in
     docs/architecture.md (Technology stack). Authentication uses a server-side
     session cookie (TD-03, decided 2026-11-12); see `components.securitySchemes`.
@@ -205,7 +211,10 @@ tags:
   - name: Progress
     description: "Derived project progress (FR-18, BR-15). Owning component: CMP-09 Progress Tracking."
   - name: Workspaces
-    description: "Creating a workspace (FR-02) and reading its members (FR-03, FR-04). Owning component: CMP-02."
+    description: |
+      Creating, renaming and deleting (soft) a workspace (FR-02, FR-23, FR-24);
+      its members, their roles and removal (FR-03, FR-04); invitations by email
+      and accepting them (FR-03). Owning component: CMP-02 (email: CMP-13).
   - name: Comments
     description: "Comments on tasks (FR-16). Owning component: CMP-07 Comments."
   - name: Tasks
@@ -818,6 +827,400 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           description: The workspace does not exist or the caller is not a member of it.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workspaces/{workspace_id}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    patch:
+      tags: [Workspaces]
+      operationId: updateWorkspace
+      summary: Rename a workspace
+      description: |
+        Renames the workspace (FR-23, INC-18, decided 2026-11-19).
+
+        **Who can perform it:** any active Workspace Administrator of the
+        workspace. Project Managers, Team Members and Viewers get 403.
+
+        **Rules checked (422):** `name` is required, uses the same rule as
+        `createWorkspace` (BR-01: 3 to 100 characters after trimming, no NUL
+        character, duplicates allowed); no other field can be sent.
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkspaceUpdateRequest'
+      responses:
+        '200':
+          description: The workspace was renamed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceSummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/WorkspaceNotFound'
+        '422':
+          description: "`name` missing or breaking BR-01, or a field that cannot be sent."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Workspaces]
+      operationId: deleteWorkspace
+      summary: Delete a workspace (soft)
+      description: |
+        Deletes the workspace (FR-24, INC-19, decided 2026-11-19). The workspace
+        is hidden from every member and every operation that uses it, its
+        projects, tasks, comments, members or invitations returns 404 from then
+        on. Its data is kept in the database; there is no restore in Matriz
+        (decision QO).
+
+        **Who can perform it:** any active Workspace Administrator of the
+        workspace.
+
+        **Rules checked (422):** `confirm_name` must equal the workspace's
+        current name after trimming spaces, letter case included (decision QN).
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkspaceDeleteRequest'
+      responses:
+        '204':
+          description: The workspace was deleted.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/WorkspaceNotFound'
+        '422':
+          description: "`confirm_name` missing or not equal to the workspace's name, or a field that cannot be sent."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workspaces/{workspace_id}/members/{member_id}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - name: member_id
+        in: path
+        required: true
+        description: A member of the workspace in the path. A member of another workspace gives 404.
+        schema:
+          $ref: '#/components/schemas/Id'
+    patch:
+      tags: [Workspaces]
+      operationId: updateMemberRole
+      summary: Change a member's role
+      description: |
+        Changes a member's role (FR-04, US-04, INC-18). The new role applies to
+        the member's next request (SP-03).
+
+        **Who can perform it:** any active Workspace Administrator of the
+        workspace, also for themselves (decision QG).
+
+        **Refused (409 `conflict`):** the change would leave the workspace with
+        no active Workspace Administrator (SP-07, BR-04, EC-03).
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberRoleRequest'
+      responses:
+        '200':
+          description: The role was changed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceMember'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/WorkspaceNotFound'
+        '409':
+          $ref: '#/components/responses/LastAdministrator'
+        '422':
+          description: "`role` missing or not one of the four roles, or a field that cannot be sent."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Workspaces]
+      operationId: removeMember
+      summary: Remove a member permanently
+      description: |
+        Removes a member from the workspace permanently (FR-03, INC-18; removal
+        replaces deactivation, decision QA). The person's account is kept.
+
+        **Effects, in one transaction:** tasks and projects the member owns
+        get a new owner: the Workspace Administrator who removes them, or, when
+        administrators remove themselves, the administrator named in
+        `new_owner_member_id` (decisions QB, QC). The member's task
+        assignments, project memberships and notifications are deleted. Tasks,
+        comments, invitations and feedback they created are kept and shown as
+        "Former member" (decision QR).
+
+        **Who can perform it:** any active Workspace Administrator of the
+        workspace, also for themselves (decision QG).
+
+        **Refused (409 `conflict`):** the workspace would have no active
+        Workspace Administrator left (SP-07, BR-04, EC-03).
+
+        **Rules checked (422):** `new_owner_member_id` is required when
+        administrators remove themselves and must be another active Workspace
+        Administrator of the workspace; it cannot be sent otherwise.
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+        - name: new_owner_member_id
+          in: query
+          required: false
+          description: Only when removing yourself; the Workspace Administrator who takes over what you own.
+          schema:
+            $ref: '#/components/schemas/Id'
+      responses:
+        '204':
+          description: The member was removed.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/WorkspaceNotFound'
+        '409':
+          $ref: '#/components/responses/LastAdministrator'
+        '422':
+          description: "`new_owner_member_id` missing, not another active Workspace Administrator, or sent when not removing yourself."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workspaces/{workspace_id}/invitations:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [Workspaces]
+      operationId: listInvitations
+      summary: Pending invitations of a workspace
+      description: |
+        Pending invitations, newest first (FR-03, INC-17; PD-09 in part,
+        decided 2026-11-19). Accepted and cancelled invitations are not listed.
+
+        **Who can perform it:** any active Workspace Administrator of the
+        workspace.
+      responses:
+        '200':
+          description: Pending invitations.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Invitation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/WorkspaceNotFound'
+    post:
+      tags: [Workspaces]
+      operationId: createInvitation
+      summary: Invite a person by email
+      description: |
+        Invites a person by email address with a role (FR-03, FR-04, US-03,
+        INC-17). An email is sent over SMTP (TD-04, decided 2026-11-19); when no
+        SMTP host is configured, nothing is sent and only a log line without the
+        address records it. The invitee accepts with `acceptInvitation` while
+        signed in with that address (decision Q3).
+
+        **Who can perform it:** any active Workspace Administrator of the
+        workspace (Q1; Project Managers do not invite yet, PD-02).
+
+        **Set by the server:** `status` PENDING, `created_at`, and the inviter
+        from the session.
+
+        **Rules checked (422):** `email` follows BR-24 (trimmed, lower-cased,
+        printable ASCII, one "@" with text on both sides, at most 254
+        characters); `role` is one of the four roles (any of them, Q10); no
+        other field can be sent.
+
+        **Refused (409 `conflict`):** the address belongs to an active member
+        of the workspace (EC-01). The address of a deactivated member can be
+        invited; accepting reactivates the membership (Q8).
+
+        **Email not sent (503 `email_not_sent`):** the mail server refused or
+        could not be reached. The invitation is not kept (decision QJ).
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvitationCreateRequest'
+            examples:
+              teamMember:
+                value:
+                  email: ana@example.com
+                  role: Team Member
+      responses:
+        '201':
+          description: The invitation was created and its email sent (or logged).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invitation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/WorkspaceNotFound'
+        '409':
+          description: The address belongs to an active member of the workspace (EC-01).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: "`email` or `role` missing or invalid, or a field that cannot be sent."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: The invitation email could not be sent; nothing was stored.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                emailNotSent:
+                  value:
+                    code: email_not_sent
+                    message: The invitation email could not be sent. Try again later.
+
+  /workspaces/{workspace_id}/invitations/{invitation_id}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/InvitationId'
+    delete:
+      tags: [Workspaces]
+      operationId: cancelInvitation
+      summary: Cancel a pending invitation
+      description: |
+        Sets a pending invitation to CANCELLED; the row is kept (decision QK).
+        Any active Workspace Administrator of the workspace. An invitation that
+        is not pending, or belongs to another workspace, gives 404.
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      responses:
+        '204':
+          description: The invitation was cancelled.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/WorkspaceNotFound'
+
+  /invitations:
+    get:
+      tags: [Workspaces]
+      operationId: listMyInvitations
+      summary: Pending invitations for the signed-in account
+      description: |
+        Pending invitations addressed to the signed-in account's email
+        (DA-01, BR-24), newest first; invitations of deleted workspaces are left
+        out (PD-24 in part, decided 2026-11-19). Any signed-in account.
+      responses:
+        '200':
+          description: Pending invitations for the caller.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MyInvitation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /invitations/{invitation_id}/accept:
+    parameters:
+      - $ref: '#/components/parameters/InvitationId'
+    post:
+      tags: [Workspaces]
+      operationId: acceptInvitation
+      summary: Accept an invitation
+      description: |
+        Accepts a pending invitation addressed to the signed-in account's email
+        (FR-03, AC-03.1, decision Q3). In one transaction: the account becomes an
+        active member with the invited role (a deactivated membership in that
+        workspace is reactivated with that role, Q8), the invitation becomes
+        ACCEPTED, and the other pending invitations to the same address in that
+        workspace become CANCELLED (decision QK, EC-02). No body is sent.
+
+        An unknown invitation, one addressed to another email, one that is not
+        pending, or one of a deleted workspace gives the same 404, so that
+        invitations of others cannot be discovered (API-A3).
+
+        **Refused (409 `conflict`):** the account is already an active member
+        of the workspace (EC-02).
+
+        Matching relies on the account's email, which is not verified at
+        sign-up (PD-25; accepted as a recorded risk on 2026-11-19, decision QH).
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      responses:
+        '200':
+          description: The caller's membership in the workspace.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Membership'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: No pending invitation with this id is addressed to the caller.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: The caller is already an active member of the workspace.
           content:
             application/json:
               schema:
@@ -1511,8 +1914,49 @@ components:
       schema:
         $ref: '#/components/schemas/Id'
       example: tsk_001
+    WorkspaceId:
+      name: workspace_id
+      in: path
+      required: true
+      description: |
+        Identifier of the workspace. The caller must be a member of it, and it
+        must not be deleted; otherwise 404 (NFR-01, API-A3).
+      schema:
+        $ref: '#/components/schemas/Id'
+    InvitationId:
+      name: invitation_id
+      in: path
+      required: true
+      description: Identifier of the invitation (Invitation.invitation_id).
+      schema:
+        $ref: '#/components/schemas/Id'
 
   responses:
+    WorkspaceNotFound:
+      description: |
+        The workspace, member or invitation does not exist, belongs to another
+        workspace, the caller is not a member of the workspace, or the workspace
+        is deleted (NFR-01, API-A3, INC-19).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    LastAdministrator:
+      description: |
+        The change would leave the workspace without an active Workspace
+        Administrator (SP-07, BR-04, EC-03). Nothing changed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            lastAdministrator:
+              value:
+                code: conflict
+                message: A workspace must keep at least one active Workspace Administrator.
+                details:
+                  - field: role
+                    issue: A workspace must keep at least one active Workspace Administrator.
     BadRequest:
       description: The request body is missing or cannot be parsed as JSON (assumption API-A2).
       content:
@@ -1798,6 +2242,98 @@ components:
         role:
           type: string
           enum: [Workspace Administrator]
+
+    WorkspaceUpdateRequest:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 100
+          description: Same rule as WorkspaceCreateRequest.name (BR-01).
+
+    WorkspaceSummary:
+      type: object
+      required: [workspace_id, name]
+      properties:
+        workspace_id:
+          $ref: '#/components/schemas/Id'
+        name:
+          type: string
+
+    WorkspaceDeleteRequest:
+      type: object
+      required: [confirm_name]
+      additionalProperties: false
+      properties:
+        confirm_name:
+          type: string
+          description: The workspace's current name, typed by the administrator; compared after trimming, case-sensitive.
+
+    MemberRoleRequest:
+      type: object
+      required: [role]
+      additionalProperties: false
+      properties:
+        role:
+          type: string
+          enum: [Workspace Administrator, Project Manager, Team Member, Viewer]
+
+    InvitationCreateRequest:
+      type: object
+      required: [email, role]
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          maxLength: 254
+          description: BR-24; stored trimmed and in lower case.
+        role:
+          type: string
+          enum: [Workspace Administrator, Project Manager, Team Member, Viewer]
+
+    Invitation:
+      type: object
+      required: [invitation_id, email, role, status, created_at, invited_by_name]
+      properties:
+        invitation_id:
+          $ref: '#/components/schemas/Id'
+        email:
+          type: string
+        role:
+          type: string
+          enum: [Workspace Administrator, Project Manager, Team Member, Viewer]
+        status:
+          type: string
+          enum: [Pending, Accepted, Cancelled]
+        created_at:
+          type: string
+          format: date-time
+        invited_by_name:
+          type: string
+          description: Name of the inviter; "Former member" when that member was removed (decision QR).
+
+    MyInvitation:
+      type: object
+      required: [invitation_id, workspace_id, workspace_name, role, invited_by_name, created_at]
+      properties:
+        invitation_id:
+          $ref: '#/components/schemas/Id'
+        workspace_id:
+          $ref: '#/components/schemas/Id'
+        workspace_name:
+          type: string
+        role:
+          type: string
+          enum: [Workspace Administrator, Project Manager, Team Member, Viewer]
+        invited_by_name:
+          type: string
+          description: Name of the inviter; "Former member" when that member was removed.
+        created_at:
+          type: string
+          format: date-time
 
     ProjectCreateRequest:
       type: object
@@ -2092,10 +2628,11 @@ components:
         task_id:
           $ref: '#/components/schemas/Id'
         author_member_id:
-          $ref: '#/components/schemas/Id'
+          type: ['string', 'null']
+          description: The author's member id; null when the author was removed from the workspace (INC-18, V7).
         author_name:
           type: string
-          description: Personal data (database.md, Account.name).
+          description: Personal data (database.md, Account.name). "Former member" when the author was removed (decision QR).
         body:
           type: string
           description: May contain personal data entered by users (database.md).
@@ -2115,7 +2652,6 @@ components:
         - title
         - owner_member_id
         - status
-        - created_by_member_id
       properties:
         task_id:
           $ref: '#/components/schemas/Id'
@@ -2146,7 +2682,10 @@ components:
         created_by_member_id:
           allOf:
             - $ref: '#/components/schemas/Id'
-          description: The member who created the task; decides who may delete it (FR-09, BR-12).
+          description: |
+            The member who created the task; decides who may delete it (FR-09, BR-12). Absent when the creator
+            was removed from the workspace (INC-18, V7); such a task can be deleted by Workspace Administrators
+            and Project Managers (decision QE).
 
     Error:
       type: object
@@ -2158,7 +2697,7 @@ components:
           description: Stable, machine-readable error code.
           enum: [malformed_request, not_authenticated, session_expired, invalid_credentials, forbidden,
                  csrf_invalid, not_found, validation_failed, conflict, email_taken,
-                 too_many_requests, payload_too_large]
+                 too_many_requests, payload_too_large, email_not_sent]
         message:
           type: string
           description: Human-readable summary in the interface language (NFR-09, pending PD-13).

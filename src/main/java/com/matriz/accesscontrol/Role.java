@@ -17,4 +17,14 @@ public enum Role {
     public String label() {
         return label;
     }
+
+    /** The role with exactly this label (case-sensitive, as in openapi.yaml); empty for anything else. */
+    public static java.util.Optional<Role> fromLabel(String label) {
+        for (Role role : values()) {
+            if (role.label.equals(label)) {
+                return java.util.Optional.of(role);
+            }
+        }
+        return java.util.Optional.empty();
+    }
 }
