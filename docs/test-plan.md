@@ -160,6 +160,32 @@ Resolved: Q-01 (no positive priority scenarios) and Q-06 (provisional rules are 
 3. `openapi.yaml`, `createTask` 201 `Location` example: now `/projects/prj_website/tasks/tsk_001`.
 4. `openapi.yaml`: `updateTaskStatus` (`PATCH /tasks/{task_id}`), its schema `TaskStatusUpdateRequest` and its references were removed; decision-log row added. `API-A3` is marked confirmed.
 
+## Sign-up scenarios (INC-12, 2026-11-19)
+
+Expected results come from FR-01, US-22 (AC-22.1 to AC-22.8, EC-12 to EC-16), NFR-11, BR-24, SP-08 to SP-10 and the decision log of 2026-11-18 and 2026-11-19. Tests assert status, `code` and `details[].field`, never message text (A7). All data is fictitious (`example.com`). Scenario IDs `TS-xx` are new; the existing `TD-xx` scenario IDs clash with technical-decision IDs (known, INC-09 R-02) and are not reused.
+
+| ID | Scenario | Expected result | Level | Source | Test | Result |
+|---|---|---|---|---|---|---|
+| TS-01 | Sign-up succeeds and signs in | 201, profile with no memberships, new session and `XSRF-TOKEN`, `/auth/me` gives 200, BCrypt hash stored, no password or hash in the body | API | AC-22.1; BR-24 | `SignUpApiTest` | Pass |
+| TS-02 | Name limits | 1 and 80 characters accepted (trimmed); empty, spaces only, 81 characters and control characters give 422 `name` | API | AC-22.2; BR-24 | `SignUpApiTest` | Pass |
+| TS-03 | Email rules | Trimmed and stored in lower case; no "@", whitespace, over 254 characters, non-ASCII (look-alike characters) and control characters give 422 `email` | API | AC-22.2; BR-24 | `SignUpApiTest` | Pass |
+| TS-04 | Password limits | 12 and 64 characters accepted, 11 and 65 refused (422 `password`); over 72 UTF-8 bytes refused; not trimmed | API | AC-22.3; EC-14; SP-10 | `SignUpApiTest` | Pass |
+| TS-05 | Duplicate email | Other case or surrounding spaces give 409 `email_taken` on `email`; account count unchanged | API | AC-22.4; EC-13; SP-09 | `SignUpApiTest` | Pass |
+| TS-06 | Two simultaneous sign-ups, same email | One 201, one 409 `email_taken`; the database index decides | API (concurrent) | EC-12; BR-24 | `SignUpConcurrencyTest`, `SignUpServiceTest` | Pass |
+| TS-07 | Identity and unknown fields | `account_id`, `role`, `workspace_id` give 422 and create nothing; non-JSON gives 400 `malformed_request` | API | FR-01; API-A2 | `SignUpApiTest` | Pass |
+| TS-08 | Signed-in caller | 409 `conflict`, session kept, nothing created | API | AC-22.7; EC-15 | `SignUpApiTest` | Pass |
+| TS-09 | Sign-up limit | Sixth request from one address in an hour gives 429 with `Retry-After`, nothing created; other addresses unaffected; forwarded headers ignored | API | AC-22.6; EC-16; NFR-11; TD-13 | `SignUpRateLimitTest`, `AttemptLimiterTest` | Pass |
+| TS-10 | Sign-in limits | Over a limit even the correct password gets 429; a success does not reset the counters; 40 parallel failures give exactly the limit of 401 and the rest 429 | API, unit, concurrent | AC-22.6; NFR-11 | `SignUpRateLimitTest`, `SignInConcurrencyTest`, `AuthControllerSignInTest` | Pass |
+| TS-11 | Sign-in matching | Email matched ignoring case and surrounding spaces; wrong password, unknown email, control character, non-ASCII email and a password over 72 bytes all give the same 401 | API | AC-22.5; EC-14; SP-09 | `SignUpApiTest`, `AuthControllerSignInTest` | Pass |
+| TS-12 | Missing CSRF header | 403 `csrf_invalid`, nothing created | API | FR-01 | `SignUpApiTest` | Pass |
+| TS-13 | New account sees nothing of other workspaces | Empty project list; 404 for demo project and task ids; cannot create a project | API | AC-22.8; NFR-01 | `SignUpApiTest` | Pass |
+| TS-14 | Request body limit on `/auth/` | 16384 bytes accepted, 16385 declared gives 413 `payload_too_large` with no echo; an undeclared body is cut off at 16384 bytes | API, unit | NFR-11; SP-08 | `AuthBodyLimitTest`, `AuthBodyLimitFilterTest` | Pass |
+| TS-15 | Password and hash never logged or returned | No password or hash in captured logs or in `SignUpRequest.toString` | API, unit | SP-10; AC-INC12.7 | `SignUpApiTest`, `SignUpRequestTest` | Pass |
+| TS-16 | Sign-up screens | Privacy notice, no consent checkbox, no "Forgot password" link, errors at their fields, one request on three rapid clicks, welcome message with no action, no horizontal scroll at 375 and 768 px | Browser (headless, run by Claude) | AC-22.1 to AC-22.3, AC-22.8 | Manual script | See [verification.md](verification.md) |
+| TS-17 | Migration V5 | Applies to an empty and to a seeded database without changing rows; fails as a whole if two emails differ only by case; refuses a case variant afterwards | Database (scratch cluster, psql) | BR-24 | Manual SQL | See [verification.md](verification.md) |
+
+**Not covered:** accounts surviving a real application restart and the counters starting again after one (EC-16): manual. Behaviour behind a proxy (TD-13): only "forwarded headers are ignored" is tested. The 429 `message` text is not asserted. No new Playwright spec was written (decided 2026-11-18).
+
 ## Scenarios intentionally excluded
 
 | Excluded | Reason |
