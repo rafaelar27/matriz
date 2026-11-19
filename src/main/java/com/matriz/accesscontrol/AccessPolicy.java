@@ -89,7 +89,7 @@ public class AccessPolicy {
      */
     public void checkEditTask(Actor actor, UUID taskOwnerMemberId, boolean changesContent, boolean changesOwner,
                               boolean changesStatus) {
-        requireTaskWriter(actor, "edit");
+        requireTaskWriter(actor);
         boolean owner = actor.memberId().equals(taskOwnerMemberId);
         if (changesContent && actor.role() == Role.WORKSPACE_ADMINISTRATOR) {
             // Not decided on 2026-11-19 (PD-03 in part): Workspace Administrators do not edit task content.
@@ -116,7 +116,7 @@ public class AccessPolicy {
      * Administrators may delete the tasks they created (decided 2026-11-19, PD-03 in part).
      */
     public void checkDeleteTask(Actor actor, UUID taskCreatorMemberId) {
-        requireTaskWriter(actor, "delete");
+        requireTaskWriter(actor);
         if (!actor.memberId().equals(taskCreatorMemberId)) {
             throw ApiException.forbidden("Only the member who created a task can delete it.");
         }
@@ -128,7 +128,7 @@ public class AccessPolicy {
      * Workspace Administrators added 2026-11-19 (PD-03 in part).
      */
     public void checkAssign(Actor actor) {
-        requireTaskWriter(actor, "assign");
+        requireTaskWriter(actor);
         if (actor.role() != Role.PROJECT_MANAGER && actor.role() != Role.WORKSPACE_ADMINISTRATOR) {
             throw ApiException.forbidden("Only Project Managers and Workspace Administrators can assign or unassign"
                     + " members (pending decision PD-01).");
@@ -141,14 +141,14 @@ public class AccessPolicy {
      * membership required as for task creation (PD-20); Workspace Administrators added 2026-11-19 (PD-03 in part).
      */
     public void checkComment(Actor actor, boolean actorIsProjectMember) {
-        requireTaskWriter(actor, "comment on");
+        requireTaskWriter(actor);
         if (!actorIsProjectMember) {
             throw ApiException.forbidden("Only members of this project can comment on its tasks.");
         }
     }
 
     /** Viewers are read-only (FR-05). Workspace Administrators work on tasks since 2026-11-19 (PD-03 in part). */
-    private static void requireTaskWriter(Actor actor, String action) {
+    private static void requireTaskWriter(Actor actor) {
         if (actor.role() == Role.VIEWER) {
             throw ApiException.forbidden(VIEWER_READ_ONLY);
         }

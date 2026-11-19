@@ -945,7 +945,8 @@ paths:
         The task must belong to `project_id` (404 otherwise).
 
         **Who can change which field** (provisional until PD-01, PD-03 and
-        PD-17 are decided; approved 2026-11-12):
+        PD-17 are decided; approved 2026-11-12, Workspace Administrators
+        2026-11-19):
         - `title`, `description`, `due_date`: any active Project Manager of the
           project's workspace, or the task's owner when the owner is a Team Member.
           Workspace Administrators cannot change them (not decided, PD-03).
@@ -1004,7 +1005,8 @@ paths:
 
         **Who can perform it:** the member who created the task (BR-12,
         AC-26.1, AC-26.2), unless they are now a Viewer or deactivated (FR-05,
-        SP-04).
+        SP-04). This includes a Workspace Administrator for the tasks she
+        created (decided 2026-11-19, PD-03 in part).
       parameters:
         - $ref: '#/components/parameters/CsrfHeader'
       responses:
@@ -1416,8 +1418,8 @@ components:
           operation); for `deleteTask`, the member did not create the task (BR-12);
         - for `assignTask` and `unassignTask`, the member is not a Project
           Manager or Workspace Administrator (provisional, PD-01);
-        - for `addTaskComment`, the member is a Viewer or Workspace
-          Administrator, or not a member of the task's project (provisional).
+        - for `addTaskComment`, the member is a Viewer, or not a member of the
+          task's project (provisional, PD-20).
       content:
         application/json:
           schema:
