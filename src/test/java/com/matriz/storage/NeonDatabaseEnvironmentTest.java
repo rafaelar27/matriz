@@ -161,6 +161,19 @@ class NeonDatabaseEnvironmentTest {
     }
 
     @Test
+    @DisplayName("matriz.neon.enabled=false (set for every test run in pom.xml) switches the Neon path off")
+    void disabledForTests() {
+        MockEnvironment env = new MockEnvironment()
+                .withProperty("DATABASE_URL_UNPOOLED", NEON_URL)
+                .withProperty("matriz.neon.enabled", "false");
+
+        processor.postProcessEnvironment(env, null);
+
+        assertThat(env.getProperty("MATRIZ_DB_URL")).isNull();
+        assertThat(env.getPropertySources().contains("neonDatabase")).isFalse();
+    }
+
+    @Test
     @DisplayName("Without DATABASE_URL_UNPOOLED nothing is added")
     void noNeonVariableNoChange() {
         MockEnvironment env = new MockEnvironment().withProperty("DATABASE_URL_UNPOOLED", "  ");

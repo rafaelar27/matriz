@@ -24,9 +24,15 @@ import org.springframework.core.env.MapPropertySource;
 public class NeonDatabaseEnvironment implements EnvironmentPostProcessor, Ordered {
 
     static final String NEON_VARIABLE = "DATABASE_URL_UNPOOLED";
+    static final String ENABLED_PROPERTY = "matriz.neon.enabled";
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
+        // Test runs set matriz.neon.enabled=false (pom.xml, Surefire), so tests never fall through to a Neon branch:
+        // without MATRIZ_DB_URL they fail at startup instead of running Flyway against Neon.
+        if (!environment.getProperty(ENABLED_PROPERTY, Boolean.class, true)) {
+            return;
+        }
         String neonUrl = environment.getProperty(NEON_VARIABLE);
         if (neonUrl == null || neonUrl.isBlank() || environment.containsProperty("MATRIZ_DB_URL")) {
             return;
