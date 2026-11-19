@@ -32,7 +32,8 @@ services:
         value: "true"
       - key: MATRIZ_SESSION_TIMEOUT
         value: 8h
-      # TD-13 (pending): trust X-Forwarded-For only from the platform proxy, so the rate limits (NFR-11) see the real
+      # TD-13 (pending; this setting is an approved trial, decision log 2026-11-19, to be verified on the live
+      # service): trust X-Forwarded-For only from the platform proxy, so the rate limits (NFR-11) see the real
       # client address. Overrides server.forward-headers-strategy=none in application.properties. Verify on the live
       # service; if Render's proxy is not trusted, every visitor still shares one address (fails safe).
       - key: SERVER_FORWARD_HEADERS_STRATEGY
