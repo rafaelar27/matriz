@@ -17,7 +17,8 @@ import org.springframework.core.env.MapPropertySource;
  * copying its credentials by hand.
  *
  * <p>Only the direct (unpooled) endpoint is used, because Flyway applies migrations at startup (docs/deployment.md).
- * Explicit MATRIZ_DB_* values always win: this only fills in what is missing. Runs after the config-data
+ * An explicit MATRIZ_DB_URL always wins and switches this off; without it, URL, user and password all come from
+ * Neon, even if MATRIZ_DB_USER or MATRIZ_DB_PASSWORD are set elsewhere. Runs after the config-data
  * processor, so variables imported from .env and .env.local are already visible.
  */
 public class NeonDatabaseEnvironment implements EnvironmentPostProcessor, Ordered {
@@ -30,7 +31,10 @@ public class NeonDatabaseEnvironment implements EnvironmentPostProcessor, Ordere
         if (neonUrl == null || neonUrl.isBlank() || environment.containsProperty("MATRIZ_DB_URL")) {
             return;
         }
-        environment.getPropertySources().addLast(new MapPropertySource("neonDatabase", fromNeonUrl(neonUrl)));
+        // addFirst: URL, user and password must come from the same place. Without it, a MATRIZ_DB_USER/PASSWORD left
+        // in .env would outrank the derived ones and be sent to the Neon host. Only reached when no MATRIZ_DB_URL
+        // is set anywhere, so explicit settings still switch this off as a whole.
+        environment.getPropertySources().addFirst(new MapPropertySource("neonDatabase", fromNeonUrl(neonUrl)));
     }
 
     /** Converts "postgresql://user:password@host[:port]/db?params" into the three MATRIZ_DB_* values. */

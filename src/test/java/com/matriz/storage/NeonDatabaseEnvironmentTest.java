@@ -9,6 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.springframework.core.env.MapPropertySource;
 import org.springframework.mock.env.MockEnvironment;
 
 /**
@@ -111,6 +112,23 @@ class NeonDatabaseEnvironmentTest {
         assertThat(env.getProperty("MATRIZ_DB_USER")).isEqualTo("app_owner");
         assertThat(env.getProperty("MATRIZ_DB_PASSWORD")).isEqualTo(SECRET);
         assertThat(env.getProperty("MATRIZ_DB_URL")).startsWith("jdbc:postgresql://");
+    }
+
+    @Test
+    @DisplayName("Without MATRIZ_DB_URL, user and password from .env do not mix with the Neon URL")
+    void neonTupleIsCoherent() {
+        MockEnvironment env = new MockEnvironment();
+        // Stands in for .env copied from .env.example with only MATRIZ_DB_URL removed, plus .env.local from Neon.
+        env.getPropertySources().addLast(new MapPropertySource("dotenv", Map.of(
+                "MATRIZ_DB_USER", "matriz",
+                "MATRIZ_DB_PASSWORD", "change-me-local-db-password",
+                "DATABASE_URL_UNPOOLED", NEON_URL)));
+
+        processor.postProcessEnvironment(env, null);
+
+        assertThat(env.getProperty("MATRIZ_DB_URL")).contains("neon.tech");
+        assertThat(env.getProperty("MATRIZ_DB_USER")).isEqualTo("app_owner");
+        assertThat(env.getProperty("MATRIZ_DB_PASSWORD")).isEqualTo(SECRET);
     }
 
     @Test
