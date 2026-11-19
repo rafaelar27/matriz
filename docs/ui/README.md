@@ -43,8 +43,8 @@ The IDs E-01 to E-20 are the labels shown on the wireframe; E-21 is not on it (a
 | E-11 | My tasks empty state | Message "No tasks are assigned to you." | FR-14; AC-13.3 | — | All |
 | E-12 | Projects section | The first projects of the member's workspaces (UI-A2) with workspace, owner, due date, progress "N of M tasks done" and the project's task counts by status, from the project task list. No total across projects (UI-A6). A row opens the project task list. | FR-08, FR-18, FR-13; US-09, US-17, US-19; AC-17.1, AC-19.1, AC-19.3; EC-05 | Project.name, Workspace.name, Account.name (through Project.owner_member_id → Member.account_id), Project.due_date; progress (derived, BR-15); task counts per Task.status (derived, FR-13) | All |
 | E-13 | "See all projects" link | Opens the full project list (UI-A2). Shown under the table with "Showing N of total" (decided 2026-11-12; the wireframe shows it in the heading). | FR-08; US-09 | — | All |
-| E-14 | "+ New project" button | Starts project creation. | FR-06; US-06 | — | Project Manager only. Hidden for Team Member and Viewer (FR-05, AC-19.2). Hidden for Workspace Administrator until PD-03 is decided. On an empty list it appears once, in the empty state (E-15). |
-| E-15 | Projects empty state | Message "No projects yet."; Project Managers also see E-14. | FR-08 | — | All |
+| E-14 | "+ New project" button | Starts project creation. | FR-06; US-06 | — | Project Manager and Workspace Administrator (decided 2026-11-19, PD-03 in part). Hidden for Team Member and Viewer (FR-05, AC-19.2). On an empty list it appears once, in the empty state (E-15). |
+| E-15 | Projects empty state | Message "No projects yet."; Project Managers and Workspace Administrators also see E-14. | FR-08 | — | All |
 | E-16 | Recent notifications section | The member's latest notifications, newest first. An item opens the task concerned. | FR-17; US-16 | Notification.type, Task.title (through Notification.task_id), Account.name of the comment author (through Notification.comment_id → Comment.author_member_id, only for "comment added"), Notification.created_at | All (every member can receive notifications) |
 | E-17 | "See all" notifications link | Opens all notifications (UI-A2). | FR-17; US-16 | — | All |
 | E-18 | Notifications empty state | Message "No notifications." (UI-A4). | FR-17 | — | All |
@@ -58,7 +58,7 @@ The IDs E-01 to E-20 are the labels shown on the wireframe; E-21 is not on it (a
 
 | User type | Differences on the dashboard |
 |---|---|
-| Workspace Administrator | Same as Team Member until PD-03 decides whether the role includes Project Manager permissions. Inviting and managing members happens on the Members screen (E-05). |
+| Workspace Administrator | Sees "+ New project" (E-14, also in the empty state E-15) and can create, edit and delete projects like a Project Manager (decided 2026-11-19, PD-03 in part). Otherwise the same as Team Member until the rest of PD-03 is decided. Inviting and managing members happens on the Members screen (E-05). |
 | Project Manager | Sees "+ New project" (E-14), also in the empty state (E-15). |
 | Team Member | No "+ New project". Sees every project, including those they are not a member of (FR-08). |
 | Viewer | No "+ New project" and no other create or change action (FR-05, AC-19.2). Same project list and the same progress figures as everyone else (AC-19.1, AC-19.3). Tasks open read-only (AC-11.3); PD-17 may change this for tasks the Viewer owns. |
@@ -116,7 +116,7 @@ These are not confirmed requirements.
 
 | ID | Effect on the dashboard |
 |---|---|
-| PD-03 | Whether a Workspace Administrator sees "+ New project" (E-14). |
+| PD-03 | Whether a Workspace Administrator sees "+ New project" (E-14) was decided on 2026-11-19: yes (see the [decision log](../constraints.md#decision-log)). Still pending: whether a member can hold more than one role, and which other Project Manager rights (tasks, owners, assignees, comments, project members, archiving) a Workspace Administrator has. |
 | PD-05 | Whether archived projects appear in the Projects section (E-12), and whether a project status is shown. |
 | PD-06 | Whether Done tasks appear in My tasks (E-09). |
 | PD-07 | Whether progress also shows a percentage. |

@@ -172,7 +172,7 @@ Resolved: Q-01 (no positive priority scenarios) and Q-06 (provisional rules are 
 | Concurrent edits (EC-07) | PD-11 and TD-07 pending |
 | Moving a Done task to an earlier status | PD-06 pending |
 | Tasks in archived projects | PD-05 pending |
-| Accounts in several workspaces | PD-16 pending |
+| Accounts in several workspaces | PD-16 decided only in part (2026-11-19: creating workspaces); the task rules across workspaces are not covered by this plan |
 | Sign-in and session expiry | Covered by US-01, not by this plan |
 | Empty-body `PATCH` and same-status `PATCH` | Contract-only behavior, low risk |
 | Owner-picker UI | A UI detail; the backend refusal is covered by TV-05 |
@@ -351,7 +351,7 @@ Reading of the figures: the integration tests already ran most of the code, so t
 
 | Class | Tests | Rules and IDs | Pass/Fail |
 |---|---|---|---|
-| `accesscontrol/AccessPolicyTest` | 77 (was 71) | Role-by-action decision table: manage project, create task as project member and as non-member, owner at creation, change status, edit content, change owner (now also refusals for a Viewer and a Workspace Administrator who is not the owner), status-only changes through `checkEditTask` (now also refusals for a Viewer and a Workspace Administrator, as owner and as non-owner; all 403 `forbidden`), all-or-nothing combinations, delete task, assign and unassign, comment, workspace access (non-member 404 `not_found`; deactivated member refused, status asserted only as 403 or 404, Q-03). Cells that depend on PD-01, PD-03, PD-17 and PD-20 are marked prov. The display name that cited "TD-03" now reads "test-plan TD-03", to avoid a clash with [constraints.md](constraints.md) TD-03. | Pass |
+| `accesscontrol/AccessPolicyTest` | 77 (was 71) | Role-by-action decision table: manage project (since 2026-11-19 also allowed for a Workspace Administrator, INC-13; the count and this record are of 2026-11-17), create task as project member and as non-member, owner at creation, change status, edit content, change owner (now also refusals for a Viewer and a Workspace Administrator who is not the owner), status-only changes through `checkEditTask` (now also refusals for a Viewer and a Workspace Administrator, as owner and as non-owner; all 403 `forbidden`), all-or-nothing combinations, delete task, assign and unassign, comment, workspace access (non-member 404 `not_found`; deactivated member refused, status asserted only as 403 or 404, Q-03). Cells that depend on PD-01, PD-03, PD-17 and PD-20 are marked prov. The display name that cited "TD-03" now reads "test-plan TD-03", to avoid a clash with [constraints.md](constraints.md) TD-03. | Pass |
 | `accesscontrol/RoleTest` | 1 | The four roles, labels in `openapi.yaml` order | Pass |
 | `tasks/TaskStatusRuleTest` | 13 | Task status values and rule, including a `null` status (citation: openapi `TaskValidationFailed` (`null` added 2026-11-17), BR-11) | Pass |
 | `tasks/TaskDescriptionRuleTest` | 3 | 2000 characters accepted; 2001 refused with 422 and field `description`; null clears | Pass |

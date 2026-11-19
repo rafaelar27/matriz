@@ -268,7 +268,7 @@ These are confirmed by the documentation. Not enforced in this delivery, because
 
 | ID | Rule | Source |
 |---|---|---|
-| BR-01 | Each account belongs to one person only. Any account holder can create a workspace, also one who already belongs to other workspaces. A workspace's name is required, trimmed, 3 to 100 characters long, and need not be unique. The creator becomes its first member, as a Workspace Administrator, in the same transaction. | FR-01, FR-02, SP-07, decision log 2026-10-29 and 2026-11-19 |
+| BR-01 | Each account belongs to one person only. Any account holder can create a workspace, also one who already belongs to other workspaces. A workspace's name is required, trimmed, 3 to 100 characters long, and need not be unique; it is accepted as sent after trimming and the length check (decided 2026-11-19). An account can create any number of workspaces. The creator becomes its first member, as a Workspace Administrator, in the same transaction. | FR-01, FR-02, SP-07, decision log 2026-10-29 and 2026-11-19 |
 | BR-02 | Workspace content is only available to signed-in, active members of that workspace. | FR-01, SP-01, SP-04 |
 | BR-03 | Each member holds exactly one of the four roles: Workspace Administrator, Project Manager, Team Member, Viewer. Workspace Administrators assign and change roles. | FR-04, AQ11 (confirmed) |
 | BR-04 | A workspace always keeps at least one active Workspace Administrator. Changes that would remove the last one are refused. | SP-07, EC-03 |
@@ -288,7 +288,7 @@ These are confirmed by the documentation. Not enforced in this delivery, because
 | BR-18 | Every record belongs to exactly one workspace, directly or through its parent, and never references records in another workspace. | NFR-01, SP-02 |
 | BR-19 | No payment data is stored. | NFR-10, SP-06 |
 | BR-20 | The customer organization owns the data stored in its workspace. | SP-05, decision log 2026-10-29 |
-| BR-21 | A Project Manager of the workspace can delete a project. Deleting it also deletes its project members and its tasks with their comments and notifications, and cannot be undone. A project's name is 3 to 100 characters long and its description at most 1000 characters. When both are given, a project's start date is not after its due date. The creator of a project becomes one of its project members. | FR-06, US-27, decision log 2026-11-12 |
+| BR-21 | A Project Manager or a Workspace Administrator of the workspace (Workspace Administrators since 2026-11-19, PD-03 in part) can create, edit and delete a project. Deleting it also deletes its project members and its tasks with their comments and notifications, and cannot be undone. A project's name is 3 to 100 characters long and its description at most 1000 characters. When both are given, a project's start date is not after its due date. The creator of a project becomes one of its project members. | FR-06, US-27, decision log 2026-11-12 and 2026-11-19 |
 | BR-22 | A task can have any number of assignees besides its owner. Only active members of the task's project can be assigned, each at most once per task. Assignments do not change the owner. | FR-22, US-29, decision log 2026-11-12 |
 | BR-23 | Each project has exactly one owner: its creator unless another active member of the project's workspace is chosen. The owner must be an active member of that workspace when chosen; an empty owner is refused. | FR-06, decision log 2026-11-12 |
 

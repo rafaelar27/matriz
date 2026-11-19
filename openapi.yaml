@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: Matriz API
-  version: 0.9.0-draft
+  version: 0.10.0-draft
   summary: Draft API for the Matriz MVP (authentication, workspaces, projects, progress, tasks, task assignees and comments).
   description: |
     Draft specification of the Matriz MVP API, a project and task management
@@ -105,6 +105,10 @@ info:
     - `createWorkspace` supports US-02 (FR-02, BR-01). Owning component:
       CMP-02. Added 2026-11-19 (INC-12).
 
+    Version 0.10.0-draft (INC-13): Workspace Administrators can also create,
+    edit and delete projects (`createProject`, `updateProject`,
+    `deleteProject`), decided 2026-11-19 (PD-03 in part).
+
     **Not built in this delivery:** sign-up (FR-01, US-22); invitations and
     member management (FR-03) and role
     assignment and changes (FR-04) apart from reading active members (the
@@ -167,7 +171,8 @@ tags:
     description: |
       Projects of the caller's workspaces (FR-05, FR-06, FR-08). Every active
       member sees every project of their workspace; Project Managers and
-      Workspace Administrators create, edit and delete them. Owning component: CMP-04 Projects.
+      Workspace Administrators create, edit and delete them. Owning
+      component: CMP-04 Projects.
   - name: Progress
     description: "Derived project progress (FR-18, BR-15). Owning component: CMP-09 Progress Tracking."
   - name: Workspaces

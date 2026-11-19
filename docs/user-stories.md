@@ -125,7 +125,7 @@ Every story is in the MVP. The seven stories US-03, US-10, US-11, US-13, US-17, 
 
 ### US-24: Edit a project
 
-- **AC-24.1 (success):** **Given** I am a Project Manager and project P has due date 2026-12-15, **when** I change P's due date to 2026-12-22 and save, **then** the project list shows P with due date 2026-12-22.
+- **AC-24.1 (success):** **Given** I am a Project Manager (or a Workspace Administrator, 2026-11-19) and project P has due date 2026-12-15, **when** I change P's due date to 2026-12-22 and save, **then** the project list shows P with due date 2026-12-22.
 - **Pending:** whether archived projects can be edited (PD-05).
 
 ### US-25: Edit a task
@@ -142,9 +142,9 @@ Every story is in the MVP. The seven stories US-03, US-10, US-11, US-13, US-17, 
 
 ### US-27: Delete a project
 
-- **AC-27.1 (confirmation):** **Given** I am a Project Manager of workspace W and project P in W has 3 tasks, **when** I choose to delete P, **then** I am asked to confirm, told that P and its 3 tasks will be deleted and that this cannot be undone, and P is not deleted if I cancel.
+- **AC-27.1 (confirmation):** **Given** I am a Project Manager (or a Workspace Administrator, 2026-11-19) of workspace W and project P in W has 3 tasks, **when** I choose to delete P, **then** I am asked to confirm, told that P and its 3 tasks will be deleted and that this cannot be undone, and P is not deleted if I cancel.
 - **AC-27.2 (success):** **Given** I confirmed the deletion of P, **when** the project list is shown, **then** P no longer appears, and none of P's tasks, comments, notifications or project members remain (FR-06).
-- **AC-27.3 (permission):** **Given** I am a Team Member, Viewer or Workspace Administrator of W, **when** I open project P, **then** no option to delete P is available to me, and a deletion request from me is refused. *(Workspace Administrators: provisional until PD-03 is decided.)*
+- **AC-27.3 (permission):** **Given** I am a Team Member or Viewer of W, **when** I open project P, **then** no option to delete P is available to me, and a deletion request from me is refused. *(Workspace Administrators are no longer refused: they can delete projects, like Project Managers, decided 2026-11-19, PD-03 in part.)*
 
 ### US-28: Search projects by name
 
