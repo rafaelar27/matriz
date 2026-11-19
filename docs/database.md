@@ -118,6 +118,7 @@ Attribute types are generic: `id` (a unique identifier), `string` (short text), 
 |---|---|---|---|---|
 | workspace_id | id | PK | Yes | Identifier of the workspace. |
 | name | string | | Yes | The organization's workspace name. Required: DA-02. |
+| deleted_at | datetime | | No | When the workspace was soft-deleted (INC-19); empty while it is active. Kept indefinitely (decision QO). |
 
 ### Member
 
@@ -137,8 +138,9 @@ Attribute types are generic: `id` (a unique identifier), `string` (short text), 
 | workspace_id | id | FK → Workspace | Yes | The workspace the person is invited to. |
 | email | string | | Yes | The invitee's email address (FR-03, AC-03.2). **Personal data**, possibly of someone who is not yet a member. |
 | role | enum (Workspace Administrator, Project Manager, Team Member, Viewer) | | Yes | The role given on acceptance (AC-03.3). Which roles a Project Manager may give: PD-02. |
-| invited_by_member_id | id | FK → Member | Yes | The Workspace Administrator or Project Manager who sent it (FR-03). |
-| status | enum (pending, accepted) | | Yes | Whether the invitation has been accepted (AC-03.1, EC-02). Other states: PD-09. |
+| invited_by_member_id | id | FK → Member | No | The Workspace Administrator or Project Manager who sent it (FR-03). Empty when the sender was removed from the workspace; shown as "Former member" (INC-18). |
+| status | enum (pending, accepted, cancelled) | | Yes | Whether the invitation is open, has been accepted (AC-03.1, EC-02) or was cancelled (INC-17, decision QK: a cancelled invitation keeps its row; when one invitation is accepted, the other pending invitations for the same address and workspace are closed). Other states: PD-09. |
+| created_at | datetime | | Yes | When the invitation was created (INC-17). Defaults to the current time. |
 
 ### Project
 

@@ -46,6 +46,17 @@ public class AccessPolicy {
         }
     }
 
+    /**
+     * Managing a workspace: inviting, listing and cancelling invitations (FR-03, US-03, AC-03.4), renaming it,
+     * changing roles, removing members and deleting it (FR-04, FR-23, FR-24). Any active Workspace Administrator of
+     * the workspace (decided 2026-11-19, Q1); Project Managers do not invite yet (PD-02 pending, Q4).
+     */
+    public void checkManageWorkspace(Actor actor) {
+        if (actor.role() != Role.WORKSPACE_ADMINISTRATOR) {
+            throw ApiException.forbidden("Only Workspace Administrators can manage this workspace and its members.");
+        }
+    }
+
     /** createTask: who may create a task in a project (FR-09, BR-12, FR-05, AC-19.2). */
     public void checkCreateTask(Actor actor, boolean actorIsProjectMember) {
         if (actor.role() == Role.VIEWER) {
@@ -117,6 +128,15 @@ public class AccessPolicy {
      */
     public void checkDeleteTask(Actor actor, UUID taskCreatorMemberId) {
         requireTaskWriter(actor);
+        if (taskCreatorMemberId == null) {
+            // The creator was removed from the workspace (V7): Workspace Administrators and Project Managers may delete
+            // the task (decided 2026-11-19, QE), so it does not become undeletable.
+            if (actor.role() != Role.WORKSPACE_ADMINISTRATOR && actor.role() != Role.PROJECT_MANAGER) {
+                throw ApiException.forbidden("Only Workspace Administrators and Project Managers can delete a task"
+                        + " whose creator is no longer a member.");
+            }
+            return;
+        }
         if (!actor.memberId().equals(taskCreatorMemberId)) {
             throw ApiException.forbidden("Only the member who created a task can delete it.");
         }

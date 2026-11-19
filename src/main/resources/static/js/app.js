@@ -416,7 +416,8 @@ function showBar(visible) {
   }
   const current = location.hash.startsWith('#/projects') ? 'nav-projects'
     : (location.hash.startsWith('#/dashboard') ? 'nav-dashboard'
-      : (location.hash === '#/workspaces' ? 'nav-workspaces' : null)); // the New workspace form belongs to the dashboard
+      : (location.hash.startsWith('#/workspaces') && location.hash !== '#/workspaces/new'
+        ? 'nav-workspaces' : null)); // the New workspace form belongs to the dashboard; Members (E-05) to Workspaces
   ['nav-dashboard', 'nav-projects', 'nav-workspaces'].forEach(id => {
     const link = document.getElementById(id);
     link.classList.toggle('on', id === current);
@@ -604,22 +605,82 @@ function signUpScreen() {
   }).catch(() => { /* not signed in */ });
 }
 
-// First screen right after sign-up (AC-22.8): a welcome message with no action, because workspaces and projects
-// cannot be created yet (FR-02 is not built; PD-24 stays pending for every other case).
+/** Text for a person with no workspace and no invitation (AC-22.8, PD-24 in part; decision QM, 2026-11-19). */
+function noWorkspaceYet() {
+  return h('div', { class: 'empty' },
+    h('strong', {}, 'You’re not in a workspace yet.'),
+    'Create one, or ask a Workspace Administrator to invite you.',
+    h('a', { class: 'btn primary', href: '#/workspaces/new' }, '+ New workspace'));
+}
+
+/**
+ * Pending invitations for the signed-in person, each with Accept (listMyInvitations, acceptInvitation; FR-03, PD-24
+ * and QM decided 2026-11-19). Resolves to null when there are none, so screens show nothing extra.
+ */
+async function myInvitationsPanel() {
+  const list = await api('GET', '/invitations');
+  if (!list.length) return null;
+  const banner = h('div', { 'aria-live': 'assertive' });
+  const rows = list.map(inv => {
+    const accept = h('button', { class: 'btn primary', type: 'button',
+      'aria-label': 'Accept the invitation to ' + inv.workspace_name, onclick: async () => {
+        accept.disabled = true;
+        banner.replaceChildren();
+        try {
+          const membership = await api('POST', '/invitations/' + encodeURIComponent(inv.invitation_id) + '/accept');
+          state.profile = null; // the new membership must be known everywhere
+          state.flash = 'You joined “' + membership.workspace_name + '” as ' + membership.role + '.';
+          go('#/workspaces');
+        } catch (err) {
+          if (err.status === 401) return;
+          banner.append(message(errorText(err, 'This invitation is no longer available.')));
+          accept.disabled = false;
+        }
+      } }, 'Accept');
+    return h('tr', {},
+      h('th', { scope: 'row' }, inv.workspace_name),
+      h('td', {}, inv.role),
+      h('td', {}, inv.invited_by_name),
+      h('td', {}, accept));
+  });
+  return h('section', { class: 'dash-section', 'aria-labelledby': 'my-invitations' },
+    h('h2', {}, h('span', { id: 'my-invitations' }, 'Pending invitations')),
+    banner,
+    h('div', { class: 'panel' }, h('div', { class: 'wrap' }, h('table', {},
+      h('caption', { class: 'skip' }, 'Invitations waiting for your answer'),
+      h('thead', {}, h('tr', {}, ['Workspace', 'Role', 'Invited by', 'Action'].map(t => h('th', { scope: 'col' }, t)))),
+      h('tbody', {}, rows)))));
+}
+
+/** myInvitationsPanel() for screens where the invitations are an extra: a failure there does not block the screen. */
+async function myInvitationsOrNothing() {
+  try {
+    return await myInvitationsPanel();
+  } catch (err) {
+    return err.status === 401 ? null : message('Your pending invitations could not be loaded. ' + errorText(err));
+  }
+}
+
+// First screen right after sign-up (AC-22.8; PD-24 in part, decided 2026-11-19, QM): pending invitations with Accept,
+// otherwise the suggestion to create a workspace or ask to be invited.
 async function welcomeScreen() {
+  const seq = screenSeq;
   await loadProfile();
+  const invitations = await myInvitationsOrNothing();
+  if (seq !== screenSeq) return;
   showBar(true);
   render(h('h1', {}, 'Welcome to Matriz, ' + state.profile.name),
-    h('div', { class: 'empty' },
-      h('strong', {}, 'Your account is ready.'),
-      'Workspaces and projects are not available yet.'));
+    invitations || noWorkspaceYet());
 }
 
 // Dashboard (INC-06 screen 2; docs/ui/README.md E-01 to E-20). Built only from existing views (UI-A6): the Projects
 // section E-12 to E-15 with progress and, per project, task counts by status (Q1 B). My tasks, notifications,
 // members, feedback and personal-data requests have no API yet and are left out (Q2). Every visit reloads the data.
 async function dashboardScreen() {
+  const seq = screenSeq;
   await loadProfile();
+  const invitations = await myInvitationsOrNothing(); // QM: pending invitations on the dashboard too
+  if (seq !== screenSeq) return;
   showBar(true);
   const total = h('span', { class: 'hint' });
   const headAction = h('span', {}); // E-14 beside the heading, once the list is known to be non-empty
@@ -642,7 +703,9 @@ async function dashboardScreen() {
 
   // E-21 "+ New workspace": any signed-in person (FR-02, US-02); moved here from the top bar on 2026-11-19.
   const newWorkspace = h('a', { class: 'btn secondary', href: '#/workspaces/new' }, '+ New workspace');
-  render(takeFlash(), h('h1', {}, 'Dashboard', newWorkspace), projects);
+  const noWorkspace = !(state.profile.memberships || []).length && !invitations;
+  render(takeFlash(), h('h1', {}, 'Dashboard', newWorkspace), invitations,
+    noWorkspace ? noWorkspaceYet() : projects);
 }
 
 /** The Projects screen address for a search and a page (page 0 and an empty search are left out). */
@@ -819,7 +882,9 @@ function taskSection(project, progress, progressText, params) {
     content: t => isPm || (writer && !isWa && t.owner_member_id === me.member_id),
     reassign: isPm || isWa,
     status: t => writer && t.owner_member_id === me.member_id,
-    remove: t => writer && t.created_by_member_id === me.member_id,
+    // A task whose creator was removed (no creator any more) can be deleted by Workspace Administrators and Project
+    // Managers (decided 2026-11-19, QE).
+    remove: t => writer && (t.created_by_member_id === me.member_id || (!t.created_by_member_id && (isPm || isWa))),
   };
   const filters = {
     status: TASK_STATUSES.includes(params.get('status')) ? params.get('status') : '',
@@ -1491,19 +1556,18 @@ function compareMemberships(a, b) {
 }
 
 // Workspaces screen (E-22; added 2026-11-19): every workspace the member belongs to, including those they created,
-// with their role (from /auth/me) and, on request, the active members (listWorkspaceMembers). The API has no rename,
-// delete, invite or leave operation yet, so the screen shows no such action.
+// with their role (from /auth/me), pending invitations with Accept (QM), and a link to each workspace's Members
+// screen (E-05, Q9).
 async function workspacesScreen() {
   const seq = screenSeq;
   state.profile = null; // always reload /auth/me here, so roles changed by someone else are current
   await loadProfile();
+  const invitations = await myInvitationsOrNothing();
   if (seq !== screenSeq) return;
   showBar(true);
   const memberships = (state.profile.memberships || []).slice().sort(compareMemberships);
   if (!memberships.length) {
-    render(takeFlash(), h('h1', {}, 'Workspaces'),
-      h('div', { class: 'empty' }, h('strong', {}, 'You do not belong to any workspace yet.'),
-        h('a', { href: '#/dashboard' }, 'Create one from the dashboard.')));
+    render(takeFlash(), h('h1', {}, 'Workspaces'), invitations, invitations ? null : noWorkspaceYet());
     return;
   }
   const rows = memberships.map(m => {
@@ -1529,16 +1593,303 @@ async function workspacesScreen() {
         }
       } }, 'Show members');
     members.append(show);
+    // E-05 Members screen (Q9): invitations and, for administrators, managing members. Named per workspace (NFR-06).
+    const manage = h('td', { class: 'actions-inline' },
+      h('a', { class: 'btn secondary', href: '#/workspaces/' + encodeURIComponent(m.workspace_id) + '/members',
+        'aria-label': 'Open the Members screen of ' + m.workspace_name }, 'Members screen'));
+    if (m.role === 'Workspace Administrator') { // Rename and Delete on E-22 (Q9), administrators only (Q1)
+      manage.append(
+        h('button', { class: 'btn secondary', type: 'button', 'aria-label': 'Rename ' + m.workspace_name,
+          onclick: () => renameWorkspaceDialog(m) }, 'Rename'),
+        h('button', { class: 'btn danger', type: 'button', 'aria-label': 'Delete ' + m.workspace_name,
+          onclick: () => deleteWorkspaceDialog(m) }, 'Delete'));
+    }
     return h('tr', {},
       h('th', { scope: 'row' }, m.workspace_name),
       h('td', {}, m.role),
-      members);
+      members,
+      manage);
   });
-  render(takeFlash(), h('h1', {}, 'Workspaces'),
+  render(takeFlash(), h('h1', {}, 'Workspaces'), invitations,
     h('div', { class: 'panel' }, h('div', { class: 'wrap' }, h('table', {},
       h('caption', { class: 'skip' }, 'Your workspaces'),
-      h('thead', {}, h('tr', {}, ['Workspace', 'Your role', 'Members'].map(t => h('th', { scope: 'col' }, t)))),
+      h('thead', {}, h('tr', {}, ['Workspace', 'Your role', 'Members', 'Manage'].map(t => h('th', { scope: 'col' }, t)))),
       h('tbody', {}, rows)))));
+}
+
+const ROLES = ['Workspace Administrator', 'Project Manager', 'Team Member', 'Viewer'];
+
+/**
+ * A modal dialog built for one use and removed when closed (same look as #confirm). run() is called on submit; when
+ * it resolves to true the dialog closes, otherwise it stays open (for example to show an error from the API).
+ * Escape and Cancel close it without changes (NFR-06: native <dialog> keeps focus inside and restores it).
+ */
+function openDialog(title, content, okLabel, okClass, run) {
+  const titleId = 'dlg-' + Math.random().toString(36).slice(2);
+  const error = h('div', { 'aria-live': 'assertive' });
+  const ok = h('button', { type: 'submit', class: 'btn ' + (okClass || 'primary') }, okLabel);
+  const cancel = h('button', { type: 'button', class: 'btn secondary', onclick: () => dialog.close() }, 'Cancel');
+  const form = h('form', { novalidate: true, onsubmit: e => {
+    e.preventDefault();
+    guarded(form, ok, async () => {
+      error.replaceChildren();
+      try {
+        if (await run(error)) dialog.close();
+      } catch (err) {
+        if (err.status === 401) { dialog.close(); return; }
+        error.append(message(errorText(err)));
+      }
+    });
+  } }, h('h2', { id: titleId }, title), content, error, h('div', { class: 'actions' }, cancel, ok));
+  const dialog = h('dialog', { 'aria-labelledby': titleId }, form);
+  dialog.addEventListener('close', () => dialog.remove());
+  document.body.append(dialog);
+  dialog.showModal();
+  return { dialog, ok };
+}
+
+/**
+ * Remove a member permanently (US-31, FR-03; decisions QA to QG, QR). What they own goes to the removing
+ * administrator; administrators removing themselves choose another active Workspace Administrator to take it over.
+ */
+function removeMemberDialog(base, me, member, list) {
+  const self = member.member_id === me.member_id;
+  const kit = formKit('remove');
+  const others = list.filter(x => x.role === 'Workspace Administrator' && x.member_id !== me.member_id);
+  const successor = h('select', { required: true }, h('option', { value: '' }, 'Choose an administrator'),
+    others.map(x => h('option', { value: x.member_id }, x.name)));
+  const content = h('div', {},
+    h('p', {}, self
+      ? 'You will leave “' + me.workspace_name + '” and lose access to it at once.'
+      : member.name + ' will be removed from “' + me.workspace_name + '”. Their tasks and projects will be '
+        + 'given to you, and what they wrote will be shown as “Former member”.'),
+    h('p', {}, 'This cannot be undone.'),
+    self && others.length ? kit.field('new_owner_member_id', 'Who takes over your tasks and projects (required)', successor) : null,
+    self && !others.length ? message('You are the only Workspace Administrator. Make another member a Workspace '
+      + 'Administrator first.') : null);
+  openDialog(self ? 'Leave this workspace?' : 'Remove ' + member.name + '?', content,
+    self ? 'Leave workspace' : 'Remove member', 'danger', async () => {
+      kit.clear();
+      let query = '';
+      if (self) {
+        if (!successor.value) {
+          kit.setError('new_owner_member_id', 'Choose the Workspace Administrator who takes over what you own.');
+          kit.focusFirstError();
+          return false;
+        }
+        query = '?new_owner_member_id=' + encodeURIComponent(successor.value);
+      }
+      try {
+        await api('DELETE', base + '/members/' + encodeURIComponent(member.member_id) + query);
+      } catch (err) {
+        if (err.status === 422 && kit.showServerErrors(err)) return false;
+        throw err;
+      }
+      state.profile = null;
+      state.flash = self ? 'You left “' + me.workspace_name + '”.' : member.name + ' was removed.';
+      if (self) go('#/workspaces');
+      else route();
+      return true;
+    });
+}
+
+/** Rename (US-30, FR-23): BR-01, same rule and messages as New workspace. */
+function renameWorkspaceDialog(m) {
+  const kit = formKit('rename');
+  const name = h('input', { type: 'text', required: true, maxlength: NAME_MAX + 20, value: m.workspace_name });
+  openDialog('Rename workspace', kit.field('name', 'Name (required)', name, NAME_MIN + ' to ' + NAME_MAX + ' characters.'),
+    'Save name', 'primary', async () => {
+      kit.clear();
+      const length = chars(name.value.trim());
+      if (length < NAME_MIN || length > NAME_MAX) {
+        kit.setError('name', 'The name must be ' + NAME_MIN + ' to ' + NAME_MAX + ' characters long.');
+        kit.focusFirstError();
+        return false;
+      }
+      try {
+        await api('PATCH', '/workspaces/' + encodeURIComponent(m.workspace_id), { name: name.value.trim() });
+      } catch (err) {
+        if (err.status === 422 && kit.showServerErrors(err)) return false;
+        throw err;
+      }
+      state.profile = null;
+      state.flash = 'Workspace renamed.';
+      go('#/workspaces');
+      return true;
+    });
+  name.select();
+}
+
+/**
+ * Delete (US-32, FR-24; decisions Q13, QN, QO): soft delete, confirmed by typing the exact name. The Delete button
+ * stays disabled until the typed text, trimmed, equals the name; the API checks it again.
+ */
+function deleteWorkspaceDialog(m) {
+  const kit = formKit('delete-ws');
+  const typed = h('input', { type: 'text', required: true, autocomplete: 'off' });
+  const content = h('div', {},
+    h('p', {}, '“' + m.workspace_name + '” and everything in it will be hidden from all members. '
+      + 'This cannot be undone in Matriz.'),
+    kit.field('confirm_name', 'Type the workspace name to confirm', typed, m.workspace_name));
+  const { ok } = openDialog('Delete workspace?', content, 'Delete workspace', 'danger', async () => {
+    try {
+      await api('DELETE', '/workspaces/' + encodeURIComponent(m.workspace_id), { confirm_name: typed.value.trim() });
+    } catch (err) {
+      if (err.status === 422 && kit.showServerErrors(err)) return false;
+      throw err;
+    }
+    state.profile = null;
+    state.flash = '“' + m.workspace_name + '” was deleted.';
+    go('#/workspaces');
+    return true;
+  });
+  ok.disabled = true;
+  typed.addEventListener('input', () => { ok.disabled = typed.value.trim() !== m.workspace_name; });
+  typed.focus();
+}
+
+// Members screen (E-05, opened from E-22; Q9 decided 2026-11-19). Every active member sees the list (AC-03.4); only
+// Workspace Administrators see Invite and the pending invitations with Cancel (FR-03, Q1, Q4).
+async function membersScreen(workspaceId) {
+  const seq = screenSeq;
+  state.profile = null;
+  await loadProfile();
+  if (seq !== screenSeq) return;
+  showBar(true);
+  const me = (state.profile.memberships || []).find(m => m.workspace_id === workspaceId);
+  const back = h('p', {}, h('a', { href: '#/workspaces' }, '← Workspaces'));
+  if (!me) {
+    render(back, h('h1', {}, 'Members'),
+      message('This workspace was not found, or you are no longer a member of it.'));
+    return;
+  }
+  const admin = me.role === 'Workspace Administrator';
+  const base = '/workspaces/' + encodeURIComponent(workspaceId);
+
+  const memberList = section('Members', null, async () => {
+    const list = await api('GET', base + '/members');
+    if (!admin) {
+      return h('div', { class: 'panel' }, h('div', { class: 'wrap' }, h('table', {},
+        h('caption', { class: 'skip' }, 'Members of ' + me.workspace_name),
+        h('thead', {}, h('tr', {}, ['Name', 'Role'].map(t => h('th', { scope: 'col' }, t)))),
+        h('tbody', {}, list.map(x => h('tr', {}, h('th', { scope: 'row' }, x.name), h('td', {}, x.role)))))));
+    }
+    // Administrators: change role (US-04) and remove (US-31) per member, also themselves (QG).
+    const status = h('div', { 'aria-live': 'polite' });
+    const rows = list.map(x => {
+      const self = x.member_id === me.member_id;
+      const label = x.name + (self ? ' (you)' : '');
+      const select = h('select', { 'aria-label': 'Role of ' + label },
+        ROLES.map(r => h('option', { value: r, selected: r === x.role }, r)));
+      const save = h('button', { class: 'btn secondary', type: 'button', 'aria-label': 'Save the role of ' + label,
+        onclick: async () => {
+          status.replaceChildren();
+          save.disabled = true;
+          try {
+            await api('PATCH', base + '/members/' + encodeURIComponent(x.member_id), { role: select.value });
+            state.flash = 'The role of ' + x.name + ' is now ' + select.value + '.';
+            route(); // reload: the caller may have changed their own role
+          } catch (err) {
+            if (err.status === 401) return;
+            status.append(message(errorText(err)));
+            select.value = x.role;
+            save.disabled = false;
+          }
+        } }, 'Save role');
+      const remove = h('button', { class: 'btn danger', type: 'button', 'aria-label': 'Remove ' + label,
+        onclick: () => removeMemberDialog(base, me, x, list) }, 'Remove');
+      return h('tr', {}, h('th', { scope: 'row' }, label), h('td', {}, select),
+        h('td', { class: 'actions-inline' }, save, remove));
+    });
+    return h('div', {}, status, h('div', { class: 'panel' }, h('div', { class: 'wrap' }, h('table', {},
+      h('caption', { class: 'skip' }, 'Members of ' + me.workspace_name),
+      h('thead', {}, h('tr', {}, ['Name', 'Role', 'Actions'].map(t => h('th', { scope: 'col' }, t)))),
+      h('tbody', {}, rows)))));
+  });
+
+  if (!admin) {
+    render(back, takeFlash(), h('h1', {}, 'Members of ' + me.workspace_name), memberList);
+    return;
+  }
+
+  const pendingBox = h('div', {});
+  const loadPending = async () => {
+    pendingBox.replaceChildren(loading('Loading…'));
+    try {
+      const list = await api('GET', base + '/invitations');
+      if (seq !== screenSeq) return;
+      if (!list.length) {
+        pendingBox.replaceChildren(h('p', { class: 'hint' }, 'No pending invitations.'));
+        return;
+      }
+      pendingBox.replaceChildren(h('div', { class: 'panel' }, h('div', { class: 'wrap' }, h('table', {},
+        h('caption', { class: 'skip' }, 'Pending invitations'),
+        h('thead', {}, h('tr', {}, ['Email', 'Role', 'Invited by', 'Sent', 'Action'].map(t => h('th', { scope: 'col' }, t)))),
+        h('tbody', {}, list.map(inv => {
+          const cancel = h('button', { class: 'btn secondary', type: 'button',
+            'aria-label': 'Cancel the invitation to ' + inv.email, onclick: async () => {
+              cancel.disabled = true;
+              try {
+                await api('DELETE', base + '/invitations/' + encodeURIComponent(inv.invitation_id));
+                await loadPending();
+              } catch (err) {
+                if (err.status === 401) return;
+                pendingBox.prepend(message(errorText(err, 'This invitation is no longer pending.')));
+                cancel.disabled = false;
+              }
+            } }, 'Cancel');
+          return h('tr', {}, h('th', { scope: 'row' }, inv.email), h('td', {}, inv.role),
+            h('td', {}, inv.invited_by_name), h('td', {}, formatDateTime(inv.created_at)), h('td', {}, cancel));
+        }))))));
+    } catch (err) {
+      if (err.status !== 401 && seq === screenSeq) pendingBox.replaceChildren(failure(err, loadPending));
+    }
+  };
+
+  // Invite form (US-03): email and role, with messages at each field (AC-03.2, AC-03.3, EC-01).
+  const kit = formKit('invite');
+  const email = h('input', { type: 'email', required: true, maxlength: 254, autocomplete: 'off' });
+  const role = h('select', { required: true }, h('option', { value: '' }, 'Choose a role'),
+    ROLES.map(r => h('option', { value: r }, r)));
+  const banner = h('div', { 'aria-live': 'assertive' });
+  const submit = h('button', { class: 'btn primary', type: 'submit' }, 'Send invitation');
+  const form = h('form', { class: 'panel', novalidate: true, onsubmit: e => {
+    e.preventDefault();
+    guarded(form, submit, async () => {
+      banner.replaceChildren();
+      kit.clear();
+      const value = email.value.trim();
+      if (!value || !/^[^@\s]+@[^@\s]+$/.test(value)) kit.setError('email', 'Enter a valid email address.');
+      if (!role.value) kit.setError('role', 'Choose one of the four roles.');
+      if (kit.focusFirstError()) {
+        banner.append(message('Check the highlighted fields.'));
+        return;
+      }
+      try {
+        const inv = await api('POST', base + '/invitations', { email: value, role: role.value });
+        banner.append(message('Invitation sent to ' + inv.email + '.', 'info'));
+        email.value = '';
+        role.value = '';
+        await loadPending();
+        email.focus();
+      } catch (err) {
+        if (err.status === 401) return;
+        const shown = (err.status === 422 || err.status === 409) && kit.showServerErrors(err);
+        banner.append(message(shown ? 'Check the highlighted fields.' : errorText(err, 'The workspace was not found.')));
+      }
+    });
+  } },
+  banner,
+  kit.field('email', 'Email address (required)', email),
+  kit.field('role', 'Role (required)', role),
+  h('div', { class: 'actions' }, submit));
+
+  render(back, takeFlash(), h('h1', {}, 'Members of ' + me.workspace_name), memberList,
+    h('section', { class: 'dash-section', 'aria-labelledby': 'invite-title' },
+      h('h2', {}, h('span', { id: 'invite-title' }, 'Invite a person')), form),
+    h('section', { class: 'dash-section', 'aria-labelledby': 'pending-title' },
+      h('h2', {}, h('span', { id: 'pending-title' }, 'Pending invitations')), pendingBox));
+  loadPending();
 }
 
 // New workspace (US-02, FR-02, BR-01): any signed-in person. The API makes the creator its Workspace Administrator.
@@ -1606,6 +1957,9 @@ async function route() {
     if (parts[0] === 'projects' && parts[2] === 'edit') return await projectFormScreen(parts[1]);
     if (parts[0] === 'workspaces' && parts.length === 1) return await workspacesScreen();
     if (parts[0] === 'workspaces' && parts[1] === 'new') return await workspaceFormScreen();
+    if (parts[0] === 'workspaces' && parts.length === 3 && parts[2] === 'members') {
+      return await membersScreen(decodeURIComponent(parts[1]));
+    }
     go(HOME);
   } catch (err) {
     if (err.status !== 401) render(failure(err, route));

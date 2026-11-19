@@ -23,7 +23,8 @@ class Comment {
     @Column(name = "task_id", nullable = false, updatable = false)
     private UUID taskId;
 
-    @Column(name = "author_member_id", nullable = false, updatable = false)
+    /** Empty when the author was removed from the workspace (V7, INC-18). */
+    @Column(name = "author_member_id", updatable = false)
     private UUID authorMemberId;
 
     @Column(nullable = false, updatable = false)

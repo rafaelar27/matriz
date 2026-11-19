@@ -5,6 +5,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.matriz.accesscontrol.Actor;
 import com.matriz.accesscontrol.Role;
 import com.matriz.shared.ApiException;
 
@@ -22,10 +23,12 @@ class WorkspaceService {
 
     private final WorkspaceRepository workspaces;
     private final MemberRepository members;
+    private final AdminGuard guard;
 
-    WorkspaceService(WorkspaceRepository workspaces, MemberRepository members) {
+    WorkspaceService(WorkspaceRepository workspaces, MemberRepository members, AdminGuard guard) {
         this.workspaces = workspaces;
         this.members = members;
+        this.guard = guard;
     }
 
     /** createWorkspace (US-02). */
@@ -37,6 +40,38 @@ class WorkspaceService {
         Workspace workspace = workspaces.save(new Workspace(name(body.name())));
         Member first = members.save(new Member(workspace, callerAccountId, Role.WORKSPACE_ADMINISTRATOR));
         return new WorkspaceView(workspace.getId(), workspace.getName(), first.getId(), first.getRole().label());
+    }
+
+    /** updateWorkspace (FR-23, INC-18): any active Workspace Administrator; the BR-01 name rule. */
+    @Transactional
+    WorkspaceSummary rename(Actor actor, UUID workspaceId, WorkspaceFields body) {
+        guard.lockAndRecheck(workspaceId, actor); // S-01: still an administrator inside this transaction
+        if (!body.has("name")) {
+            throw ApiException.validation(NOT_SAVED, "name", "A name is required.");
+        }
+        Workspace workspace = workspaces.findById(workspaceId).orElseThrow();
+        workspace.rename(name(body.name()));
+        return new WorkspaceSummary(workspace.getId(), workspace.getName());
+    }
+
+    /**
+     * deleteWorkspace (FR-24, INC-19): soft delete after the administrator typed the current name, compared after
+     * trimming and with letter case (decision QN). From then on every operation on the workspace gives 404.
+     */
+    @Transactional
+    void delete(Actor actor, UUID workspaceId, WorkspaceDeleteFields body) {
+        guard.lockAndRecheck(workspaceId, actor); // S-01
+        Workspace workspace = workspaces.findById(workspaceId).orElseThrow();
+        String typed = body.confirmName() == null ? "" : body.confirmName().trim();
+        if (!typed.equals(workspace.getName())) {
+            throw ApiException.validation("The workspace was not deleted.", "confirm_name",
+                    "Type the workspace's name exactly as shown.");
+        }
+        workspace.markDeleted();
+    }
+
+    /** openapi.yaml WorkspaceSummary. */
+    record WorkspaceSummary(UUID workspaceId, String name) {
     }
 
     /**

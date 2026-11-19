@@ -40,7 +40,8 @@ class Task {
     @Column(nullable = false)
     private TaskStatus status;
 
-    @Column(name = "created_by_member_id", nullable = false, updatable = false)
+    /** Empty when the creator was removed from the workspace (V7, INC-18). */
+    @Column(name = "created_by_member_id", updatable = false)
     private UUID createdByMemberId;
 
     protected Task() {

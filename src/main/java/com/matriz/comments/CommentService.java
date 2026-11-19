@@ -82,11 +82,13 @@ class CommentService {
         return caller;
     }
 
+    /** An author removed from the workspace has no member id any more (V7) and is shown as "Former member" (QR). */
     private List<CommentView> views(List<Comment> list) {
         Map<UUID, String> names = members.namesOf(list.stream().map(Comment::getAuthorMemberId)
-                .collect(Collectors.toSet()));
+                .filter(java.util.Objects::nonNull).collect(Collectors.toSet()));
         return list.stream().map(c -> new CommentView(c.getId(), c.getTaskId(), c.getAuthorMemberId(),
-                names.getOrDefault(c.getAuthorMemberId(), ""), c.getBody(), c.getCreatedAt())).toList();
+                c.getAuthorMemberId() == null ? "Former member" : names.getOrDefault(c.getAuthorMemberId(), ""),
+                c.getBody(), c.getCreatedAt())).toList();
     }
 
     /** A comment as returned by the API (openapi.yaml: Comment): no email or other account data. */
