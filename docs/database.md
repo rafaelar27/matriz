@@ -268,7 +268,7 @@ These are confirmed by the documentation. Not enforced in this delivery, because
 
 | ID | Rule | Source |
 |---|---|---|
-| BR-01 | Each account belongs to one person only. Any account holder can create a workspace, also one who already belongs to other workspaces. A workspace's name is required, trimmed, 3 to 100 characters long, and need not be unique; it is accepted as sent after trimming and the length check (decided 2026-11-19). An account can create any number of workspaces. The creator becomes its first member, as a Workspace Administrator, in the same transaction. | FR-01, FR-02, SP-07, decision log 2026-10-29 and 2026-11-19 |
+| BR-01 | Each account belongs to one person only. Any account holder can create a workspace, also one who already belongs to other workspaces. A workspace's name is required, trimmed, 3 to 100 characters long, and need not be unique; a name containing a NUL character (U+0000) is refused, because the database cannot store it, while numeric and boolean JSON names are accepted and stored as text (decided 2026-11-19). An account can create any number of workspaces. The creator becomes its first member, as a Workspace Administrator, in the same transaction. | FR-01, FR-02, SP-07, decision log 2026-10-29 and 2026-11-19 |
 | BR-02 | Workspace content is only available to signed-in, active members of that workspace. | FR-01, SP-01, SP-04 |
 | BR-03 | Each member holds exactly one of the four roles: Workspace Administrator, Project Manager, Team Member, Viewer. Workspace Administrators assign and change roles. | FR-04, AQ11 (confirmed) |
 | BR-04 | A workspace always keeps at least one active Workspace Administrator. Changes that would remove the last one are refused. | SP-07, EC-03 |

@@ -582,9 +582,11 @@ paths:
         (SP-07, R-02). The workspace is kept apart from all others (NFR-01).
 
         **Rules checked (422):** `name` is required and 3 to 100 characters
-        after trimming spaces (same rule as project names); no other fields
+        after trimming spaces (same rule as project names) and contains no NUL
+        character (U+0000), which the database cannot store; no other fields
         are sent (`workspace_id`, `role`, `account_id` and `member_id` cannot
-        be sent). Names need not be unique.
+        be sent). Names need not be unique. A name sent as a JSON number or
+        boolean is accepted and stored as text.
 
         The response has no `Location` header (decided 2026-11-19). The only
         403 is `csrf_invalid`: no role is checked.
@@ -616,7 +618,7 @@ paths:
         '422':
           description: |
             `name` missing, shorter than 3 or longer than 100 characters after
-            trimming, or a field that cannot be sent.
+            trimming, containing a NUL character, or a field that cannot be sent.
           content:
             application/json:
               schema:
@@ -1562,7 +1564,7 @@ components:
           type: string
           minLength: 3
           maxLength: 100
-          description: Required; 3 to 100 characters after trimming spaces.
+          description: Required; 3 to 100 characters after trimming spaces; no NUL character (U+0000). A JSON number or boolean is accepted and stored as text.
 
     CreatedWorkspace:
       type: object

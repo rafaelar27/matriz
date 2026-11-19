@@ -191,24 +191,13 @@ class WorkspaceApiTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("FR-02 · PROBE (no assertion on status): a name containing a NUL character; prints status, body and rows saved")
-    void probeNulCharacterInName() throws Exception {
+    @DisplayName("FR-02 · a name containing a NUL character (inside, at the start or end, or in a 100-character name) is refused 422 on name, nothing saved")
+    void nulCharacterInNameRefused() throws Exception {
         MockHttpSession ben = signIn("ben@example.com");
-        long w = workspaces();
-        String result;
-        try {
-            var r = create(ben, "{\"name\":\"ab\\u0000cd\"}").andReturn().getResponse();
-            result = r.getStatus() + " " + r.getContentAsString();
-        } catch (Exception e) {
-            result = "exception " + e;
-        }
-        String saved;
-        try {
-            saved = String.valueOf(workspaces() - w);
-        } catch (Exception e) {
-            saved = "not countable (transaction aborted): " + e.getClass().getSimpleName();
-        }
-        System.out.println("PROBE NUL name: " + result + " | workspaces saved: " + saved);
+        assertRefusedAndNothingSaved(ben, "{\"name\":\"ab\\u0000cd\"}", "name");
+        assertRefusedAndNothingSaved(ben, "{\"name\":\"\\u0000abc\"}", "name");
+        assertRefusedAndNothingSaved(ben, "{\"name\":\"abc\\u0000\"}", "name");
+        assertRefusedAndNothingSaved(ben, "{\"name\":\"" + "n".repeat(49) + "\\u0000" + "n".repeat(50) + "\"}", "name");
     }
 
     @Test

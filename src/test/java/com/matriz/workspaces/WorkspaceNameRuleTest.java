@@ -75,4 +75,24 @@ class WorkspaceNameRuleTest {
     void returnsTrimmed() {
         assertThat(WorkspaceService.name("  Harbor Works  ")).isEqualTo("Harbor Works");
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ab\u0000cd", "\u0000abc", "abc\u0000", "  abc\u0000  ", "\u0000\u0000\u0000"})
+    @DisplayName("FR-02 · a workspace name containing a NUL character is refused 422 on name, even when otherwise valid")
+    void nulRefused(String value) {
+        assertRefused(value);
+    }
+
+    @Test
+    @DisplayName("FR-02 · a NUL character inside a name of exactly 100 characters is refused 422 on name")
+    void nulInMaxLengthNameRefused() {
+        assertRefused("n".repeat(49) + "\u0000" + "n".repeat(50));
+    }
+
+    @Test
+    @DisplayName("FR-02 · numeric-looking and special-character names without NUL still pass")
+    void nameWithoutNulStillPasses() {
+        assertThat(WorkspaceService.name("12345")).isEqualTo("12345");
+        assertThat(WorkspaceService.name("a\tb c")).isEqualTo("a\tb c");
+    }
 }
