@@ -30,7 +30,7 @@ The IDs E-01 to E-20 are the labels shown on the wireframe; E-21 is not on it (a
 
 | ID | Element | Purpose | Related FR/US | Data shown (entity.attribute) | Visible to (user type) |
 |---|---|---|---|---|---|
-| E-01 | Workspace name (top bar) | Shows the names of every workspace the member belongs to. Text only: no workspace switcher, because PD-16 is pending. | FR-02, NFR-01; US-02 | Workspace.name | All |
+| E-01 | Workspace name (top bar) | **Withdrawn on 2026-11-19** by the project decision-maker: the header no longer shows workspace names. Before, it showed the names of every workspace the member belongs to, as text, with no workspace switcher (PD-16). The ID is not reused (D4); the wireframe still shows it. | FR-02, NFR-01; US-02 | Workspace.name | All |
 | E-02 | Main menu: Dashboard | Returns to this screen; marked as current. | FR-01; US-01 | — | All |
 | E-03 | Main menu: Projects | Opens the full project list. | FR-08; US-09, US-19 | — | All |
 | E-04 | Main menu: My tasks | Opens the full "My tasks" list. | FR-14; US-13 | — | All |
@@ -123,7 +123,7 @@ These are not confirmed requirements.
 | PD-08 | Where tasks without a due date are placed in My tasks, and which time zone decides "today" for the overdue label. |
 | PD-10 | How the owner of a task or project is shown when that member has been deactivated. Decided in part on 2026-11-12 (see the [decision log](../constraints.md#decision-log)): in the project form, an owner who is no longer an active member is shown as "Former member", without a name, and is kept unless someone else is chosen. The project list, project detail and dashboard keep showing a deactivated owner's name until the rest of PD-10 is decided. Built on 2026-11-16 (INC-06 part 3b). |
 | PD-13 | The launch language for all labels. Labels are in English here as placeholders. |
-| PD-16 | Whether a workspace switcher is needed in the top bar (E-01). |
+| PD-16 | Whether a workspace switcher is needed in the top bar (E-01, withdrawn on 2026-11-19; the header shows no workspace names). |
 | PD-17 | Whether a Viewer who owns a task can change its status from the task detail. |
 | PD-22 | Whether notifications can be marked as read, which would allow an unread count (UI-A5). |
 | PD-24 | What a signed-in person who belongs to no workspace sees instead of the dashboard (FR-02, PD-16). |

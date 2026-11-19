@@ -19,7 +19,7 @@ class AccountUserDetailsService implements UserDetailsService {
     @Override
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String email) {
-        return accounts.findByEmail(email)
+        return accounts.findByEmailIgnoreCase(SignUpService.normalizeEmail(email))
                 .map(SignedInAccount::new)
                 .orElseThrow(() -> new UsernameNotFoundException("No account"));
     }

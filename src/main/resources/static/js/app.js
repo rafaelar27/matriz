@@ -224,10 +224,26 @@ function section(title, aside, load) {
 }
 
 /** Counts per status as text tags (never colour alone, NFR-06), in the API's order, with Portuguese labels. */
+const STATUS_CLASSES = { 'To do': 's-todo', 'In progress': 's-progress', 'Done': 's-done' };
+
+/** A status label with its visual style; the text is always present (NFR-06). */
+function statusTag(status, text) {
+  return h('span', { class: 'tag ' + (STATUS_CLASSES[status] || '') }, text);
+}
+
+/** The progress text plus a decorative bar, hidden from assistive technology because the text carries the meaning (FR-18). */
+function progressView(progress) {
+  const pct = progress.total > 0 ? Math.round(progress.done / progress.total * 100) : 0;
+  const fill = h('span', { class: 'bar-fill' });
+  fill.style.width = pct + '%';
+  return [h('span', { class: 'progress-text' }, progressLabel(progress)),
+    h('span', { class: 'bar-track', 'aria-hidden': 'true' }, fill)];
+}
+
 function statusCountTags(statusCounts) {
   const by = {};
   (statusCounts || []).forEach(c => { by[c.status] = c.count; });
-  return h('span', { class: 'status-counts' }, TASK_STATUSES.map(s => h('span', { class: 'tag' }, statusLabel(s) + ': ' + (by[s] || 0))));
+  return h('span', { class: 'status-counts' }, TASK_STATUSES.map(s => statusTag(s, statusLabel(s) + ': ' + (by[s] || 0))));
 }
 
 /**
@@ -275,7 +291,7 @@ function projectGrid(items, progress, counts) {
       h('td', {}, p.workspace_name),
       h('td', {}, p.owner_name || '—'),
       h('td', {}, formatDate(p.due_date)),
-      h('td', {}, pr ? progressLabel(pr) : '—'),
+      h('td', {}, pr ? progressView(pr) : '—'),
       counts ? h('td', {}, counts[p.project_id] ? statusCountTags(counts[p.project_id]) : '—') : null);
   });
   return h('div', { class: 'wrap' }, h('table', {},
@@ -397,8 +413,6 @@ function showBar(visible) {
   bar.hidden = !visible;
   if (visible && state.profile) {
     document.getElementById('acct-button').textContent = state.profile.name + ' ▾';
-    const names = [...new Set((state.profile.memberships || []).map(m => m.workspace_name))];
-    document.getElementById('workspace-names').textContent = names.join(' · ');
   }
   const current = location.hash.startsWith('#/projects') ? 'nav-projects'
     : (location.hash.startsWith('#/dashboard') ? 'nav-dashboard'
@@ -485,7 +499,8 @@ function signInScreen() {
   banner,
   kit.field('email', 'Email', email),
   kit.field('password', 'Password', password),
-  submit);
+  submit,
+  h('p', { class: 'hint' }, 'New to Matriz? ', h('a', { href: '#/sign-up' }, 'Create an account')));
   render(h('div', { class: 'narrow' }, notice, form));
   email.focus();
 
@@ -498,6 +513,106 @@ function signInScreen() {
       go(HOME);
     }
   }).catch(() => { /* not signed in */ });
+}
+
+// Sign up (US-22, FR-01, SP-01, NFR-11). The same form parts as sign-in. The browser checks only what the contract
+// states (name 1 to 80 characters, an email with "@", password 12 to 64 characters and at most 72 bytes); the API
+// decides. After a failure the name and email stay and the password is cleared. One request at a time (guarded).
+// After success the person is signed in and sees the welcome message (decision log 2026-11-18).
+const PRIVACY_NOTICE = 'To run your account, Matriz stores your name, your email address and a protected form of '
+  + 'your password (a hash, never the password itself). Your name is shown to the other members of your workspaces, '
+  + 'for example as a task owner or a comment author. Matriz uses this data to run your account and your work in '
+  + 'Matriz. There is not yet a way inside Matriz to ask for a copy or the deletion of your data; it will come with '
+  + 'personal-data requests (FR-21).';
+const PASSWORD_MIN = 12;
+const PASSWORD_MAX = 64;
+const PASSWORD_MAX_BYTES = 72;
+const ACCOUNT_NAME_MAX = 80;
+
+function signUpScreen() {
+  showBar(false);
+  const kit = formKit('signup');
+  const banner = h('div', { 'aria-live': 'assertive' });
+  const name = h('input', { type: 'text', autocomplete: 'name', required: true });
+  const email = h('input', { type: 'email', autocomplete: 'email', required: true, spellcheck: 'false' });
+  const password = h('input', { type: 'password', autocomplete: 'new-password', required: true });
+  const submit = h('button', { class: 'btn primary', type: 'submit' }, 'Create account');
+
+  const validate = () => {
+    const nameValue = name.value.trim();
+    const nameLength = [...nameValue].length;
+    const nameError = nameLength < 1 ? 'Enter your name.'
+      : (nameLength > ACCOUNT_NAME_MAX ? 'The name must be at most ' + ACCOUNT_NAME_MAX + ' characters.' : '');
+    const emailValue = email.value.trim();
+    const emailError = !emailValue ? 'Enter your email.'
+      : (!emailValue.includes('@') ? 'Enter a valid email address.' : '');
+    const length = [...password.value].length;
+    const passwordError = length < PASSWORD_MIN || length > PASSWORD_MAX
+      ? 'The password must be ' + PASSWORD_MIN + ' to ' + PASSWORD_MAX + ' characters long.'
+      : (new TextEncoder().encode(password.value).length > PASSWORD_MAX_BYTES
+        ? 'The password is too long: at most ' + PASSWORD_MAX_BYTES + ' bytes.' : '');
+    kit.setError('name', nameError);
+    kit.setError('email', emailError);
+    kit.setError('password', passwordError);
+    return !nameError && !emailError && !passwordError;
+  };
+
+  const form = h('form', { class: 'panel', novalidate: true, 'aria-describedby': 'signup-privacy', onsubmit: e => {
+    e.preventDefault();
+    banner.replaceChildren();
+    kit.clear();
+    if (!validate()) {
+      kit.focusFirstError();
+      return;
+    }
+    guarded(form, submit, async () => {
+      try {
+        await ensureCsrfToken();
+        state.profile = await api('POST', '/auth/sign-up',
+          { name: name.value.trim(), email: email.value.trim(), password: password.value });
+        state.returnTo = null;
+        go('#/welcome');
+      } catch (err) {
+        password.value = '';
+        if (err.status === 409 && err.body && err.body.code === 'conflict') {
+          go(HOME); // already signed in
+        } else if (!kit.showServerErrors(err)) {
+          banner.append(message(errorText(err)));
+          password.focus();
+        }
+      }
+    });
+  } },
+  h('h1', {}, 'Create your Matriz account'),
+  banner,
+  kit.field('name', 'Name', name),
+  kit.field('email', 'Email', email),
+  kit.field('password', 'Password', password,
+    PASSWORD_MIN + ' to ' + PASSWORD_MAX + ' characters. Any characters are allowed.'),
+  h('p', { class: 'hint', id: 'signup-privacy' }, h('strong', {}, 'Privacy. '), PRIVACY_NOTICE),
+  submit,
+  h('p', { class: 'hint' }, 'Already have an account? ', h('a', { href: '#/sign-in' }, 'Sign in')));
+  render(h('div', { class: 'narrow' }, form));
+  name.focus();
+
+  // Someone who is already signed in does not need this screen (the API would refuse the request, EC-15).
+  api('GET', '/auth/me', undefined, { quiet: true }).then(profile => {
+    if (location.hash.startsWith('#/sign-up') && !busyForms.has(form)) {
+      state.profile = profile;
+      go(HOME);
+    }
+  }).catch(() => { /* not signed in */ });
+}
+
+// First screen right after sign-up (AC-22.8): a welcome message with no action, because workspaces and projects
+// cannot be created yet (FR-02 is not built; PD-24 stays pending for every other case).
+async function welcomeScreen() {
+  await loadProfile();
+  showBar(true);
+  render(h('h1', {}, 'Welcome to Matriz, ' + state.profile.name),
+    h('div', { class: 'empty' },
+      h('strong', {}, 'Your account is ready.'),
+      'Workspaces and projects are not available yet.'));
 }
 
 // Dashboard (INC-06 screen 2; docs/ui/README.md E-01 to E-20). Built only from existing views (UI-A6): the Projects
@@ -629,7 +744,7 @@ async function projectDetailScreen(id, params) {
   const deleteButton = manage ? h('button', { class: 'btn danger', type: 'button', onclick: () => confirmDelete(project, progress) },
     'Delete project') : null;
   // Updated in place by the task section after every task change, so the figure never needs a reload.
-  const progressText = h('dd', { id: 'project-progress' }, progressLabel(progress));
+  const progressText = h('dd', { id: 'project-progress' }, progressView(progress));
   render(
     takeFlash(),
     h('p', {}, h('a', { href: '#/projects' }, '← Projects')),
@@ -752,7 +867,7 @@ function taskSection(project, progress, progressText, params) {
     counts.replaceChildren(statusCountTags(list));
     progress.done = by['Done'] || 0;
     progress.total = list.reduce((n, c) => n + c.count, 0);
-    progressText.textContent = progressLabel(progress);
+    progressText.replaceChildren(...progressView(progress));
   };
 
   const refresh = async () => {
@@ -808,7 +923,7 @@ function taskSection(project, progress, progressText, params) {
       h('td', {}, h('button', { class: 'link', type: 'button', onclick: () => openDetails(t) }, t.title)),
       h('td', {}, t.owner_name || '—'),
       h('td', {}, formatDate(t.due_date)),
-      h('td', {}, can.status(t) ? statusSelect(t) : h('span', { class: 'tag' }, statusLabel(t.status))),
+      h('td', {}, can.status(t) ? statusSelect(t) : statusTag(t.status, statusLabel(t.status))),
       h('td', {}, h('div', { class: 'row-actions' },
         can.edit(t) ? h('button', { class: 'btn secondary', type: 'button', 'aria-label': 'Edit “' + t.title + '”',
           onclick: () => openForm(t) }, 'Edit') : null,
@@ -865,7 +980,7 @@ function taskSection(project, progress, progressText, params) {
       h('dl', { class: 'facts' },
         h('dt', {}, 'Owner'), h('dd', {}, task.owner_name || '—'),
         h('dt', {}, 'Due date'), h('dd', {}, formatDate(task.due_date)),
-        h('dt', {}, 'Status'), h('dd', {}, statusLabel(task.status))),
+        h('dt', {}, 'Status'), h('dd', {}, statusTag(task.status, statusLabel(task.status)))),
       h('p', { class: 'description' }, task.description || 'No description.'),
       assigneeArea(task),
       commentArea(task),
@@ -1419,6 +1534,8 @@ async function route() {
   const parts = path.split('/').filter(Boolean);
   try {
     if (parts[0] === 'sign-in') return signInScreen();
+    if (parts[0] === 'sign-up') return signUpScreen();
+    if (parts[0] === 'welcome' && parts.length === 1) return await welcomeScreen();
     if (parts[0] === 'dashboard' && parts.length === 1) return await dashboardScreen();
     if (parts[0] === 'projects' && parts.length === 1) return await projectsScreen(params);
     if (parts[0] === 'projects' && parts[1] === 'new') return await projectFormScreen(null);

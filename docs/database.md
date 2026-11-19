@@ -23,7 +23,7 @@ Attribute types are generic: `id` (a unique identifier), `string` (short text), 
 
 | Entity | Description | Owning component | Related FR / US |
 |---|---|---|---|
-| **Account** | A person's login identity. One account belongs to one person. | CMP-01 Accounts and Sign-in | FR-01; US-01 |
+| **Account** | A person's login identity. One account belongs to one person. | CMP-01 Accounts and Sign-in | FR-01; US-01, US-22 |
 | **Workspace** | An organization's space, holding its own projects and members. | CMP-02 Workspaces and Members | FR-02; US-02 |
 | **Member** | An account's membership of one workspace, with one role and a status. Resolves the many-to-many relationship between Account and Workspace. | CMP-02 Workspaces and Members | FR-03, FR-04, FR-05; US-03, US-04, US-05, US-19 |
 | **Invitation** | An invitation, sent by email address, to join a workspace with a given role. | CMP-02 Workspaces and Members | FR-03, FR-04; US-03 |
@@ -108,9 +108,9 @@ Attribute types are generic: `id` (a unique identifier), `string` (short text), 
 | Attribute | Type | Key | Required | Description |
 |---|---|---|---|---|
 | account_id | id | PK | Yes | Identifier of the account. |
-| name | string | | Yes | The person's name, shown as task owner and comment author (FR-13, FR-16). **Personal data.** Required: DA-02. |
-| email | string | UK | Yes | The person's email address. Used to match invitations to people (FR-03, EC-01). **Personal data.** Uniqueness: DA-01. |
-| password_hash | string | | Yes | BCrypt hash of the account's password (TD-03, decided 2026-11-12). Never the password itself; never returned in responses or written to logs (SP-01, AGENTS.md C2). |
+| name | string | | Yes | The person's name, shown as task owner and comment author (FR-13, FR-16). Trimmed, 1 to 80 characters, no control characters (BR-24). **Personal data.** Required: DA-02. |
+| email | string | UK | Yes | The person's email address. Used to match invitations to people (FR-03, EC-01). Stored trimmed and in lower case, printable ASCII only, at most 254 characters, unique ignoring case; migration V5 adds the unique index `account_email_lower_uk` on `lower(email)` and `account_email_uk` stays (BR-24). **Personal data.** Uniqueness: DA-01. |
+| password_hash | string | | Yes | BCrypt hash of the account's password (TD-03, decided 2026-11-12). Never the password itself; never returned in responses or written to logs (SP-01, AGENTS.md C2). The password it comes from is 12 to 64 characters and at most 72 UTF-8 bytes, not trimmed, with no composition rules (SP-10). |
 
 ### Workspace
 
@@ -152,6 +152,8 @@ Attribute types are generic: `id` (a unique identifier), `string` (short text), 
 | start_date | date | | No (DA-03) | The project's start date, not after the due date when both are given (FR-06, BR-21). |
 | due_date | date | | No (DA-03) | The project's due date, not before the start date when both are given (FR-06, FR-08, BR-21). |
 | is_archived | boolean | | Yes | Whether the project has been archived (FR-06, US-07). What archiving changes: PD-05 (DA-11). |
+
+Migration V5 (INC-12) adds the unique index `account_email_lower_uk` on `lower(account.email)`. It changes no rows and needs no extension. Its precondition is that no two accounts have emails that differ only by case; if there are two, the migration fails as a whole and changes nothing, and the project decision-maker resolves the pair first. The application stores new emails in lower case and looks accounts up with `lower(email)` on both sides (BR-24). Java and PostgreSQL may lower-case some non-ASCII characters differently, which does not matter because emails are printable ASCII only.
 
 Migration V4 makes `owner_member_id` required (NOT NULL) and adds the check constraint `project_date_order_ck` (`start_date IS NULL OR due_date IS NULL OR start_date <= due_date`). That the owner is an active member of the project's workspace spans rows, so CMP-04 Projects checks it when the owner is chosen (BR-23, BR-18).
 
@@ -291,6 +293,7 @@ These are confirmed by the documentation. Not enforced in this delivery, because
 | BR-21 | A Project Manager or a Workspace Administrator of the workspace (Workspace Administrators since 2026-11-19, PD-03 in part) can create, edit and delete a project. Deleting it also deletes its project members and its tasks with their comments and notifications, and cannot be undone. A project's name is 3 to 100 characters long and its description at most 1000 characters. When both are given, a project's start date is not after its due date. The creator of a project becomes one of its project members. | FR-06, US-27, decision log 2026-11-12 and 2026-11-19 |
 | BR-22 | A task can have any number of assignees besides its owner. Only active members of the task's project can be assigned, each at most once per task. Assignments do not change the owner. | FR-22, US-29, decision log 2026-11-12 |
 | BR-23 | Each project has exactly one owner: its creator unless another active member of the project's workspace is chosen. The owner must be an active member of that workspace when chosen; an empty owner is refused. | FR-06, decision log 2026-11-12 |
+| BR-24 | An account's name is trimmed and 1 to 80 characters long. Its email address is trimmed, printable ASCII only, at most 254 characters, stored in lower case and unique ignoring case; sign-in matches the email the same way. A password is 12 to 64 characters and at most 72 UTF-8 bytes, is not trimmed and has no composition rules. A new account has no membership and no role. | FR-01, US-22, SP-10, decision log 2026-11-18 |
 
 ## Assumptions to confirm
 
@@ -298,8 +301,8 @@ These are not confirmed. Each one must be confirmed or replaced by the project d
 
 | ID | Assumption | Rationale | Impact if wrong |
 |---|---|---|---|
-| DA-01 | An account's email address is unique, and invitations are matched to people by email address. | EC-01 needs to recognise that an address "already belongs to a member"; FR-03 invites by email. | Matching invitations to accounts would need another identifier; Account.email would lose its UK. |
-| DA-02 | Account name and Workspace name are required. *Confirmed for the Workspace name on 2026-11-19:* required, 3 to 100 characters after trimming (BR-01). Still assumed for the Account name. | Owners and authors must be shown by name (FR-13, FR-16); AQ23 (**assumption**) lists names among stored data. | The attributes become optional, and lists need a fallback display. |
+| DA-01 | *Confirmed 2026-11-18 (decision log); unique ignoring upper and lower case, BR-24.* An account's email address is unique, and invitations are matched to people by email address. | EC-01 needs to recognise that an address "already belongs to a member"; FR-03 invites by email. | Matching invitations to accounts would need another identifier; Account.email would lose its UK. |
+| DA-02 | *Confirmed 2026-11-18 (decision log) for the Account name, which is also 1 to 80 characters after trimming (BR-24). Confirmed for the Workspace name on 2026-11-19:* required, 3 to 100 characters after trimming (BR-01). Account name and Workspace name are required. | Owners and authors must be shown by name (FR-13, FR-16); AQ23 (**assumption**) lists names among stored data. | The attributes become optional, and lists need a fallback display. |
 | DA-03 | *Rejected in part 2026-11-12:* a project always has an owner (see the [decision log](constraints.md#decision-log); enforced by migration V4 and CMP-04 Projects since INC-07, BR-23). Still assumed: only a project's name is required; description, start date and due date are optional. | FR-06 lists the fields but not which are required (comparable to PD-04 for tasks). | Making a field required changes it from optional to required, as happened for the owner (R-06 became 1 to 0..*, INC-07). |
 | DA-04 | A task's description and due date are optional until PD-04 is decided. | Optional fits both outcomes of PD-04; EC-06 already covers tasks without a due date. | If PD-04 makes them required, the attributes become required; no structural change. |
 | DA-05 | Deleting a task also deletes its comments and notifications. | FR-09 allows deletion and AC-17.3 removes the task from the count; nothing suggests keeping orphan comments. | If they must be kept, Comment and Notification need to survive without their task, and R-12 and R-15 become optional on the task side. |
@@ -316,7 +319,7 @@ The model also relies on AQ23 (stored data is moderately confidential, with no p
 
 | Item | Attributes or entities | Implication | Reference |
 |---|---|---|---|
-| Personal data of members | Account.name, Account.email | Personal data under strict data-protection rules. Must be included in a copy request and handled in a deletion request. | SP-05, NFR-02, FR-21, AQ23, AQ24 |
+| Personal data of members | Account.name, Account.email | Personal data under strict data-protection rules. Must be included in a copy request and handled in a deletion request. A privacy notice is shown at sign-up (decision log 2026-11-18); there is no data-deletion channel until FR-21 is built (accepted risk, PD-19). | SP-05, NFR-02, FR-21, AQ23, AQ24 |
 | Personal data of non-members | Invitation.email | Stored for people who may never join. How long pending invitations are kept is open (PD-09). | NFR-02, SP-05 |
 | Free text written by users | Project.description, Task.title, Task.description, Comment.body, Feedback.message | May contain personal data typed by users. Relevant to copy and deletion requests (PD-18). | FR-21, PD-18 |
 | Personal-data requests | PersonalDataRequest | Sensitive in itself. Which support staff can access it, and how the requester is verified, is pending (PD-19). | FR-21, SP-05, PD-19, TD-09 |
@@ -333,7 +336,7 @@ The ER diagram is kept in a separate file: [database-diagram.md](database-diagra
 
 ### Assumptions made in this model
 
-DA-01 to DA-11 above need confirmation, except DA-08 (superseded on 2026-11-12) and the owner part of DA-03 (rejected on 2026-11-12). DA-03 (description and dates), DA-05 and DA-06 were proposed during planning and not yet answered.
+DA-01 to DA-11 above need confirmation, except DA-01 and the Account name part of DA-02 (confirmed 2026-11-18), DA-08 (superseded on 2026-11-12) and the owner part of DA-03 (rejected on 2026-11-12). DA-03 (description and dates), DA-05 and DA-06 were proposed during planning and not yet answered.
 
 ### Pending product decisions that affect the model
 

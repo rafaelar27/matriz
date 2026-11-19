@@ -48,7 +48,7 @@ Priorities use MoSCoW: **Must have / Should have / Could have / Won't have (for 
 
 | ID | Requirement | User type(s) | Source feature | Priority |
 |---|---|---|---|---|
-| FR-01 | Users can create a personal account and sign in. Each account belongs to one person only. Workspace content is only available to signed-in members. | All user types | F01 Sign up and sign in | Must have |
+| FR-01 | Anyone can create a personal account with a name, an email address and a password, and is signed in right after (decided 2026-11-18). Each account belongs to one person only, and an email address can belong to one account only, ignoring upper and lower case. A new account belongs to no workspace and has no role. Users sign in with their email address and password. Workspace content is only available to signed-in members. Verifying the email address and resetting a forgotten password are pending decisions [PD-25](constraints.md#pending-product-decisions) and [PD-26](constraints.md#pending-product-decisions). | All user types | F01 Sign up and sign in | Must have |
 | FR-02 | Any user with an account can create a workspace for an organization. Each workspace holds its own projects and members. | Workspace Administrator | F02 Workspace creation | Must have |
 | FR-03 | Workspace Administrators and Project Managers can invite people to the workspace by email address. Members who leave can be deactivated, after which they can no longer access the workspace. Workspace Administrators can deactivate members; whether Project Managers can also do so is pending decision [PD-02](constraints.md#pending-product-decisions). | Workspace Administrator, Project Manager | F03 Invite and remove members | Must have |
 | FR-04 | Each member holds one of four roles: Workspace Administrator, Project Manager, Team Member or Viewer. The role determines what the member can see and change. Workspace Administrators assign and change roles. | Workspace Administrator | F04 Roles and permissions | Must have |
@@ -87,6 +87,7 @@ All non-functional requirements are based on assumptions and must be confirmed. 
 | NFR-08 | **Primary use on computers at work.** | Pass/fail: every MVP function can be used on a computer. Comfortable phone use is outside the initial scope (F50). Offline use is not planned (F51). | Assumption AQ26 |
 | NFR-09 | **One interface language at launch.** | Pass/fail: the whole interface is available in the launch language. The choice of language is pending decision PD-13. | Assumption AQ10 |
 | NFR-10 | **Data sensitivity.** Matriz stores moderately confidential business information and no payment data in the MVP. | Pass/fail: the MVP collects no payment details. | Assumption AQ23 |
+| NFR-11 | **Abuse protection of sign-up and sign-in.** Sign-up is limited to 5 requests per client IP address per hour. Failed sign-ins are limited to 10 per client IP address and email address, and to 50 per client IP address, each per 15 minutes. A request over a limit is refused with 429 `too_many_requests` and a `Retry-After` header. The limits are kept in memory (decided 2026-11-18). | Pass/fail: the sixth sign-up request from one address within an hour is refused; after 10 failed sign-ins for the same address and email, or 50 from the same address, within 15 minutes, the next sign-in request is refused; both with 429 and a `Retry-After` header. How the client address is read behind a proxy is pending (TD-13). | Decision log 2026-11-18; assumption AQ23 |
 
 Security and privacy aspects of these requirements are summarized in [constraints.md](constraints.md#security-and-privacy-requirements).
 
@@ -94,7 +95,7 @@ Security and privacy aspects of these requirements are summarized in [constraint
 
 **Core value:** a work team can see in one place what needs to be done, who is responsible, by when, and how far each project has progressed.
 
-**Included:** FR-01 to FR-22. That is **19 Must have** requirements plus **3 Should have** requirements (FR-05 Read-only access, FR-15 Filter tasks and FR-20 Send feedback). All non-functional requirements (NFR-01 to NFR-10) apply to the MVP.
+**Included:** FR-01 to FR-22. That is **19 Must have** requirements plus **3 Should have** requirements (FR-05 Read-only access, FR-15 Filter tasks and FR-20 Send feedback). All non-functional requirements (NFR-01 to NFR-11) apply to the MVP.
 
 **Success criterion:** OBJ-05, meaning most pilot teams keep using Matriz for their real projects after three months.
 

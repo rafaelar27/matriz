@@ -79,9 +79,6 @@ test('AC-10.1 · sign in, open a project, create a task and see it in the list',
     await expect(page).toHaveURL(/#\/dashboard$/);
     await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible();
     await expect(page.getByRole('button', { name: /^Ana Demo/ })).toBeVisible();
-    const banner = page.getByRole('banner');
-    await expect(banner).toContainText('Acme Studio');
-    await expect(banner).toContainText('Northwind Lab');
   });
 
   await test.step('Open the project: Tasks section and + New task (FR-08, FR-13)', async () => {
