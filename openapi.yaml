@@ -372,9 +372,11 @@ paths:
       description: |
         Creates a project in one of the caller's workspaces (US-06, FR-06).
 
-        **Who can perform it:** an active Project Manager of that workspace.
-        Team Members and Viewers are refused (FR-05, FR-06). Workspace
-        Administrators are refused until PD-03 is decided (provisional).
+        **Who can perform it:** an active Project Manager or Workspace
+        Administrator of that workspace (Workspace Administrators decided
+        2026-11-19, PD-03 in part, so the creator of a new workspace can add
+        projects). Team Members and Viewers are refused (FR-05, FR-06).
+        Editing and deleting projects stay with Project Managers.
 
         **Set by the server:** `is_archived` is false, and the caller becomes
         a member of the new project (FR-07, decided 2026-11-12). The owner is
