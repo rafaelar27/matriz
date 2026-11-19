@@ -21,7 +21,7 @@ import com.jayway.jsonpath.JsonPath;
 
 /**
  * Task comments through direct API requests (INC-05 Feature B; openapi.yaml 0.6.0-draft; FR-16, US-15, BR-13,
- * EC-08; INC-14: Workspace Administrators who are project members may comment, PD-03 in part, PD-20). Demo data: "Review homepage images" has two comments, by Ana (09:40) and Ben (14:05) on 2026-11-03.
+ * EC-08; INC-16: Workspace Administrators who are project members may comment, PD-03 in part, PD-20). Demo data: "Review homepage images" has two comments, by Ana (09:40) and Ben (14:05) on 2026-11-03.
  */
 class CommentApiTest extends ApiTestSupport {
 

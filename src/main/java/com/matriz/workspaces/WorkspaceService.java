@@ -10,7 +10,7 @@ import com.matriz.shared.ApiException;
 
 /**
  * Workspace rules (CMP-02; FR-02, BR-01). Any signed-in account can create a workspace (decided in the plan for
- * INC-12). The account always comes from the session; the creator becomes its first member, a Workspace
+ * INC-14). The account always comes from the session; the creator becomes its first member, a Workspace
  * Administrator, in the same transaction, so a workspace never exists without one (SP-07, R-02, NFR-03).
  */
 @Service

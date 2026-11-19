@@ -36,7 +36,7 @@ Attribute types are generic: `id` (a unique identifier), `string` (short text), 
 | **Feedback** | A problem report or suggestion sent by a member. | CMP-10 Feedback and Personal Data Requests | FR-20; US-20 |
 | **PersonalDataRequest** | A person's request for a copy or the deletion of their personal data, handled manually by the support team. | CMP-10 Feedback and Personal Data Requests | FR-21; US-21 |
 
-**Implementation status (2026-11-19).** V1 creates every entity and V3 adds TaskAssignee. No code reads or writes `invitation`, `notification`, `feedback` or `personal_data_request` in this delivery, because FR-03, FR-17, FR-20 and FR-21 are not built. `project.is_archived` is always false (no archive operation, FR-06, US-07). `workspace` and `member` rows are also written when a workspace is created (INC-12, FR-02): the creator's first membership has role Workspace Administrator and status ACTIVE. Otherwise `member.role` and `member.status` are only read (no role change or deactivation, FR-03, FR-04). Deleting a task or project still cascades to its notifications (DA-05, BR-21).
+**Implementation status (2026-11-19).** V1 creates every entity and V3 adds TaskAssignee. No code reads or writes `invitation`, `notification`, `feedback` or `personal_data_request` in this delivery, because FR-03, FR-17, FR-20 and FR-21 are not built. `project.is_archived` is always false (no archive operation, FR-06, US-07). `workspace` and `member` rows are also written when a workspace is created (INC-14, FR-02): the creator's first membership has role Workspace Administrator and status ACTIVE. Otherwise `member.role` and `member.status` are only read (no role change or deactivation, FR-03, FR-04). Deleting a task or project still cascades to its notifications (DA-05, BR-21).
 
 ### Requirement coverage
 
@@ -264,7 +264,7 @@ The primary key (task_id, member_id) makes a second assignment of the same membe
 
 ## Business rules
 
-These are confirmed by the documentation. Not enforced in this delivery, because their features are not built: BR-03 (changing roles), BR-04, BR-06, BR-08 (choosing project members), BR-14, BR-16, BR-17. BR-05 is enforced only by `member_workspace_account_uk`. BR-01 is enforced by `createWorkspace` since INC-12; the name rule is checked in the module, not by the database.
+These are confirmed by the documentation. Not enforced in this delivery, because their features are not built: BR-03 (changing roles), BR-04, BR-06, BR-08 (choosing project members), BR-14, BR-16, BR-17. BR-05 is enforced only by `member_workspace_account_uk`. BR-01 is enforced by `createWorkspace` since INC-14; the name rule is checked in the module, not by the database.
 
 | ID | Rule | Source |
 |---|---|---|

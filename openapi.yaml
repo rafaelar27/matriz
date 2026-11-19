@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: Matriz API
-  version: 0.11.0-draft
+  version: 0.12.0-draft
   summary: Draft API for the Matriz MVP (authentication, workspaces, projects, progress, tasks, task assignees and comments).
   description: |
     Draft specification of the Matriz MVP API, a project and task management
@@ -103,13 +103,13 @@ info:
     - `listTaskComments` and `addTaskComment` support US-15 (FR-16). Owning
       component: CMP-07 Comments. Added 2026-11-12 (INC-05).
     - `createWorkspace` supports US-02 (FR-02, BR-01). Owning component:
-      CMP-02. Added 2026-11-19 (INC-12).
+      CMP-02. Added 2026-11-19 (INC-14).
 
-    Version 0.10.0-draft (INC-13): Workspace Administrators can also create,
+    Version 0.11.0-draft (INC-15): Workspace Administrators can also create,
     edit and delete projects (`createProject`, `updateProject`,
     `deleteProject`), decided 2026-11-19 (PD-03 in part).
 
-    Version 0.11.0-draft (INC-14): Workspace Administrators can also create
+    Version 0.12.0-draft (INC-16): Workspace Administrators can also create
     tasks and comment on tasks of projects they are members of, assign and
     unassign members, change a task's owner, change the status of tasks they
     own and delete tasks they created (`createTask`, `addTaskComment`,

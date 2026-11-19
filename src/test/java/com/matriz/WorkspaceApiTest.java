@@ -23,7 +23,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import com.jayway.jsonpath.JsonPath;
 
 /**
- * createWorkspace through direct API requests (INC-12; US-02; FR-02, BR-01, SP-01, SP-07, NFR-01, NFR-03).
+ * createWorkspace through direct API requests (INC-14; US-02; FR-02, BR-01, SP-01, SP-07, NFR-01, NFR-03).
  * US-02 has no numbered acceptance criteria in docs/user-stories.md, so tests carry FR, BR, SP and NFR ids.
  * The creator, a Workspace Administrator, manages projects of the new workspace (decided by the human 2026-11-19).
  */
@@ -136,7 +136,7 @@ class WorkspaceApiTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("AC-INC12.4, FR-02, BR-01 · an account whose memberships are all deactivated can create a workspace, and the new membership is active")
+    @DisplayName("AC-INC14.4, FR-02, BR-01 · an account whose memberships are all deactivated can create a workspace, and the new membership is active")
     void accountWithOnlyDeactivatedMembershipsCanCreate() throws Exception {
         MockHttpSession ana = signIn("ana@example.com");
         String account = accountId(ana);
@@ -368,7 +368,7 @@ class WorkspaceApiTest extends ApiTestSupport {
         assertThat(count("SELECT count(*) FROM project_member WHERE project_id = ?::uuid", projectId)).isZero();
     }
 
-    // --- A fresh creator works on tasks end to end (INC-14; PD-03 in part) ----------------------------------------
+    // --- A fresh creator works on tasks end to end (INC-16; PD-03 in part) ----------------------------------------
 
     private ResultActions send(org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder b,
                                MockHttpSession s, String json) throws Exception {

@@ -27,7 +27,7 @@ import org.springframework.test.web.servlet.ResultActions;
 /**
  * Task assignees through direct API requests (INC-05 Feature A; openapi.yaml 0.5.0-draft; FR-22, US-29, BR-22).
  * Demo data: "Website redesign" has project members Ana (Project Manager), Ben (Team Member) and Vera (Viewer);
- * Carla is a Workspace Administrator of Acme Studio but not a member of the project; since INC-14 she may still
+ * Carla is a Workspace Administrator of Acme Studio but not a member of the project; since INC-16 she may still
  * assign and unassign (Project Managers and Workspace Administrators), Team Members and Viewers may not.
  */
 class AssignmentApiTest extends ApiTestSupport {

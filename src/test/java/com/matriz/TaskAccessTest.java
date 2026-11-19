@@ -23,9 +23,9 @@ import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.ResultActions;
 
 /**
- * INC-08, INC-14, US-10, US-11: authorization of createTask and of status changes through updateTask
+ * INC-08, INC-16, US-10, US-11: authorization of createTask and of status changes through updateTask
  * (PATCH /projects/{project_id}/tasks/{task_id}, body {"status": ...}) by direct API requests (access rules table).
- * Since INC-14 a Workspace Administrator who is a member of the project creates tasks like a Project Manager
+ * Since INC-16 a Workspace Administrator who is a member of the project creates tasks like a Project Manager
  * (PD-03 in part, PD-20); only the owner changes a status (PD-01, provisional) and Viewers never write.
  * The unscoped PATCH /tasks/{id} no longer exists; one regression test checks that.
  */

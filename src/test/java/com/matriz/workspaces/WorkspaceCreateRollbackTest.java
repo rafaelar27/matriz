@@ -16,7 +16,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 /**
- * Rollback of createWorkspace (INC-12; US-02; FR-02, SP-07, NFR-03; AC-INC12.2). Not {@code @Transactional}: the
+ * Rollback of createWorkspace (INC-14; US-02; FR-02, SP-07, NFR-03; AC-INC14.2). Not {@code @Transactional}: the
  * service's own transaction must commit or roll back by itself, which a rolled-back test transaction would hide.
  * The member repository is replaced by a mock that fails, so nothing is ever committed and no cleanup is needed.
  */
@@ -34,7 +34,7 @@ class WorkspaceCreateRollbackTest {
     MemberRepository members;
 
     @Test
-    @DisplayName("AC-INC12.2, SP-07, NFR-03 · if saving the first member fails, no workspace row remains (same transaction)")
+    @DisplayName("AC-INC14.2, SP-07, NFR-03 · if saving the first member fails, no workspace row remains (same transaction)")
     void failedMemberSaveLeavesNoWorkspace() {
         String name = "Rollback probe " + UUID.randomUUID();
         when(members.save(any())).thenThrow(new IllegalStateException("simulated failure"));

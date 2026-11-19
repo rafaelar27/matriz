@@ -13,7 +13,7 @@ import org.springframework.http.HttpStatus;
 import com.matriz.shared.ApiException;
 
 /**
- * Workspace name rule as pure logic (INC-12; US-02; FR-02, BR-01). No Spring context, no database.
+ * Workspace name rule as pure logic (INC-14; US-02; FR-02, BR-01). No Spring context, no database.
  * Expected (openapi createWorkspace "Rules checked (422)"): trimmed, 3 to 100 characters; otherwise 422
  * validation_failed on field name.
  */
