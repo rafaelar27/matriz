@@ -1,6 +1,6 @@
 # Matriz — Data Model
 
-> **Status:** draft, written on 2026-11-05. This is a conceptual and logical model only. The data store is PostgreSQL, a relational database (see the [decision log](constraints.md#decision-log), 2026-11-12). Hosting is pending (TD-02). Types are generic. Business rules marked **BR-xx** are confirmed by the documentation. Items marked **DA-xx** are assumptions made for this model and must be confirmed before they are treated as rules. Requirement IDs are defined in [requirements.md](requirements.md), user stories in [user-stories.md](user-stories.md), constraints and pending decisions in [constraints.md](constraints.md), and components (CMP-xx) in [architecture.md](architecture.md).
+> **Status:** draft, written on 2026-11-05. This is a conceptual and logical model only. The data store is PostgreSQL, a relational database (see the [decision log](constraints.md#decision-log), 2026-11-12). Hosting is decided (TD-02, 2026-11-19). Types are generic. Business rules marked **BR-xx** are confirmed by the documentation. Items marked **DA-xx** are assumptions made for this model and must be confirmed before they are treated as rules. Requirement IDs are defined in [requirements.md](requirements.md), user stories in [user-stories.md](user-stories.md), constraints and pending decisions in [constraints.md](constraints.md), and components (CMP-xx) in [architecture.md](architecture.md).
 
 ## Purpose and scope of the model
 
