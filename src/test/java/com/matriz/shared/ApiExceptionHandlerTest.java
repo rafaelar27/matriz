@@ -55,4 +55,38 @@ class ApiExceptionHandlerTest {
         assertThat(r.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
         assertThat(r.getBody().code()).isEqualTo("validation_failed");
     }
+
+    @Test
+    @DisplayName("NFR-11 · SP-08 · a body that grew past the limit while it was read is 413 payload_too_large, without echoing the body")
+    void payloadTooLargeIs413() {
+        HttpMessageNotReadableException direct = new HttpMessageNotReadableException("unreadable body-canary-secret",
+                new PayloadTooLargeException("Request body too large body-canary-secret"), null);
+
+        ResponseEntity<ApiError> r = handler.handle(direct);
+
+        assertThat(r.getStatusCode()).isEqualTo(HttpStatus.PAYLOAD_TOO_LARGE);
+        assertThat(r.getBody().code()).isEqualTo("payload_too_large");
+        assertThat(r.getBody().toString()).doesNotContain("body-canary-secret");
+    }
+
+    @Test
+    @DisplayName("NFR-11 · SP-08 · a PayloadTooLargeException nested two levels deep in the cause chain is also 413 payload_too_large")
+    void nestedPayloadTooLargeIs413() {
+        Throwable nested = new RuntimeException("wrapper 1",
+                new java.io.IOException("wrapper 2", new PayloadTooLargeException("too large")));
+
+        ResponseEntity<ApiError> r = handler.handle(new HttpMessageNotReadableException("unreadable", nested, null));
+
+        assertThat(r.getStatusCode()).isEqualTo(HttpStatus.PAYLOAD_TOO_LARGE);
+        assertThat(r.getBody().code()).isEqualTo("payload_too_large");
+    }
+
+    @Test
+    @DisplayName("API-A2, A6 · a plain IOException while reading, and malformed JSON, are still 400 malformed_request")
+    void otherReadFailuresStay400() {
+        ResponseEntity<ApiError> r = handler.handle(
+                new HttpMessageNotReadableException("unreadable", new java.io.IOException("connection reset"), null));
+        assertThat(r.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(r.getBody().code()).isEqualTo("malformed_request");
+    }
 }

@@ -443,9 +443,10 @@ Checks of the public sign-up increment ([implementation-plan.md](implementation-
 | 3 | `mvn verify` after the first security audit fixes (main session) | 428 tests, 0 failures, BUILD SUCCESS. |
 | 4 | `mvn verify` after the second audit fixes (main session) | **444 tests, 0 failures, 0 errors, 0 skipped, BUILD SUCCESS.** The Playwright test was not run (out of scope). |
 | 5 | Application on `matriz_live`: `/auth/sign-in`, `/%61uth/sign-in` and `/%61uth/sign-up` with a 20,000-byte body | 413 each. |
-| 6 | Chunked 20,000-byte body to `/auth/sign-up` | 400 `malformed_request`. |
+| 6 | Chunked 20,000-byte body to `/auth/sign-up` (before the PR 17 review fix; a body of `aaaa…` that is not JSON) | 400 `malformed_request`. Superseded by row 10. |
 | 7 | Unauthenticated `PUT /auth/sign-in` with a form body | 403. |
 | 8 | Sign up, 5 more requests, application restarted, sign in as ` NIA@Example.com ` | 201 with no memberships; the sixth request in the hour was 429; after the restart sign-in gave 200 and the counters were empty; the stored hash starts with `$2a$` and is 60 characters long; Flyway logged "Schema public is up to date". |
+| 10 | After the PR 17 review fix (undeclared-length oversized bodies answer 413): `mvn verify` by the main session, then a real chunked 20,000-byte JSON body to `/auth/sign-up`, `/auth/sign-in` and `/%61uth/sign-up`, and a small chunked valid body | **450 tests, 0 failures, BUILD SUCCESS.** 413 `payload_too_large` on all three paths; the small body signed up (201). A malformed chunked body is covered by the automated tests (400), not by a valid manual check. |
 | 9 | Browser flow in headless Chromium at 375, 768 and 1000 px (Playwright script, not a human) | 19 of 19 checks pass: no horizontal scroll, links both ways, privacy notice, no consent checkbox, no "Forgot password" link, field messages and focus on the first error, no request while invalid, one request on three rapid clicks, welcome message with no action, empty memberships and project list for the new account, redirect when already signed in, duplicate email message at the email field, name and email kept and password cleared, sign-in with another letter case, 429 with `Retry-After`, and the 429 message shown. |
 
 ### Security audit and review

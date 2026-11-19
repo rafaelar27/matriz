@@ -13,11 +13,12 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.matriz.shared.PayloadTooLargeException;
 
 /**
  * The body limit of /auth/ for a request without a declared length, as pure logic (INC-12; NFR-11, SP-08; US-22,
  * US-01; AC-22.6; decided 2026-11-18, security audit S-04). The body is cut off at 16384 bytes while it is read, which
- * the JSON parser reports as a malformed request (400, tested through the API where possible). No Spring context.
+ * raises PayloadTooLargeException (an IOException), answered 413 payload_too_large by ApiExceptionHandler. No Spring context.
  */
 class AuthBodyLimitFilterTest {
 
@@ -63,9 +64,9 @@ class AuthBodyLimitFilterTest {
     }
 
     @Test
-    @DisplayName("AC-22.6 · NFR-11 · SP-08 · an undeclared body of 16385 bytes is cut off while it is read")
+    @DisplayName("AC-22.6 · NFR-11 · SP-08 · an undeclared body of 16385 bytes is cut off while it is read with a PayloadTooLargeException")
     void undeclaredBodyOverTheLimitIsCutOff() {
-        assertThatThrownBy(() -> readAll(undeclared("/auth/sign-in", 16385))).isInstanceOf(IOException.class);
+        assertThatThrownBy(() -> readAll(undeclared("/auth/sign-in", 16385))).isInstanceOf(PayloadTooLargeException.class).isInstanceOf(IOException.class);
     }
 
     @Test
@@ -134,7 +135,7 @@ class AuthBodyLimitFilterTest {
             while (reader.read(buffer) > 0) {
                 // read on
             }
-        })).isInstanceOf(IOException.class);
+        })).isInstanceOf(PayloadTooLargeException.class).isInstanceOf(IOException.class);
     }
 
     @Test
