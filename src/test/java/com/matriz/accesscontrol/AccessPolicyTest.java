@@ -70,6 +70,18 @@ class AccessPolicyTest {
         check(allowed, () -> policy.checkManageProject(actor(role)));
     }
 
+    private static Stream<Arguments> createProject() {
+        return Stream.of(Arguments.of(WA, true), Arguments.of(PM, true), Arguments.of(TM, false),
+                Arguments.of(V, false));
+    }
+
+    @ParameterizedTest(name = "{0} create project -> allowed={1}")
+    @MethodSource("createProject")
+    @DisplayName("FR-06, FR-05 · create project: Project Manager and Workspace Administrator allowed; Team Member and Viewer denied")
+    void createProjectTable(Role role, boolean allowed) {
+        check(allowed, () -> policy.checkCreateProject(actor(role)));
+    }
+
     private static Stream<Arguments> createTask() {
         return Stream.of(
                 Arguments.of(WA, true, false), Arguments.of(PM, true, true), Arguments.of(TM, true, true),

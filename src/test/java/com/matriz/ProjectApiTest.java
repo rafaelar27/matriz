@@ -35,6 +35,7 @@ class ProjectApiTest extends ApiTestSupport {
 
     static final String ACME = "b0000000-0000-0000-0000-000000000001";
     static final String NORTHWIND = "b0000000-0000-0000-0000-000000000002";
+    static final String ACME_CARLA = "c0000000-0000-0000-0000-000000000001";
     static final String NW_DAN = "c0000000-0000-0000-0000-000000000007";
 
     @PersistenceContext
@@ -161,13 +162,97 @@ class ProjectApiTest extends ApiTestSupport {
     // --- Roles ---------------------------------------------------------------------------------------------------
 
     @Test
+    @DisplayName("FR-05, FR-06 · only Project Managers and Workspace Administrators create; Team Member and Viewer get 403 on create, edit and delete")
     void onlyProjectManagersCreateEditAndDelete() throws Exception {
-        for (String email : new String[] {"ben@example.com", "vera@example.com", "carla@example.com"}) {
+        for (String email : new String[] {"ben@example.com", "vera@example.com"}) {
             MockHttpSession s = signIn(email);
             create(s, named("Not allowed")).andExpect(status().isForbidden());
             update(s, WEBSITE, "{\"name\":\"Renamed\"}").andExpect(status().isForbidden());
             remove(s, WEBSITE).andExpect(status().isForbidden());
         }
+        // Workspace Administrator (Carla): may create (decided), still not edit or delete (prov. PD-03).
+        MockHttpSession carla = signIn("carla@example.com");
+        update(carla, WEBSITE, "{\"name\":\"Renamed\"}").andExpect(status().isForbidden());
+        remove(carla, WEBSITE).andExpect(status().isForbidden());
+        assertThat(websiteUnchanged()).isTrue();
+    }
+
+    @Test
+    @DisplayName("FR-06, FR-05 · a Workspace Administrator creates a project: 201, owner defaults to her and she is a project member")
+    void workspaceAdministratorCreatesProject() throws Exception {
+        MockHttpSession carla = signIn("carla@example.com");
+        String json = create(carla, named("Fictitious admin project")).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.owner_member_id").value(ACME_CARLA))
+                .andExpect(jsonPath("$.workspace_name").value("Acme Studio"))
+                .andReturn().getResponse().getContentAsString();
+        String id = JsonPath.read(json, "$.project_id");
+        entityManager.flush();
+        assertThat(count("SELECT count(*) FROM project_member WHERE project_id = ?::uuid AND member_id = ?::uuid",
+                id, ACME_CARLA)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT created_by_member_id::text FROM project WHERE project_id = ?::uuid",
+                String.class, id)).isEqualTo(ACME_CARLA);
+        mvc.perform(get("/projects/" + id).session(carla)).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("FR-05, PD-03 (prov.) · on a project she created, a Workspace Administrator still gets 403 on update and delete, nothing changes")
+    void workspaceAdministratorCannotEditOrDeleteOwnProject() throws Exception {
+        MockHttpSession carla = signIn("carla@example.com");
+        String id = createdId(carla, named("Fictitious admin kept"));
+        update(carla, id, "{\"name\":\"Renamed again\"}").andExpect(status().isForbidden());
+        remove(carla, id).andExpect(status().isForbidden());
+        entityManager.flush();
+        assertThat(count("SELECT count(*) FROM project WHERE project_id = ?::uuid AND name = 'Fictitious admin kept'",
+                id)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("FR-05, PD-03 (prov.) · on a project she created, a Workspace Administrator still gets 403 on createTask, assign and comment")
+    void workspaceAdministratorStillRefusedOnTasksOfOwnProject() throws Exception {
+        MockHttpSession carla = signIn("carla@example.com");
+        String id = createdId(carla, named("Fictitious admin tasks"));
+        String task = "e0000000-0000-0000-0000-0000000000f1";
+        entityManager.flush();
+        jdbc.update("INSERT INTO task (task_id, project_id, title, owner_member_id, status, created_by_member_id) "
+                + "VALUES (?::uuid, ?::uuid, 'Fictitious task', ?::uuid, 'TO_DO', ?::uuid)", task, id, ACME_CARLA,
+                ACME_CARLA);
+        entityManager.clear();
+        long tasks = count("SELECT count(*) FROM task WHERE project_id = ?::uuid", id);
+
+        mvc.perform(post("/projects/" + id + "/tasks").session(carla).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Fictitious new task\",\"owner_member_id\":\"" + ACME_CARLA + "\"}"))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/projects/" + id + "/tasks/" + task + "/assignees").session(carla).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"member_ids\":[\"" + ACME_CARLA + "\"]}"))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/projects/" + id + "/tasks/" + task + "/comments").session(carla).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"body\":\"Fictitious comment\"}"))
+                .andExpect(status().isForbidden());
+
+        assertThat(count("SELECT count(*) FROM task WHERE project_id = ?::uuid", id)).isEqualTo(tasks);
+        assertThat(count("SELECT count(*) FROM task_assignee WHERE task_id = ?::uuid", task)).isZero();
+        assertThat(count("SELECT count(*) FROM comment WHERE task_id = ?::uuid", task)).isZero();
+    }
+
+    @Test
+    @DisplayName("NFR-01, FR-06 · a Workspace Administrator of another workspace gets 404 on createProject with Acme's workspace_id")
+    void workspaceAdministratorOfAnotherWorkspaceGets404() throws Exception {
+        long before = projectCount();
+        create(signIn("finn@example.com"), named("Fictitious intruder")).andExpect(status().isNotFound());
+        assertThat(projectCount()).isEqualTo(before);
+    }
+
+    @Test
+    @DisplayName("SP-04, FR-06 · a deactivated Workspace Administrator gets 403 on createProject and nothing is saved")
+    void deactivatedWorkspaceAdministratorIsRefused() throws Exception {
+        MockHttpSession carla = signIn("carla@example.com");
+        jdbc.update("UPDATE member SET status = 'DEACTIVATED' WHERE member_id = ?::uuid", ACME_CARLA);
+        entityManager.clear();
+        long before = projectCount();
+        create(carla, named("Fictitious deactivated admin")).andExpect(status().isForbidden());
+        assertThat(projectCount()).isEqualTo(before);
     }
 
     @Test
@@ -504,14 +589,23 @@ class ProjectApiTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("AC-INC07.6 · a Team Member, Viewer or Workspace Administrator sending a null owner or dates out of order gets 403")
+    @DisplayName("AC-INC07.6 · a Team Member or Viewer sending a null owner or dates out of order gets 403; a Workspace Administrator gets 403 on update and 422 on create")
     void accessIsCheckedBeforeValidationInsideTheWorkspace() throws Exception {
         long before = projectCount();
         for (String email : new String[] {"ben@example.com", "vera@example.com", "carla@example.com"}) {
             MockHttpSession s = signIn(email);
-            create(s, inAcme("\"name\":\"Fictitious refused\",\"owner_member_id\":null")).andExpect(status().isForbidden());
-            create(s, inAcme("\"name\":\"Fictitious refused\",\"start_date\":\"2026-12-02\",\"due_date\":\"2026-12-01\""))
-                    .andExpect(status().isForbidden());
+            boolean admin = email.startsWith("carla");
+            // The Workspace Administrator may create (access passes), so validation applies: 422.
+            var nullOwner = create(s, inAcme("\"name\":\"Fictitious refused\",\"owner_member_id\":null"));
+            var badDates = create(s, inAcme("\"name\":\"Fictitious refused\",\"start_date\":\"2026-12-02\","
+                    + "\"due_date\":\"2026-12-01\""));
+            if (admin) {
+                nullOwner.andExpect(status().isUnprocessableEntity());
+                badDates.andExpect(status().isUnprocessableEntity());
+            } else {
+                nullOwner.andExpect(status().isForbidden());
+                badDates.andExpect(status().isForbidden());
+            }
             update(s, WEBSITE, "{\"owner_member_id\":null}").andExpect(status().isForbidden());
             update(s, WEBSITE, "{\"due_date\":\"2026-10-31\"}").andExpect(status().isForbidden());
         }

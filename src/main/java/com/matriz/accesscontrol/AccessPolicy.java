@@ -32,33 +32,17 @@ public class AccessPolicy {
     }
 
     /**
-     * createProject: an active Project Manager or Workspace Administrator of the workspace (FR-06, US-06). Workspace
-     * Administrators were allowed to create projects on 2026-11-19 (PD-03 in part), so that the creator of a new
-     * workspace can add projects to it. Editing and deleting stay with {@link #checkManageProject}.
-     */
-    public void checkCreateProject(Actor actor) {
-        if (actor.role() == Role.VIEWER) {
-            throw ApiException.forbidden(VIEWER_READ_ONLY);
-        }
-        if (actor.role() != Role.PROJECT_MANAGER && actor.role() != Role.WORKSPACE_ADMINISTRATOR) {
-            throw ApiException.forbidden("Only Project Managers and Workspace Administrators can create projects.");
-        }
-    }
-
-    /**
-     * updateProject, deleteProject: any active Project Manager of the project's workspace (FR-06,
-     * US-06, US-24, US-27; "any Project Manager" decided 2026-11-12). Viewing needs only workspace access (FR-08).
+     * createProject, updateProject, deleteProject: any active Project Manager or Workspace Administrator of the
+     * project's workspace (FR-06, US-06, US-24, US-27; "any Project Manager" decided 2026-11-12; Workspace
+     * Administrators added 2026-11-19, PD-03 in part, so that the creator of a new workspace can manage its
+     * projects). Viewing needs only workspace access (FR-08).
      */
     public void checkManageProject(Actor actor) {
         if (actor.role() == Role.VIEWER) {
             throw ApiException.forbidden(VIEWER_READ_ONLY);
         }
-        if (actor.role() == Role.WORKSPACE_ADMINISTRATOR) {
-            // PROVISIONAL (PD-03): FR-06 names Project Managers only.
-            throw ApiException.forbidden("Workspace Administrators cannot manage projects (pending decision PD-03).");
-        }
-        if (actor.role() != Role.PROJECT_MANAGER) {
-            throw ApiException.forbidden("Only Project Managers can create, edit or delete projects.");
+        if (actor.role() != Role.PROJECT_MANAGER && actor.role() != Role.WORKSPACE_ADMINISTRATOR) {
+            throw ApiException.forbidden("Only Project Managers and Workspace Administrators can create, edit or delete projects.");
         }
     }
 

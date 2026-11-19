@@ -166,8 +166,8 @@ tags:
   - name: Projects
     description: |
       Projects of the caller's workspaces (FR-05, FR-06, FR-08). Every active
-      member sees every project of their workspace; Project Managers create,
-      edit and delete them. Owning component: CMP-04 Projects.
+      member sees every project of their workspace; Project Managers and
+      Workspace Administrators create, edit and delete them. Owning component: CMP-04 Projects.
   - name: Progress
     description: "Derived project progress (FR-18, BR-15). Owning component: CMP-09 Progress Tracking."
   - name: Workspaces
@@ -376,7 +376,7 @@ paths:
         Administrator of that workspace (Workspace Administrators decided
         2026-11-19, PD-03 in part, so the creator of a new workspace can add
         projects). Team Members and Viewers are refused (FR-05, FR-06).
-        Editing and deleting projects stay with Project Managers.
+        The same people can edit and delete projects (`updateProject`, `deleteProject`).
 
         **Set by the server:** `is_archived` is false, and the caller becomes
         a member of the new project (FR-07, decided 2026-11-12). The owner is
@@ -466,9 +466,10 @@ paths:
         project as it would be after the change, so sending only one date can
         be refused.
 
-        **Who can perform it:** any active Project Manager of the project's
-        workspace (decided 2026-11-12). Team Members, Viewers and, until PD-03,
-        Workspace Administrators are refused.
+        **Who can perform it:** any active Project Manager or Workspace
+        Administrator of the project's workspace (Project Managers decided
+        2026-11-12; Workspace Administrators 2026-11-19, PD-03 in part).
+        Team Members and Viewers are refused.
       parameters:
         - $ref: '#/components/parameters/CsrfHeader'
       requestBody:

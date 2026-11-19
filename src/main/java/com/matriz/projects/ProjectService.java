@@ -78,7 +78,7 @@ class ProjectService {
                 .orElseThrow(() -> ApiException.notFound("The workspace was not found."));
         Actor caller = policy.requireWorkspaceAccess(members.actorIn(callerAccountId, workspaceId),
                 "The workspace was not found.");
-        policy.checkCreateProject(caller);
+        policy.checkManageProject(caller);
 
         if (!body.has("name")) {
             throw ApiException.validation(NOT_SAVED, "name", "A name is required.");

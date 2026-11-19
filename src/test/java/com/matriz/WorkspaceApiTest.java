@@ -3,7 +3,9 @@ package com.matriz;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -300,15 +302,34 @@ class WorkspaceApiTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("FR-02, PD-03 (provisional) · the creator, a Workspace Administrator, gets 403 on createProject in the new workspace and nothing is saved")
-    void creatorCannotCreateProjectProvisional() throws Exception {
+    @DisplayName("FR-02, FR-06 · the creator, a Workspace Administrator, can create a project in the new workspace: 201, owner and project member, listed; still 403 on update and delete (PD-03, provisional)")
+    void creatorCreatesProjectInNewWorkspace() throws Exception {
         MockHttpSession ben = signIn("ben@example.com");
-        String id = JsonPath.read(create(ben, named("Admin only")).andExpect(status().isCreated()).andReturn()
-                .getResponse().getContentAsString(), "$.workspace_id");
-        long projects = count("SELECT count(*) FROM project");
-        mvc.perform(post("/projects").session(ben).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+        String ws = create(ben, named("Admin projects")).andExpect(status().isCreated()).andReturn().getResponse()
+                .getContentAsString();
+        String id = JsonPath.read(ws, "$.workspace_id");
+        String memberId = JsonPath.read(ws, "$.member_id");
+
+        String project = mvc.perform(post("/projects").session(ben).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"workspace_id\":\"" + id + "\",\"name\":\"Admin project\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.owner_member_id").value(memberId))
+                .andExpect(jsonPath("$.workspace_name").value("Admin projects"))
+                .andReturn().getResponse().getContentAsString();
+        String projectId = JsonPath.read(project, "$.project_id");
+
+        entityManager.flush();
+        assertThat(count("SELECT count(*) FROM project_member WHERE project_id = ?::uuid AND member_id = ?::uuid",
+                projectId, memberId)).isEqualTo(1);
+        mvc.perform(get("/projects").session(ben))
+                .andExpect(jsonPath("$.items[?(@.project_id=='" + projectId + "')]", hasSize(1)));
+
+        mvc.perform(patch("/projects/" + projectId).session(ben).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Renamed\"}"))
                 .andExpect(status().isForbidden());
-        assertThat(count("SELECT count(*) FROM project")).isEqualTo(projects);
+        mvc.perform(delete("/projects/" + projectId).session(ben).with(csrf())).andExpect(status().isForbidden());
+        assertThat(count("SELECT count(*) FROM project WHERE project_id = ?::uuid AND name = 'Admin project'",
+                projectId)).isEqualTo(1);
     }
 }

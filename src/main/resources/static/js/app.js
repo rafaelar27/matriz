@@ -257,7 +257,7 @@ async function loadProjectsWithProgress({ q, page, size, withCounts }) {
 
 /** E-14 "+ New project": Project Managers and Workspace Administrators (FR-06; decided 2026-11-19, PD-03 in part). */
 function newProjectLink() {
-  return creatableWorkspaces().length ? h('a', { class: 'btn primary', href: '#/projects/new' }, '+ New project') : null;
+  return managedWorkspaces().length ? h('a', { class: 'btn primary', href: '#/projects/new' }, '+ New project') : null;
 }
 
 function projectCount(n) {
@@ -381,11 +381,7 @@ async function loadProfile() {
 }
 
 function managedWorkspaces() {
-  return (state.profile ? state.profile.memberships : []).filter(m => m.role === 'Project Manager');
-}
-
-// Workspaces where the member can create a project: Project Managers and Workspace Administrators.
-function creatableWorkspaces() {
+  // Workspaces where the member manages projects: Project Managers and Workspace Administrators (PD-03 in part).
   return (state.profile ? state.profile.memberships : [])
     .filter(m => m.role === 'Project Manager' || m.role === 'Workspace Administrator');
 }
@@ -1212,10 +1208,10 @@ async function projectFormScreen(id) {
     }
     if (seq !== screenSeq) return;
     if (!canManage(project.workspace_id)) {
-      render(message('Only Project Managers can edit projects.'), h('a', { class: 'btn', href: '#/projects/' + id }, '← Back'));
+      render(message('Only Project Managers and Workspace Administrators can edit projects.'), h('a', { class: 'btn', href: '#/projects/' + id }, '← Back'));
       return;
     }
-  } else if (!creatableWorkspaces().length) {
+  } else if (!managedWorkspaces().length) {
     render(message('Only Project Managers and Workspace Administrators can create projects.'), h('a', { class: 'btn', href: '#/projects' }, '← Back'));
     return;
   }
@@ -1224,7 +1220,7 @@ async function projectFormScreen(id) {
   const kit = formKit('project');
 
   const workspace = h('select', { required: true },
-    (editing ? [{ workspace_id: project.workspace_id, workspace_name: project.workspace_name }] : creatableWorkspaces())
+    (editing ? [{ workspace_id: project.workspace_id, workspace_name: project.workspace_name }] : managedWorkspaces())
       .map(m => h('option', { value: m.workspace_id }, m.workspace_name)));
   workspace.disabled = editing;
   const name = h('input', { type: 'text', required: true, maxlength: NAME_MAX + 20, value: project ? project.name : '' });
