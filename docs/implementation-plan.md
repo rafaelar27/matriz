@@ -17,11 +17,14 @@
 | INC-09 | Coverage measurement and unit tests | Done (2026-11-17) |
 | INC-10 | Unit tests for the INC-09 refactoring candidates | Done (2026-11-18) |
 | INC-11 | English task status labels | Done (2026-11-18) |
-| INC-12 | Public sign-up | Done (2026-11-19), except hosted deployment (a first deployment exists but has not been validated; no public check is recorded here; TD-02 decided 2026-11-19; TD-05, TD-06, TD-13 pending) |
+| INC-12 | Public sign-up | Done (2026-11-19), except hosted deployment (the deployment is live at https://matriz-761f.onrender.com/ (checks in README, Deployment); TD-02 decided 2026-11-19; TD-05, TD-06, TD-13 pending) |
 | INC-13 | Apply the approved UI visual design | Done (some manual checks still open) |
 | INC-14 | Create a workspace | Done (2026-11-19) |
 | INC-15 | Workspace Administrators manage projects | Done (2026-11-19) |
 | INC-16 | Workspace Administrators work on tasks | Done (2026-11-19) |
+| INC-17 | Invite members by email | Implemented in PR #26 (2026-11-19); not marked Done by the human [TO CONFIRM] |
+| INC-18 | Edit a workspace | Implemented in PR #26 (2026-11-19); not marked Done by the human [TO CONFIRM] |
+| INC-19 | Delete a workspace (soft) | Implemented in PR #26 (2026-11-19); not marked Done by the human [TO CONFIRM] |
 
 **Not built in this delivery** (release review 2026-11-16): sign-up (FR-01, US-22; built later in INC-12, 2026-11-19); invitations and member management (FR-03; US-03, US-05, US-23) and role assignment and changes (FR-04; US-03, US-04) apart from reading active members (the FR-04 permissions are enforced by `AccessPolicy`, CMP-03); archiving (FR-06, US-07); choosing project members (FR-07, US-08) apart from the creator; FR-14 (US-13); FR-17 (US-16); FR-19 (US-18); FR-20 (US-20); FR-21 (US-21). Decided as left out: filtering by due date (FR-15, 2026-11-12) and task priority (F17).
 
@@ -603,3 +606,4 @@ All runs were on the isolated database `matriz_test` (local PostgreSQL 16), with
 | 2026-11-19 | INC-14, INC-15, INC-16 | Marked Done by the human ("open pr and mark them done"). Every acceptance criterion is Pass except the live checks of the three security audits, which were not run (the audits were static code reviews only). Accepted remainder and known gaps: the interface shows "+ New task" to a Workspace Administrator who is not a project member and the server refuses with 403 (PD-20); audit finding S-01 (owner takeover, then status change) accepted as is; S-04 left as is; PD-01, PD-03 (rest), PD-17 and PD-20 stay provisional; keyboard-only use, 375 and 768 px layouts, other browsers (Firefox, Safari) and screen readers were not checked; the browser checks were a scripted run, not manual. | Project decision-maker (decision, "open pr and mark them done"); programmer (doc updates) |
 | 2026-11-19 | Release 0.2.0 | Version 0.2.0 prepared on branch chore/release-0.2.0, rebased on master after PR #20 and PR #23: pom.xml, CHANGELOG.md, release notes docs/release-notes-0.2.0.md, README. mvn verify on matriz_test: 535 tests, 0 failures. CI: the run of the release pull request (test, build, docker, e2e). Annotated tag v0.2.0 on the merge commit after the merge (`git rev-list -n 1 v0.2.0`); not pushed yet. Not published to production. | Project decision-maker (approval); programmer |
 | 2026-11-19 | Release 0.2.0 | Merged as 4dd4fb1 (PR #24); CI on master green (run 44575060386). Annotated tag v0.2.0 pushed on 4dd4fb1. Commit 65d299c (Codex review fixes: candidate version references, INC-12 status) missed the squash merge, so v0.2.0 still has the earlier wording; the fixes are landed on master by a follow-up pull request. | Project decision-maker (approval); programmer |
+| 2026-11-22 | Release 0.3.0 | Version 0.3.0 prepared on branch docs/delivery-report: pom.xml, CHANGELOG.md, docs/release-notes-0.3.0.md, README, delivery report. mvn verify on matriz_test: 708 tests, 0 failures (before the version bump; to be re-run). Not tagged yet. | Project decision-maker (approval); programmer |

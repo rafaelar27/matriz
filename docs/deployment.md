@@ -31,9 +31,9 @@
 | One service serves the API and the static user interface from the same origin. A separate Render Static Site is **not** used: `onrender.com` subdomains are different sites [TO CONFIRM], and the session and CSRF cookies are same-site only (TD-03). The `MATRIZ_API_BASE_URL` rule is unchanged (empty, or a path on the same site) | Decision log 2026-11-19 |
 | No CORS configuration exists in the code (no CORS setup in `SecurityConfig`), so a browser request from another origin is refused by the browser | Code: `src/main/java/com/matriz/accesscontrol/SecurityConfig.java` |
 | No demo seed on the public database; accounts come from public sign-up (INC-12) | Decision log 2026-11-18 and 2026-11-19 |
-| Migrations run through Flyway when the application starts (V1 to V5), are non-destructive and reproducible; the application never wipes the database (`spring.flyway.clean-disabled=true`) | `application.properties`; `src/main/resources/db/migration` |
+| Migrations run through Flyway when the application starts (V1 to V8), are non-destructive and reproducible; the application never wipes the database (`spring.flyway.clean-disabled=true`) | `application.properties`; `src/main/resources/db/migration` |
 | Backup (TD-05), availability (TD-06) and client-address handling (TD-13) stay pending | [constraints.md](constraints.md#pending-technical-decisions) |
-| Release candidate version: `0.2.0` (Semantic Versioning, [decision log](constraints.md#decision-log) 2026-11-19), tagged `v0.2.0` | Decided |
+| Release candidate version: `0.3.0` (Semantic Versioning, [decision log](constraints.md#decision-log) 2026-11-22); `v0.2.0` is the earlier candidate. The `v0.3.0` tag is created after the release pull request is merged | Decided |
 
 ## Docker Compose (local)
 
@@ -188,23 +188,23 @@ Anyone can sign up (FR-01). Mass sign-ups fill account rows in Neon's small free
 
 ## Checks after the first deployment (to run, with approval)
 
-**Scope.** A new account created by public sign-up has no workspace at first and sees the welcome screen (AC-22.8). It can create a workspace with **+ New workspace** beside the Dashboard heading (E-21; FR-02, INC-14) and becomes its Workspace Administrator, who can then create projects (INC-15) and tasks and comments (INC-16). The public checks may therefore include the full flow (sign-up, workspace, project, task, comment) and cross-account isolation with two accounts. These are **checks to run with approval**; each step creates real rows on the public database, and their results are not recorded here. Removing the test rows needs SQL on Neon, a destructive action that needs approval (C1).
+**Scope.** A new account created by public sign-up has no workspace at first and sees the welcome screen (AC-22.8). It can create a workspace with **+ New workspace** beside the Dashboard heading (E-21; FR-02, INC-14) and becomes its Workspace Administrator, who can then create projects (INC-15) and tasks and comments (INC-16). The public checks may therefore include the full flow (sign-up, workspace, project, task, comment) and cross-account isolation with two accounts. These are **checks to run with approval**; each step creates real rows on the public database, and their results are recorded in the table below. Removing the test rows needs SQL on Neon, a destructive action that needs approval (C1).
 
-Run only with fictitious addresses (for example `check1@example.com`, never a real person's), each step approved by the programmer first, because they create real rows on the public database. The address below is written `<public-url>`; no public URL is recorded here. **No result of any step is recorded here**, so the Result column is empty.
+Run only with fictitious addresses (for example `check1@example.com`, never a real person's), each step approved by the programmer first, because they create real rows on the public database. The address below is written `<public-url>`; the public URL is https://matriz-761f.onrender.com/. The Result column records what was seen on 2026-11-22; "reported" means the programmer ran the step and Claude did not see it; steps marked "not run" were not run.
 
 | # | Check | Expected | Result |
 |---|---|---|---|
-| 1 | Open `<public-url>` and `<public-url>/config.js` over HTTPS | HTTPS with a valid certificate; `/config.js` answers 200 without a session and holds no secret | not run |
-| 2 | Sign up with a fictitious account | 201; the person is signed in; welcome screen with no workspace (AC-22.8) | not run |
-| 3 | Look at the cookies after sign-up (browser developer tools) | `MATRIZ_SESSION` has `Secure`, `HttpOnly` and `SameSite=Lax`; `XSRF-TOKEN` is readable by the page and has `Secure` [TO CONFIRM: the CSRF cookie's Secure flag is not set by the code explicitly] | not run |
-| 4 | Sign out, then sign in with the same email in another letter case | 200 | not run |
+| 1 | Open `<public-url>` and `<public-url>/config.js` over HTTPS | HTTPS with a valid certificate; `/config.js` answers 200 without a session and holds no secret | Pass, read-only check 2026-11-22: `/` and `/config.js` returned 200 over HTTPS with a valid certificate (the first request after idle took over 60 s) |
+| 2 | Sign up with a fictitious account | 201; the person is signed in; welcome screen with no workspace (AC-22.8) | Reported pass by the programmer, 2026-11-22 |
+| 3 | Look at the cookies after sign-up (browser developer tools) | `MATRIZ_SESSION` has `Secure`, `HttpOnly` and `SameSite=Lax`; `XSRF-TOKEN` is readable by the page and has `Secure` [TO CONFIRM: the CSRF cookie's Secure flag is not set by the code explicitly] | Partly, 2026-11-22: the `XSRF-TOKEN` header showed `Secure; SameSite=Lax`; `MATRIZ_SESSION` not checked |
+| 4 | Sign out, then sign in with the same email in another letter case | 200 | Reported, 2026-11-22: sign-out and sign-in work; the other-letter-case variant was not reported |
 | 5 | `GET <public-url>/auth/me` without a session | 401 `not_authenticated` | not run |
 | 6 | `POST <public-url>/auth/sign-in` without the `X-XSRF-TOKEN` header | 403 `csrf_invalid` | not run |
 | 7 | From a page on another origin, call the API (browser developer console) | The browser refuses it (no CORS configuration exists) | not run |
 | 8 | Open the served files (`/`, `/index.html`, `/js/`, `/css/`, `/config.js`) and look for secrets | No secret, password, connection string or token in any served file | not run |
 | 9 | Create an account, trigger a manual redeploy, then sign in again with it | The account still exists (data persists in Neon); the old session is gone (401 `session_expired`) | not run |
 | 10 | Create a second fictitious account and look at `/auth/me` and the project list | It sees nothing of the first account | not run |
-| 10a | With the first account create a workspace, a project, a task and a comment; then, with the second account, try to read them | The first account can create each (FR-02, INC-15, INC-16); the second account sees none of them and gets the refusals of the access rules | not run |
+| 10a | With the first account create a workspace, a project, a task and a comment; then, with the second account, try to read them | The first account can create each (FR-02, INC-15, INC-16); the second account sees none of them and gets the refusals of the access rules | Partly reported, 2026-11-22: creating a workspace works; project, task, comment and the second account were not reported |
 | 11 | Sign-up limit: send the sixth sign-up request within an hour (only after item 12 is understood) | 429 `too_many_requests` with `Retry-After`; this also locks sign-up for others for the rest of the window | not run |
 | 12 | Which client address Render's proxy presents (TD-13) with the approved `native` trial: compare two networks, together with the `XSRF-TOKEN` `Secure` flag of check 3 | Recorded by the decision-maker; TD-13 stays pending until recorded | not run |
 | 13 | Remove the test accounts (SQL on Neon) | Needs approval (C1) | not run |

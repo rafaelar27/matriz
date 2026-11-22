@@ -8,6 +8,22 @@ The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.
 
 Nothing yet.
 
+## [0.3.0] - 2026-11-22
+
+Release candidate; no production release is published. Includes INC-17 to INC-19, made after the `v0.2.0` tag.
+
+### Added
+- Invitations by email (INC-17; FR-03, FR-04, US-03; `openapi.yaml` 0.13.0-draft): `createInvitation`, `listInvitations`, `cancelInvitation`, `listMyInvitations` and `acceptInvitation`. Invitation emails go out over SMTP with Spring Mail (TD-04, decided 2026-11-19); without `MATRIZ_SMTP_HOST` the application only logs that an invitation was created, without the address; a failed send answers 503 `email_not_sent` and stores nothing. Accepting needs a signed-in account with the matching email, reactivates a deactivated member and cancels other pending invitations to the same address. Migration V6. New optional variables `MATRIZ_SMTP_HOST`, `MATRIZ_SMTP_PORT`, `MATRIZ_SMTP_USERNAME`, `MATRIZ_SMTP_PASSWORD`, `MATRIZ_SMTP_STARTTLS`, `MATRIZ_SMTP_FROM` and `MATRIZ_PUBLIC_URL` in `.env.example`.
+- Edit a workspace (INC-18; FR-23, FR-04, FR-03, US-04, US-30, US-31): `updateWorkspace`, `updateMemberRole` and `removeMember` (permanent, replacing deactivation). The last active Workspace Administrator cannot be removed or demoted (SP-07, EC-03). Removed authors show as "Former member". Migration V7.
+- Delete a workspace, soft (INC-19; FR-24, US-32): `deleteWorkspace` with `confirm_name`; a deleted workspace answers 404 everywhere and its data is kept. Migration V8.
+- Interface: Members screen, Rename, Delete and Leave dialogs, pending invitations with Accept.
+
+### Changed
+- `pom.xml`: adds `spring-boot-starter-mail`; version 0.2.0 to 0.3.0.
+
+### Notes
+- The PR #26 commit message reports 707 of 708 tests passing, with one failure also present on `master` and fixed by PR #23; `mvn verify` on 2026-11-22 passed 708 of 708 (see `docs/delivery-report.md`).
+
 ## [0.2.0] - 2026-11-19
 
 First tagged version (annotated tag `v0.2.0`, created on the merge commit of the release pull request after the merge). Matriz follows Semantic Versioning in its initial development phase (0.y.z); the minor number is raised from the never-released `0.1.0-SNAPSHOT`. It is a candidate: it is not published to production, and a first deployment is reported (AGENTS.md, docs/implementation-plan.md) but has not been validated; no public check is recorded. The API contract (`openapi.yaml`) has its own version, 0.12.0-draft, independent of this one. See [docs/release-notes-0.2.0.md](docs/release-notes-0.2.0.md) for what is included and the known limitations.
