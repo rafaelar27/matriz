@@ -14,11 +14,9 @@ This version follows 0.2.0 (`v0.2.0`, unchanged). The full list of changes is in
 
 | Increment | What it delivers | Main IDs | Status |
 |---|---|---|---|
-| INC-17 | Invitations by email (SMTP, optional) | FR-03, FR-04; US-03 | Done (per PR #26; acceptance criteria not re-checked here) |
-| INC-18 | Edit a workspace: rename, change roles, remove members | FR-23, FR-04, FR-03; US-04, US-30, US-31 | Done (per PR #26) |
-| INC-19 | Delete a workspace (soft) | FR-24; US-32 | Done (per PR #26) |
-
-The PR #26 commit message says most documentation updates were left for a follow-up, and [implementation-plan.md](implementation-plan.md) does not yet list INC-17 to INC-19 [TO CONFIRM].
+| INC-17 | Invitations by email (SMTP, optional) | FR-03, FR-04; US-03 | Implemented in PR #26; not marked Done by the human [TO CONFIRM] |
+| INC-18 | Edit a workspace: rename, change roles, remove members | FR-23, FR-04, FR-03; US-04, US-30, US-31 | Implemented in PR #26; not marked Done by the human [TO CONFIRM] |
+| INC-19 | Delete a workspace (soft) | FR-24; US-32 | Implemented in PR #26; not marked Done by the human [TO CONFIRM] |
 
 ## Build and run
 
