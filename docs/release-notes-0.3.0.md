@@ -29,7 +29,7 @@ This version follows 0.2.0 (`v0.2.0`, unchanged). The full list of changes is in
 
 | Check | Result |
 |---|---|
-| `mvn verify` on `matriz_test` | 708 tests, 0 failures, 0 errors, 0 skipped, BUILD SUCCESS (local, 2026-11-22; to be re-run on 0.3.0 before the tag) |
+| `mvn verify` on `matriz_test` | 708 tests, 0 failures, 0 errors, 0 skipped, BUILD SUCCESS (local, 2026-11-22; run again after the bump to 0.3.0 with the same result) |
 | Docker Compose | `docker compose config -q`, build and start passed; `GET /` returned 200; the seed inserted 37 rows, then 0; no errors or warnings in the last 50 log lines (2026-11-22) |
 | Public instance | `/` and `/config.js` returned 200 over HTTPS (2026-11-22); sign-up, sign-in, sign-out, workspace creation and the Members screen were reported working by the programmer |
 | CI run | The GitHub Actions run of the release pull request (jobs `test`, `build`, `docker`, `e2e`); see the pull request's Checks tab. |
