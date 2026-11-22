@@ -2,7 +2,7 @@
 
 | Item | Value |
 |---|---|
-| Version | 0.3.0 (Semantic Versioning, initial development phase 0.y.z; decision-log entry to be recorded on 2026-11-22) |
+| Version | 0.3.0 (Semantic Versioning, initial development phase 0.y.z; [decision log](constraints.md#decision-log) 2026-11-22) |
 | Date | 2026-11-22 |
 | Git tag | `v0.3.0` (annotated; created on the merge commit of the release pull request after the merge; find its commit with `git rev-list -n 1 v0.3.0`) |
 | API contract | [openapi.yaml](../openapi.yaml) 0.13.0-draft (its version is independent of the application version) |
