@@ -480,7 +480,7 @@ Source: [delivery-report.md](delivery-report.md). Environment: local Windows mac
 | 4 | `docker compose run --rm seed`, twice | 37 new rows, then 0 (idempotent) |
 | 5 | Last 50 log lines filtered for error, warn and exception | Nothing found |
 | 6 | Search of tracked files and history for secret patterns and private keys | Only fictitious values; the only tracked env file is `.env.example` |
-| 7 | CI runs on `master` and on pull request 27 | Tests, Build, Docker image build and End-to-end passed on the pull request; the run on the merge commit was not checked to the end |
+| 7 | CI runs on pull request 27 and on `master` (merge commit `6f025b4`, run 45031212605) | Tests, Build, Docker image build and End-to-end all passed, on the pull request and on `master` |
 | 8 | Read-only requests to https://matriz-761f.onrender.com/ | `/` and `/config.js` returned 200 over HTTPS with HSTS, `nosniff` and `X-Frame-Options: DENY`; the first request after idle took over 60 s |
 | 9 | Sign-up, sign-in, sign-out, workspace creation and the Members screen on the public instance | Reported working by the programmer; not seen by Claude |
 
