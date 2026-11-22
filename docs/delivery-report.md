@@ -1,6 +1,6 @@
 # Matriz — Relatório de entrega (Ficha Prática 05)
 
-Data da validação: 2026-11-22 · Versão candidata: 0.3.0 (tag `v0.3.0`, a criar após o merge do pull request; `v0.2.0` é a candidata anterior; não publicada em produção) · Ramo deste relatório: `docs/delivery-report`
+Data da validação: 2026-11-22 · Versão candidata: 0.3.0 (tag `v0.3.0`, criada em 2026-11-22 sobre o commit de merge `6f025b4`; `v0.2.0` é a candidata anterior; não publicada em produção) · Ramo deste relatório: `docs/delivery-report`
 
 Este relatório só regista resultados que foram executados ou que já constam de outros ficheiros do repositório. O que não foi verificado está indicado como "Não verificado" ou `[TO CONFIRM BY THE PROGRAMMER]`.
 

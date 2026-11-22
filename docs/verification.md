@@ -467,3 +467,23 @@ A reviewer (read-only) found no blocker, 3 major and 4 minor findings; the three
 - `doc-keeper` did not review the documents (it declined to edit or review on an approval relayed by another agent); the programmer approved the documentation changes in the session.
 - The sign-up and welcome screens are not described in `docs/ui/README.md` (the design document needs the programmer's wording).
 - The 16 KB cap, the 5 per hour and 10/50 per 15 minutes limits are the decided values; whether they suit real traffic is not known.
+
+## Final validation, version 0.3.0 (2026-11-22)
+
+Source: [delivery-report.md](delivery-report.md). Environment: local Windows machine, Docker 29.4.3, Docker Compose 5.1.3, local PostgreSQL for the tests (18.4), PostgreSQL 16 in Compose.
+
+| # | Check | Result |
+|---|---|---|
+| 1 | `mvn verify` on `matriz_test` with `MATRIZ_DB_URL` set for that run only (`tester` agent; totals checked in its log), before and after the bump to 0.3.0 | 708 tests, 0 failures, 0 errors, 0 skipped, BUILD SUCCESS; `target/matriz-0.3.0.jar` built |
+| 2 | `docker compose config -q`, `docker compose build`, `docker compose up -d --build --wait` | No errors; `app` and `db` healthy |
+| 3 | `GET /` on the local stack | 200 |
+| 4 | `docker compose run --rm seed`, twice | 37 new rows, then 0 (idempotent) |
+| 5 | Last 50 log lines filtered for error, warn and exception | Nothing found |
+| 6 | Search of tracked files and history for secret patterns and private keys | Only fictitious values; the only tracked env file is `.env.example` |
+| 7 | CI runs on `master` and on pull request 27 | Tests, Build, Docker image build and End-to-end passed on the pull request; the run on the merge commit was not checked to the end |
+| 8 | Read-only requests to https://matriz-761f.onrender.com/ | `/` and `/config.js` returned 200 over HTTPS with HSTS, `nosniff` and `X-Frame-Options: DENY`; the first request after idle took over 60 s |
+| 9 | Sign-up, sign-in, sign-out, workspace creation and the Members screen on the public instance | Reported working by the programmer; not seen by Claude |
+
+**Problems and fixes:** none new. The seed inserted 37 rows into a three-day-old local database because the demo data had grown since; the second run inserted 0.
+
+**Not verified:** the Playwright test locally, migrations V6 to V8 on Neon, SMTP email sending, the commit deployed on Render, and the acceptance criteria of INC-17 to INC-19.
