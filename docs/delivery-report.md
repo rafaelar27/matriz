@@ -1,6 +1,6 @@
 # Matriz — Relatório de entrega (Ficha Prática 05)
 
-Data da validação: 2026-11-22 · Versão candidata: 0.2.0 (tag `v0.2.0`, não publicada em produção) · Ramo deste relatório: `docs/delivery-report`
+Data da validação: 2026-11-22 · Versão candidata: 0.3.0 (tag `v0.3.0`, a criar após o merge do pull request; `v0.2.0` é a candidata anterior; não publicada em produção) · Ramo deste relatório: `docs/delivery-report`
 
 Este relatório só regista resultados que foram executados ou que já constam de outros ficheiros do repositório. O que não foi verificado está indicado como "Não verificado" ou `[TO CONFIRM BY THE PROGRAMMER]`.
 
@@ -9,8 +9,8 @@ Este relatório só regista resultados que foram executados ou que já constam d
 - **Docker:** `Dockerfile` multi-stage (utilizador não-root, imagens base fixadas por tag e digest) e `.dockerignore` em lista de permissões.
 - **Docker Compose:** `compose.yaml` com PostgreSQL 16 e a aplicação, healthchecks, volume nomeado para os dados, rede dedicada `matriz-net` e um serviço `seed` idempotente, executado a pedido. O `.env.example` contém apenas valores fictícios; o `.env` não é versionado.
 - **CI:** `.github/workflows/ci.yml`, executado em `push` e `pull_request` com permissões só de leitura. Jobs: `test` (`mvn verify` com PostgreSQL), `build`, `docker` (imagem construída, não publicada) e `e2e` (Playwright sobre a stack Compose). Os jobs `docker` e `e2e` só correm depois de `test` e `build`.
-- **Documentação:** `README.md`, `docs/architecture.md` (com diagrama Mermaid), `openapi.yaml`, `CHANGELOG.md`, `docs/release-notes-0.2.0.md` e `docs/verification.md`.
-- **Funcionalidades posteriores à v0.2.0:** o pull request #26 (convites, papéis, remoção, alteração do nome e eliminação lógica de membros e espaços de trabalho; INC-17 a INC-19). `docs/implementation-plan.md`, `CHANGELOG.md` e `README.md` ainda não registam estes incrementos; ver secção 5.
+- **Documentação:** `README.md`, `docs/architecture.md` (com diagrama Mermaid), `openapi.yaml`, `CHANGELOG.md`, `docs/release-notes-0.2.0.md`, `docs/release-notes-0.3.0.md` e `docs/verification.md`.
+- **Funcionalidades posteriores à v0.2.0:** o pull request #26 (convites, papéis, remoção, alteração do nome e eliminação lógica de membros e espaços de trabalho; INC-17 a INC-19), incluídas na versão 0.3.0. O `CHANGELOG.md` (secção [0.3.0]), o `README.md`, o `docs/implementation-plan.md` e o `docs/release-notes-0.3.0.md` já as registam; ver secção 5 para o que continua por confirmar.
 
 ## 2. Resultados dos testes e da pipeline
 
@@ -51,9 +51,9 @@ Observação desta validação (2026-11-22): o seed inseriu 37 linhas numa base 
 ## 5. Limitações e funcionalidades pendentes
 
 - **Implantação pública:** Render e Neon (TD-02, decidido em parte), em https://matriz-761f.onrender.com/. Em 2026-11-22, `/` e `/config.js` responderam 200 por HTTPS (arranque a frio superior a 60 s no plano gratuito) e o programador reportou que o registo, o início e fim de sessão, a criação de um espaço de trabalho e o ecrã de membros funcionam. Não verificado: migrações V6 a V8 na Neon, envio de emails (SMTP) e o commit implantado. TD-05, TD-06 e TD-13 continuam pendentes.
-- **Documentação por atualizar:** `CHANGELOG.md` (secção Unreleased) e `README.md` ainda não descrevem os INC-17 a INC-19; a lista "Not built in this delivery" do README ainda indica FR-03 e FR-04 como por construir. Não se confirmou, a partir da documentação, até que ponto o PR #26 os cobre.
+- **Funcionalidades INC-17 a INC-19:** estão registadas no `CHANGELOG.md`, no README e no `docs/implementation-plan.md` (neste último como "Implementado no PR #26, não marcado como concluído pelo programador"). Não se confirmou, a partir da documentação, que todos os critérios de aceitação de US-03, US-04, US-30, US-31 e US-32 estão cumpridos `[TO CONFIRM]`; o README já não lista FR-03 e FR-04 como por construir.
 - **Imagem Docker:** não é analisada nem publicada; sem cobertura mínima de testes definida.
 - **Aviso do Flyway nos testes:** o PostgreSQL local de teste é o 18.4, mais recente do que a última versão que o Flyway testou (17); o Compose usa o 16 e o Neon o 18.
-- **Funcionalidades fora desta entrega (README):** FR-14, FR-17, FR-19, FR-20 e FR-21, arquivo de projetos (FR-06) e escolha de membros do projeto (FR-07); a lista completa e atual está no README, que pode estar desatualizado como indicado acima.
+- **Funcionalidades fora desta entrega (README):** FR-14, FR-17, FR-19, FR-20 e FR-21, arquivo de projetos (FR-06) e escolha de membros do projeto (FR-07); a lista completa e atual está no README.
 - **Desafios opcionais A, B e C da Ficha:** não implementados.
 - **Não verificado nesta validação:** teste Playwright local, mapeamento de cada teste aos critérios de aceitação, expiração de sessão inativa e sobrevivência da sessão a um reinício.
